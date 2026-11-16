@@ -1,5 +1,5 @@
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
-import type { ReviewLevel, Role, WorkerResultV1 } from '../contracts/worker-result.js';
+import type { Finding, ReviewLevel, Role, WorkerResultV1 } from '../contracts/worker-result.js';
 import { newId, nowIso } from '../core/ids.js';
 import { ensureProjectDirs, projectPaths, type ProjectPaths } from '../core/paths.js';
 import { jobSourcesFor, type JobState, type TaskState } from '../core/states.js';
@@ -31,6 +31,8 @@ export interface JobInputs {
   files?: string[];
   refs?: string[];
   priorJobIds?: string[];
+  /** Düzeltme işlerinde yöneticinin istediği bulgular. */
+  findings?: Finding[];
 }
 
 export interface TokenUsage {

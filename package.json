@@ -23,7 +23,7 @@
     "test:watch": "vitest",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run format:check && npm run typecheck && npm test"
+    "check": "npm run format:check && npm run typecheck && npm run build && npm test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
