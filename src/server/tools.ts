@@ -263,6 +263,137 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     (a) => wrap(() => svc().workspaceCleanup(a.task_id)),
   );
 
+  const opShape = {
+    operation: z.enum([
+      'commit',
+      'push',
+      'pr-create',
+      'pr-update',
+      'merge',
+      'deployment',
+      'database-change',
+      'security-policy-change',
+      'access-control-change',
+      'cost-change',
+      'irreversible-change',
+    ]),
+    reason: z.string().min(1),
+    task_id: z.string(),
+    actor: z.string().default('claude'),
+    checkpoint: z.string().describe('checkpoint aracının döndüğü checkpoint_path'),
+    test_evidence: z.string().describe('Proje içi test kanıtı dosyası'),
+    sensitive_scan_evidence: z.string().describe('Proje içi hassas veri taraması kanıtı'),
+    tests_passed: z.boolean(),
+    user_changes_preserved: z.boolean(),
+    sensitive_scan_clean: z.boolean(),
+    branch: z.string().optional(),
+    base_branch: z.string().optional(),
+    commit_hash: z.string().optional(),
+    ci_passed: z.boolean().optional(),
+    review_completed: z.boolean().optional(),
+    branch_protection_satisfied: z.boolean().optional(),
+    post_merge_validation_plan: z.string().optional(),
+    environment: z.string().optional(),
+    service: z.string().optional(),
+    artifact_hash: z.string().optional(),
+    artifact_evidence: z.string().optional(),
+    health_checks_passed: z.boolean().optional(),
+    health_checks_evidence: z.string().optional(),
+    rollback_plan: z.string().optional(),
+    production_policy_id: z.string().optional(),
+    risk_tier: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+    protected_risk: z
+      .enum([
+        'none',
+        'production-data-loss',
+        'irreversible-change',
+        'security-policy-change',
+        'access-control-change',
+        'unplanned-cost',
+      ])
+      .optional(),
+    explicit_user_approval: z.boolean().optional(),
+    approval_evidence: z.string().optional(),
+  };
+
+  server.registerTool(
+    'checkpoint',
+    {
+      description:
+        'Önemli işlemden (commit, push, merge, deploy) önce git durumunu kaydeder: dal, HEAD, status, patch, izlenmeyen dosya hash’leri. Çalışma ağacını değiştirmez.',
+      inputSchema: { reason: z.string().min(1), task_id: z.string().optional() },
+    },
+    (a) => wrap(() => svc().checkpoint(a.reason, a.task_id)),
+  );
+
+  server.registerTool(
+    'operation_authorize',
+    {
+      description:
+        'İşlem yetki kapısı (.anafor/policy.json): push/PR/merge/deploy allowlist’leri, test ve tarama kanıtı, checkpoint tazeliği; korumalı riskler açık kullanıcı onayı ister. Yalnızca karar verir, işlemi yapmaz.',
+      inputSchema: opShape,
+    },
+    (a) => wrap(() => svc().operationAuthorize(a)),
+  );
+
+  server.registerTool(
+    'operation_record',
+    {
+      description:
+        'Denenen her işlemi (başarılı, başarısız, engellenen) append-only audit’e yazar. Başarılı git/deploy kaydı hash ister.',
+      inputSchema: {
+        ...opShape,
+        outcome: z.enum(['succeeded', 'failed', 'blocked', 'rolled_back']),
+        result_summary: z.string().min(1),
+        reference: z.string().optional(),
+      },
+    },
+    (a) => wrap(() => svc().operationRecord(a)),
+  );
+
+  server.registerTool(
+    'memory_lock',
+    {
+      description:
+        'Proje hafızası (lat.md) için münhasır yazma kirası. acquire → token; iş bitince token ile release. Süresi kendiliğinden dolmaz.',
+      inputSchema: {
+        mode: z.enum(['acquire', 'release']),
+        task_id: z.string().optional(),
+        token: z.string().optional(),
+      },
+    },
+    (a) =>
+      wrap(() =>
+        svc().memoryLock(a.mode, {
+          ...(a.task_id ? { taskId: a.task_id } : {}),
+          ...(a.token ? { token: a.token } : {}),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    'memory_metrics',
+    {
+      description:
+        'Hafıza erişim ölçümü (kısa maskelenmiş etiket; token sayıları yalnızca gerçekse). Ölçümsüz tasarruf iddiası yapılmaz.',
+      inputSchema: {
+        task_id: z.string().nullable().default(null),
+        query_label: z.string(),
+        method: z.enum(['lat-cli', 'lat-mcp', 'hook', 'manual']),
+        index_status: z.enum(['ready', 'missing', 'stale', 'unknown']),
+        query_count: z.number().int().min(0).optional(),
+        sections_retrieved: z.number().int().min(0).optional(),
+        content_characters: z.number().int().min(0).optional(),
+        files_loaded: z.number().int().min(0).optional(),
+        input_tokens: z.number().int().min(0).optional(),
+        output_tokens: z.number().int().min(0).optional(),
+        cache_tokens: z.number().int().min(0).optional(),
+        outcome: z.enum(['completed', 'empty', 'stale', 'error', 'manual-fallback']),
+      },
+    },
+    (a) => wrap(() => svc().memoryMetrics(a)),
+  );
+
   server.registerTool(
     'intervene',
     {
