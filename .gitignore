@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+*.log
+.env
+.env.*
+# Anafor çalışma durumu (bu repo kendi üzerinde Anafor kullanırken)
+.anafor/
+.DS_Store
+Thumbs.db

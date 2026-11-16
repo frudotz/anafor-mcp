@@ -1,0 +1,7 @@
+# Tüm değişiklikler repo sahibinin onayını gerektirir.
+* @frudotz
+
+# Ortak sözleşmeler: değişiklikleri ayrıca dikkatle incelenir.
+/schemas/ @frudotz
+/src/adapters/types.ts @frudotz
+/.github/ @frudotz

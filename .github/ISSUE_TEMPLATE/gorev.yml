@@ -1,0 +1,28 @@
+name: Görev / Özellik
+description: Yeni bir iş veya özellik. İşe başlamadan önce açın ve kendinize atayın.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: amac
+    attributes:
+      label: Amaç
+      description: Ne yapılacak ve neden?
+    validations:
+      required: true
+  - type: textarea
+    id: kabul
+    attributes:
+      label: Kabul kriterleri
+      placeholder: '- [ ] ...'
+    validations:
+      required: true
+  - type: input
+    id: kapsam
+    attributes:
+      label: Etkilenecek modüller
+      placeholder: core, store, adapter-codex ...
+  - type: input
+    id: faz
+    attributes:
+      label: Yol haritası fazı
+      placeholder: F1
