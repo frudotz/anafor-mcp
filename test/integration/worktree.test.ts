@@ -97,6 +97,20 @@ describe('worktree paralelliği (F3)', () => {
     expect(git(t.dir, ['status', '--porcelain']).stdout.trim()).toBe(''); // geri alındı
   });
 
+  it('task_merge: izlenmeyen dosyalar (ör. kanıtlar) birleştirmeyi engellemez', async () => {
+    const a = svc.taskCreate({ title: 'A', objective: 'x' });
+    const ja = await svc.jobDispatch({
+      taskId: a.task_id,
+      role: 'implementation',
+      instructions: '[fake-file:u.txt]',
+    });
+    await svc.jobWait([ja.job_id], 30);
+    accept(a.task_id, ja.job_id);
+    writeFileSync(join(t.dir, 'evidence-tests.md'), 'npm test → 0\n');
+    expect(svc.taskMerge(a.task_id).merged).toBe(true);
+    expect(readFileSync(join(t.dir, 'evidence-tests.md'), 'utf8')).toContain('npm test');
+  });
+
   it('task_merge kirli çalışma ağacında reddedilir', async () => {
     const a = svc.taskCreate({ title: 'A', objective: 'x' });
     const ja = await svc.jobDispatch({
