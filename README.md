@@ -7,7 +7,7 @@
 - İletişim, tipli **MCP araçlarıyla** kurulur. Kurallar (düzenleme yasağı, kabul kapıları, yetki politikası) prompt'ta değil, kodda uygulanır.
 - Yeni bir yapay zekâ eklemek, bir `WorkerAdapter` yazmak kadar kolaydır.
 
-> **Durum:** v0.1. Claude Code → Anafor MCP → Codex akışı, yönetici disiplini hook'ları ve kabul kapıları çalışıyor. Worktree paralelliği ve ikinci işçi sıradaki fazlarda.
+> **Durum:** v0.1. Claude Code → Anafor MCP → Codex akışı, yönetici disiplini hook'ları ve kabul kapıları çalışıyor. Worktree paralelliği çalışıyor; ikinci işçi sıradaki fazda.
 
 ## Mimari (özet)
 
@@ -51,7 +51,25 @@ Claude Code içinde örnek istek: *"Anafor ile görev aç, Codex'e dağıt, biti
 | `job_diff` | İş başlangıcındaki HEAD'e göre fark ve işçi raporuyla uyuşmazlıklar |
 | `task_accept` | Kabul kapıları (testler, eksik gereksinim, kritik bulgu, kanıt; deep'te bağımsız review) |
 | `task_close` | Görevi kabul etmeden kapatma |
+| `task_merge` | Kabul edilmiş görev dalını çalışma ağacındaki dala birleştirme (temiz ağaç şartı, çakışmada geri alma) |
+| `workspace_cleanup` | Biten işlerin worktree ve birleşmiş dallarını güvenle temizleme |
 | `intervene`, `intervene_end` | Pürüz istisnası: süreli ve yol kısıtlı, audit'li doğrudan düzenleme izni |
+
+### Paralel çalışma: git worktree
+
+Git deposunda `implementation` ve `test` işleri varsayılan olarak **kendi worktree'lerinde** çalışır:
+
+```
+main (senin çalışma ağacın: dokunulmaz)
+ └─ anafor/<görev>              görev dalı
+     ├─ anafor/<görev>-<iş1>    .anafor/worktrees/<iş1>
+     └─ anafor/<görev>-<iş2>    .anafor/worktrees/<iş2>
+```
+
+- Düzeltme ve devam işleri aynı worktree'de, aynı işçi oturumunda sürer.
+- `review` işi `target_job_id` ile hedef işin worktree'sini salt okunur inceler.
+- `task_accept` değişiklikleri iş dalına commit edip görev dalına birleştirir; `task_merge` görev dalını senin dalına alır.
+- Yeni worktree'de bağımlılık kurulumu için: `anafor.config.json` → `"worktree_setup": "npm ci"`.
 
 ### Claude Code plugin'i (yönetici disiplini)
 

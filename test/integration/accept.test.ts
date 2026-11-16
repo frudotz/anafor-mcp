@@ -53,7 +53,7 @@ describe('job_diff ve task_accept', () => {
   it('job_diff: izlenen dosya değişikliği patch içinde', async () => {
     const task = svc.taskCreate({ title: 'd2', objective: 'x' });
     const jobId = await run(task.task_id, 'implementation');
-    writeFileSync(join(t.dir, 'README.md'), '# değişti\n');
+    writeFileSync(join(store.mustGetJob(jobId).workdir, 'README.md'), '# değişti\n');
     const diff = svc.jobDiff(jobId);
     expect(diff.patch).toContain('değişti');
     expect(diff.mismatch.changed_but_not_reported).toContain('README.md');
@@ -65,7 +65,8 @@ describe('job_diff ve task_accept', () => {
     const r = svc.taskAccept(task.task_id, jobId);
     expect(r.failed_gates).toEqual([]);
     expect(r.accepted).toBe(true);
-    expect(store.mustGetJob(jobId).state).toBe('approved');
+    expect(store.mustGetJob(jobId).state).toBe('merged');
+    expect(r.integration?.task_branch).toBe(`anafor/${task.task_id}`);
     expect(svc.taskStatus(task.task_id).state).toBe('accepted');
   });
 
