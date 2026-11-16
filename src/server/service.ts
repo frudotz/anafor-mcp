@@ -9,7 +9,19 @@ import {
   MAX_CORRECTIONS,
   type JobState,
 } from '../core/states.js';
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { evaluateAcceptance } from '../core/accept.js';
+import { git, headSha, isGitRepo, workDiff } from '../git/git.js';
 import { activeGrants, createGrant, endGrant } from '../hooks/grants.js';
+
+function appendTaskAudit(auditDir: string, record: object): void {
+  mkdirSync(auditDir, { recursive: true });
+  appendFileSync(
+    join(auditDir, 'tasks.jsonl'),
+    JSON.stringify({ ts: new Date().toISOString(), ...record }) + '\n',
+  );
+}
 import { runJob } from '../runner/run-job.js';
 import { spawnDetachedRunner } from '../runner/spawn.js';
 import {
@@ -265,12 +277,122 @@ export class AnaforService {
       instructions: input.instructions,
       inputs: input.inputs ?? {},
       timeoutS: input.timeoutS ?? DEFAULT_TIMEOUT_S[input.role],
+      baseSha: headSha(this.store.paths.root),
     });
     if (task.state === 'open' || task.state === 'in_review') {
       this.store.updateTask(task.id, { state: 'in_progress' });
     }
+    const warnings: string[] = [];
+    if (workspace === 'shared') {
+      const dirty = git(this.store.paths.root, ['status', '--porcelain'])
+        .stdout.split('\n')
+        .filter((l) => l.trim() && !l.includes('.anafor/'));
+      if (dirty.length) {
+        warnings.push(
+          `Çalışma ağacında ${dirty.length} commit edilmemiş değişiklik var; job_diff bunları da gösterir (taban: HEAD).`,
+        );
+      }
+    }
     this.startJob(job);
-    return { ...jobBrief(this.store.mustGetJob(job.id)), resumed_session: sessionRef !== null };
+    return {
+      ...jobBrief(this.store.mustGetJob(job.id)),
+      resumed_session: sessionRef !== null,
+      warnings,
+    };
+  }
+
+  /** İşin çalışma alanı farkı. Patch dosyaya yazılır; küçükse satır içi döner (token tasarrufu). */
+  jobDiff(jobId: string, statOnly = false) {
+    const j = this.mustJob(jobId);
+    if (!isGitRepo(j.workdir)) {
+      throw new ServiceError('VALIDATION_FAILED', 'Çalışma alanı bir git deposu değil');
+    }
+    const d = workDiff(j.workdir, j.baseSha);
+    const dir = this.store.paths.jobDir(jobId);
+    mkdirSync(dir, { recursive: true });
+    const patchFile = join(dir, 'diff.patch');
+    writeFileSync(patchFile, d.patch);
+    const claimed = j.result?.changed_files ?? [];
+    const norm = (p: string) => p.replace(/\\/g, '/').replace(/^\.\//, '');
+    const actual = new Set(d.changedFiles.map(norm));
+    const notClaimed = [...actual].filter((f) => !claimed.map(norm).includes(f));
+    const claimedMissing = claimed.map(norm).filter((f) => !actual.has(f));
+    const INLINE_LIMIT = 12_000;
+    return {
+      job_id: jobId,
+      base: d.base,
+      changed_files: [...actual],
+      untracked: d.untracked,
+      stat: d.stat,
+      patch_file: patchFile,
+      patch: statOnly || d.patch.length > INLINE_LIMIT ? null : d.patch,
+      patch_truncated: !statOnly && d.patch.length > INLINE_LIMIT,
+      mismatch: {
+        changed_but_not_reported: notClaimed,
+        reported_but_unchanged: claimedMissing,
+      },
+    };
+  }
+
+  /** Kabul kapıları; geçerse iş approved, görev accepted. Kapı hatası araç hatası değildir. */
+  taskAccept(taskId: string, jobId: string, reviewJobId?: string) {
+    const task = this.mustTask(taskId);
+    const job = this.mustJob(jobId);
+    const reviewJob = reviewJobId ? this.mustJob(reviewJobId) : null;
+    const gates = evaluateAcceptance({
+      task,
+      job,
+      taskJobs: this.store.listJobs({ taskId }),
+      reviewJob,
+      projectRoot: this.store.paths.root,
+    });
+    const failed = gates.filter((g) => !g.ok);
+    if (failed.length === 0) {
+      this.guard(() => this.store.transitionJob(job.id, 'approved'));
+      if (reviewJob && reviewJob.state === 'needs_review') {
+        this.guard(() => this.store.transitionJob(reviewJob.id, 'approved'));
+      }
+      this.store.updateTask(taskId, { state: 'accepted', note: `kabul: ${job.id}` });
+      appendTaskAudit(this.store.paths.auditDir, {
+        event: 'task_accepted',
+        task_id: taskId,
+        job_id: jobId,
+        review_job_id: reviewJobId ?? null,
+        gates,
+      });
+    }
+    return {
+      task_id: taskId,
+      accepted: failed.length === 0,
+      failed_gates: failed,
+      passed_gates: gates.filter((g) => g.ok).map((g) => g.gate),
+      note: failed.length
+        ? 'Kapılardan geçmedi: düzeltme isteyin (job_request_changes) veya kullanıcıya raporlayın.'
+        : 'Kabul edildi. Kalıcı bilgi varsa proje hafızasını güncelleyin.',
+    };
+  }
+
+  taskClose(taskId: string, outcome: 'abandoned' | 'superseded', note: string) {
+    const task = this.mustTask(taskId);
+    if (isClosedTaskState(task.state)) {
+      throw new ServiceError('INVALID_STATE', `Görev zaten kapalı: ${task.state}`);
+    }
+    const active = this.store.listJobs({ taskId, states: ACTIVE_JOB_STATES });
+    if (active.length) {
+      throw new ServiceError(
+        'CONFLICT',
+        `Görevde aktif işler var: ${active.map((j) => j.id).join(', ')}`,
+        'Önce job_cancel ile iptal edin',
+      );
+    }
+    const t = this.store.updateTask(taskId, { state: outcome, note });
+    appendTaskAudit(this.store.paths.auditDir, {
+      event: 'task_closed',
+      task_id: taskId,
+      outcome,
+      note,
+    });
+    return taskBrief(t);
   }
 
   jobStatus(jobId: string) {

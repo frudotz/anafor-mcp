@@ -68,6 +68,8 @@ const MIGRATIONS: string[] = [
     PRIMARY KEY (job_id, seq)
   );
   `,
+  // 2: iş başlangıcındaki git tabanı (job_diff ve kabul için)
+  `ALTER TABLE jobs ADD COLUMN base_sha TEXT;`,
 ];
 
 export function openDatabase(file: string): DatabaseSync {

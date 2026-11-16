@@ -201,6 +201,44 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
   );
 
   server.registerTool(
+    'job_diff',
+    {
+      description:
+        'İşin çalışma alanı farkı (taban: iş başladığındaki HEAD): değişen dosyalar, stat, patch (küçükse satır içi, değilse dosya yolu) ve işçinin raporuyla uyuşmazlıklar.',
+      inputSchema: { job_id: z.string(), stat_only: z.boolean().optional() },
+    },
+    (a) => wrap(() => svc().jobDiff(a.job_id, a.stat_only ?? false)),
+  );
+
+  server.registerTool(
+    'task_accept',
+    {
+      description:
+        'Kabul kapıları: en güncel uygulama işi, tamamlanmış sonuç, eksik gereksinim yok, testler geçti, kritik bulgu yok, kanıtlar proje içinde; deep seviyede bağımsız ve güncel review işi. Geçerse görev accepted.',
+      inputSchema: {
+        task_id: z.string(),
+        job_id: z.string(),
+        review_job_id: z.string().optional(),
+      },
+    },
+    (a) => wrap(() => svc().taskAccept(a.task_id, a.job_id, a.review_job_id)),
+  );
+
+  server.registerTool(
+    'task_close',
+    {
+      description:
+        'Görevi kabul etmeden kapatır (abandoned veya superseded). Aktif iş varsa önce iptal edin.',
+      inputSchema: {
+        task_id: z.string(),
+        outcome: z.enum(['abandoned', 'superseded']),
+        note: z.string().min(1),
+      },
+    },
+    (a) => wrap(() => svc().taskClose(a.task_id, a.outcome, a.note)),
+  );
+
+  server.registerTool(
     'intervene',
     {
       description:

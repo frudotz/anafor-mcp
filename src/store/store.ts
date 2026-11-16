@@ -64,6 +64,8 @@ export interface Job {
   result: WorkerResultV1 | null;
   warnings: string[];
   usage: TokenUsage | null;
+  /** İş başladığında çalışma alanının git HEAD'i. */
+  baseSha: string | null;
   createdAt: string;
   startedAt: string | null;
   endedAt: string | null;
@@ -129,6 +131,7 @@ function toJob(r: Row): Job {
     result: parse(r.result_json ?? null, null),
     warnings: parse(r.warnings_json ?? null, []),
     usage: parse(r.usage_json ?? null, null),
+    baseSha: str(r.base_sha ?? null),
     createdAt: String(r.created_at),
     startedAt: str(r.started_at ?? null),
     endedAt: str(r.ended_at ?? null),
@@ -163,6 +166,7 @@ export interface CreateJobInput {
   inputs?: JobInputs;
   timeoutS: number;
   id?: string;
+  baseSha?: string | null;
 }
 
 /** Bir projenin kalıcı durumu. Tüm durum değişiklikleri buradan geçer. */
@@ -266,8 +270,8 @@ export class Store {
       .prepare(
         `INSERT INTO jobs (id, task_id, role, worker, model, state, workspace_mode, workdir, branch,
           session_ref, parent_job_id, is_correction, instructions, inputs_json, timeout_s,
-          created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          base_sha, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -284,6 +288,7 @@ export class Store {
         input.instructions,
         JSON.stringify(input.inputs ?? {}),
         input.timeoutS,
+        input.baseSha ?? null,
         now,
         now,
       );
