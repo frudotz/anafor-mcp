@@ -5,6 +5,8 @@ import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaultAdapters } from '../adapters/registry.js';
+import { runPreToolUse } from '../hooks/director.js';
+import { runSessionStart } from '../hooks/session-start.js';
 import { startServer } from '../server/main.js';
 import { Store } from '../store/store.js';
 import { ANAFOR_VERSION } from '../version.js';
@@ -86,7 +88,10 @@ switch (cmd) {
     await doctor();
     break;
   case 'mcp':
-    await startServer(process.env.ANAFOR_PROJECT_ROOT ?? root);
+    await startServer(process.env.ANAFOR_PROJECT_ROOT ?? (rest[0] ? root : undefined));
+    break;
+  case 'hook':
+    await hook(rest[0] ?? '');
     break;
   case 'version':
   case '--version':
@@ -98,5 +103,24 @@ kullanım:
   anafor init [dizin]     .anafor/ ve .mcp.json oluşturur
   anafor doctor [dizin]   ortam ve işçi kontrolü
   anafor mcp [dizin]      MCP sunucusunu stdio üzerinde başlatır
+  anafor hook <olay>      Claude Code hook'u (pre-tool-use | session-start), girdi stdin'den
   anafor version`);
+}
+
+/** Claude Code hook'ları. Hata durumunda iş akışını kilitlememek için sessizce izin verir. */
+async function hook(event: string): Promise<void> {
+  const chunks: Buffer[] = [];
+  for await (const c of process.stdin) chunks.push(c as Buffer);
+  try {
+    const input = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') as Record<
+      string,
+      unknown
+    >;
+    let out = '';
+    if (event === 'pre-tool-use') out = runPreToolUse(input);
+    else if (event === 'session-start') out = runSessionStart(input as { cwd?: string });
+    if (out) process.stdout.write(out);
+  } catch (e) {
+    process.stderr.write(`[anafor hook] ${(e as Error).message}\n`);
+  }
 }

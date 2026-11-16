@@ -9,6 +9,7 @@ import {
   MAX_CORRECTIONS,
   type JobState,
 } from '../core/states.js';
+import { activeGrants, createGrant, endGrant } from '../hooks/grants.js';
 import { runJob } from '../runner/run-job.js';
 import { spawnDetachedRunner } from '../runner/spawn.js';
 import {
@@ -28,7 +29,8 @@ export type ServiceErrorCode =
   | 'LIMIT_REACHED'
   | 'VALIDATION_FAILED'
   | 'CONFLICT'
-  | 'NOT_IMPLEMENTED';
+  | 'NOT_IMPLEMENTED'
+  | 'NOT_INITIALIZED';
 
 export class ServiceError extends Error {
   constructor(
@@ -410,6 +412,39 @@ export class AnaforService {
       }
     }
     return notes;
+  }
+
+  // ---- müdahale (pürüz istisnası) ----
+
+  intervene(input: { reason: string; paths: string[]; ttlMin?: number; taskId?: string }) {
+    if (input.taskId) this.mustTask(input.taskId);
+    try {
+      const g = createGrant(this.store.paths.root, {
+        reason: input.reason,
+        paths: input.paths,
+        ttlMin: input.ttlMin ?? 15,
+        taskId: input.taskId ?? null,
+      });
+      return {
+        ...g,
+        note: 'Yalnızca bu yollarda ve süre içinde düzenleme serbest. Bitince intervene_end ile özet ver.',
+      };
+    } catch (e) {
+      throw new ServiceError('VALIDATION_FAILED', (e as Error).message);
+    }
+  }
+
+  interveneEnd(grantId: string, summary: string) {
+    try {
+      const g = endGrant(this.store.paths.root, grantId, summary);
+      return { grant_id: g.grant_id, ended: true };
+    } catch (e) {
+      throw new ServiceError('NOT_FOUND', (e as Error).message);
+    }
+  }
+
+  activeInterventions() {
+    return activeGrants(this.store.paths.root);
   }
 
   // ---- yardımcılar ----
