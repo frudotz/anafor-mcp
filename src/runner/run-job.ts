@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AdapterRegistry } from '../adapters/registry.js';
@@ -7,6 +8,7 @@ import {
   validateWorkerResult,
   WORKER_RESULT_SCHEMA_PATH,
 } from '../contracts/worker-result.js';
+import { loadConfig } from '../core/config.js';
 import { nowIso } from '../core/ids.js';
 import { compilePrompt } from '../core/prompt.js';
 import { ACTIVE_JOB_STATES } from '../core/states.js';
@@ -81,6 +83,25 @@ export async function runJob(
 
   const adapter = adapters.get(job.worker);
   if (!adapter) return fail(`Bilinmeyen işçi: ${job.worker}`);
+
+  // Yeni worktree'de bağımlılık kurulumu (config: worktree_setup).
+  const setup = loadConfig(store.paths.root).worktree_setup;
+  if (setup && job.workspaceMode === 'worktree' && !job.isCorrection && !job.sessionRef) {
+    store.appendEvent(job.id, 'setup', setup);
+    const r = spawnSync(setup, {
+      cwd: job.workdir,
+      shell: true,
+      encoding: 'utf8',
+      timeout: 15 * 60_000,
+      windowsHide: true,
+    });
+    writeFileSync(
+      join(artifactsDir, 'setup.log'),
+      `${r.stdout ?? ''}
+${r.stderr ?? ''}`,
+    );
+    if (r.status !== 0) return fail(`worktree_setup başarısız (${r.status}): ${setup}`);
+  }
 
   const prompt = compilePrompt(task, job, {
     ...(job.inputs.findings ? { findings: job.inputs.findings } : {}),

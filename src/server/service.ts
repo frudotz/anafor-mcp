@@ -1,6 +1,6 @@
 import type { AdapterRegistry } from '../adapters/registry.js';
 import type { Finding, ReviewLevel, Role } from '../contracts/worker-result.js';
-import { nowIso } from '../core/ids.js';
+import { newId, nowIso } from '../core/ids.js';
 import { isAlive, killPidTree } from '../core/process-util.js';
 import {
   ACTIVE_JOB_STATES,
@@ -9,10 +9,19 @@ import {
   MAX_CORRECTIONS,
   type JobState,
 } from '../core/states.js';
-import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { evaluateAcceptance } from '../core/accept.js';
 import { git, headSha, isGitRepo, workDiff } from '../git/git.js';
+import {
+  branchExists,
+  commitWorktree,
+  createJobWorktree,
+  hasChanges,
+  mergeIntoTaskBranch,
+  removeWorktree,
+  taskBranchName,
+} from '../git/worktree.js';
 import { activeGrants, createGrant, endGrant } from '../hooks/grants.js';
 
 function appendTaskAudit(auditDir: string, record: object): void {
@@ -42,7 +51,8 @@ export type ServiceErrorCode =
   | 'VALIDATION_FAILED'
   | 'CONFLICT'
   | 'NOT_IMPLEMENTED'
-  | 'NOT_INITIALIZED';
+  | 'NOT_INITIALIZED'
+  | 'INTERNAL';
 
 export class ServiceError extends Error {
   constructor(
@@ -115,6 +125,8 @@ export interface DispatchInput {
   timeoutS?: number | undefined;
   inputs?: JobInputs | undefined;
   newSession?: boolean | undefined;
+  /** review/analysis için başka bir işin çalışma alanını salt okunur incele. */
+  targetJobId?: string | undefined;
 }
 
 /** MCP araçlarının arkasındaki iş mantığı. Taşıma (MCP) katmanından bağımsızdır. */
@@ -238,14 +250,18 @@ export class AnaforService {
       );
     }
 
+    const root = this.store.paths.root;
+    const repoReady = isGitRepo(root) && headSha(root) !== null;
+    const target = input.targetJobId ? this.mustJob(input.targetJobId) : null;
+    const writes = input.role === 'implementation' || input.role === 'test';
     const workspace: WorkspaceMode =
       input.workspace ??
-      (input.role === 'implementation' || input.role === 'test' ? 'shared' : 'readonly');
-    if (workspace === 'worktree') {
+      (target ? 'readonly' : writes ? (repoReady ? 'worktree' : 'shared') : 'readonly');
+    if (workspace === 'worktree' && !repoReady) {
       throw new ServiceError(
-        'NOT_IMPLEMENTED',
-        'worktree modu henüz yok (F3)',
-        "workspace: 'shared' veya 'readonly' kullanın",
+        'VALIDATION_FAILED',
+        'worktree modu en az bir commit içeren bir git deposu gerektirir',
+        "Önce commit atın veya workspace: 'shared' kullanın",
       );
     }
     if (workspace === 'shared') {
@@ -256,28 +272,72 @@ export class AnaforService {
         throw new ServiceError(
           'CONFLICT',
           `Paylaşılan çalışma alanında zaten yazan bir iş var: ${writer.id}`,
-          'Bitmesini bekleyin; paralel yazma işleri worktree modu ile gelecek (F3)',
+          "Bitmesini bekleyin veya workspace: 'worktree' kullanın",
         );
       }
     }
 
-    const sessionRef =
+    // Oturum ve çalışma alanı sürekliliği: worktree'de devam, önceki işin worktree'sinde olur.
+    let sessionRef =
       input.newSession || !caps.resume
         ? null
         : this.store.getSession(task.id, input.role, workerId);
+    let reuse: Job | null = null;
+    if (workspace === 'worktree' && sessionRef) {
+      reuse =
+        this.store
+          .listJobs({ taskId: task.id })
+          .filter(
+            (j) =>
+              j.role === input.role &&
+              j.worker === workerId &&
+              j.workspaceMode === 'worktree' &&
+              j.sessionRef === sessionRef &&
+              !['merged', 'cancelled'].includes(j.state) &&
+              existsSync(j.workdir),
+          )
+          .pop() ?? null;
+      if (!reuse) sessionRef = null; // yeni worktree = yeni oturum
+    }
+
+    const jobId = newId('J');
+    let workdir = root;
+    let branch: string | null = null;
+    let baseSha = headSha(root);
+    if (target) {
+      workdir = target.workdir;
+      baseSha = target.baseSha;
+    } else if (workspace === 'worktree') {
+      if (reuse) {
+        workdir = reuse.workdir;
+        branch = reuse.branch;
+        baseSha = reuse.baseSha;
+      } else {
+        try {
+          const wt = createJobWorktree(root, this.store.paths.worktreesDir, task.id, jobId);
+          workdir = wt.path;
+          branch = wt.branch;
+          baseSha = wt.base;
+        } catch (e) {
+          throw new ServiceError('INTERNAL', `Worktree oluşturulamadı: ${(e as Error).message}`);
+        }
+      }
+    }
 
     const job = this.store.createJob({
+      id: jobId,
       taskId: task.id,
       role: input.role,
       worker: workerId,
       model: input.model ?? null,
       workspaceMode: workspace,
-      workdir: this.store.paths.root,
+      workdir,
+      branch,
       sessionRef,
       instructions: input.instructions,
       inputs: input.inputs ?? {},
       timeoutS: input.timeoutS ?? DEFAULT_TIMEOUT_S[input.role],
-      baseSha: headSha(this.store.paths.root),
+      baseSha,
     });
     if (task.state === 'open' || task.state === 'in_review') {
       this.store.updateTask(task.id, { state: 'in_progress' });
@@ -346,9 +406,37 @@ export class AnaforService {
       reviewJob,
       projectRoot: this.store.paths.root,
     });
+    // Worktree işi: değişiklikleri iş dalına commit et ve görev dalına birleştir.
+    let integration: { task_branch: string; commit: string | null } | null = null;
+    if (gates.every((g) => g.ok) && job.workspaceMode === 'worktree' && job.branch) {
+      try {
+        commitWorktree(
+          job.workdir,
+          `${task.title}\n\nAnafor-Task: ${task.id}\nAnafor-Job: ${job.id}\nAnafor-Worker: ${job.worker}`,
+        );
+        const m = mergeIntoTaskBranch(
+          this.store.paths.root,
+          this.store.paths.worktreesDir,
+          task.id,
+          job.branch,
+          `anafor: ${task.title} (${job.id})`,
+        );
+        gates.push({
+          gate: 'merge_into_task_branch',
+          ok: m.merged,
+          detail: m.merged
+            ? `${m.taskBranch} ← ${job.branch}`
+            : `çakışma: ${m.conflicts.join(', ')}`,
+        });
+        if (m.merged) integration = { task_branch: m.taskBranch, commit: m.commit };
+      } catch (e) {
+        gates.push({ gate: 'merge_into_task_branch', ok: false, detail: (e as Error).message });
+      }
+    }
     const failed = gates.filter((g) => !g.ok);
     if (failed.length === 0) {
       this.guard(() => this.store.transitionJob(job.id, 'approved'));
+      if (integration) this.guard(() => this.store.transitionJob(job.id, 'merged'));
       if (reviewJob && reviewJob.state === 'needs_review') {
         this.guard(() => this.store.transitionJob(reviewJob.id, 'approved'));
       }
@@ -358,6 +446,7 @@ export class AnaforService {
         task_id: taskId,
         job_id: jobId,
         review_job_id: reviewJobId ?? null,
+        integration,
         gates,
       });
     }
@@ -366,10 +455,137 @@ export class AnaforService {
       accepted: failed.length === 0,
       failed_gates: failed,
       passed_gates: gates.filter((g) => g.ok).map((g) => g.gate),
+      integration,
       note: failed.length
         ? 'Kapılardan geçmedi: düzeltme isteyin (job_request_changes) veya kullanıcıya raporlayın.'
-        : 'Kabul edildi. Kalıcı bilgi varsa proje hafızasını güncelleyin.',
+        : integration
+          ? `Kabul edildi; değişiklikler ${integration.task_branch} dalında. Kullanıcı dalına almak için task_merge.`
+          : 'Kabul edildi. Kalıcı bilgi varsa proje hafızasını güncelleyin.',
     };
+  }
+
+  /**
+   * Kabul edilmiş görevin dalını kullanıcının dalına birleştirir. Yalnızca proje çalışma ağacı
+   * temizken; çakışmada geri alınır. Kullanıcı değişikliklerine asla dokunmaz.
+   */
+  taskMerge(taskId: string, targetBranch?: string) {
+    const task = this.mustTask(taskId);
+    if (task.state !== 'accepted') {
+      throw new ServiceError(
+        'INVALID_STATE',
+        `Görev kabul edilmemiş: ${task.state}`,
+        'Önce task_accept',
+      );
+    }
+    const root = this.store.paths.root;
+    const branch = taskBranchName(taskId);
+    if (!branchExists(root, branch)) {
+      throw new ServiceError(
+        'NOT_FOUND',
+        `Görev dalı yok: ${branch} (shared modda değişiklikler zaten çalışma ağacında)`,
+      );
+    }
+    const current = git(root, ['branch', '--show-current']).stdout.trim();
+    const target = targetBranch ?? current;
+    if (target !== current) {
+      throw new ServiceError(
+        'VALIDATION_FAILED',
+        `Hedef dal (${target}) çalışma ağacındaki daldan (${current}) farklı`,
+        'Hedef dala geçin veya target_branch vermeyin',
+      );
+    }
+    const dirty = git(root, ['status', '--porcelain'])
+      .stdout.split('\n')
+      .filter((l) => l.trim() && !l.includes('.anafor/'));
+    if (dirty.length) {
+      throw new ServiceError(
+        'CONFLICT',
+        `Çalışma ağacında ${dirty.length} commit edilmemiş değişiklik var; birleştirme yapılmadı`,
+        'Kullanıcı değişikliklerini commit edin veya stash edin',
+      );
+    }
+    const before = headSha(root);
+    const email = git(root, ['config', 'user.email']).stdout.trim();
+    const id = email ? [] : ['-c', 'user.name=Anafor', '-c', 'user.email=anafor@localhost'];
+    const r = git(root, [
+      ...id,
+      'merge',
+      '--no-ff',
+      '--no-edit',
+      '-m',
+      `anafor: ${task.title} (${task.id})`,
+      branch,
+    ]);
+    if (r.code !== 0) {
+      const conflicts = git(root, ['diff', '--name-only', '--diff-filter=U'])
+        .stdout.split('\n')
+        .filter(Boolean);
+      git(root, ['merge', '--abort']);
+      return { merged: false, target, conflicts, note: 'Çakışma: birleştirme geri alındı.' };
+    }
+    const after = headSha(root);
+    appendTaskAudit(this.store.paths.auditDir, {
+      event: 'task_merged',
+      task_id: taskId,
+      target,
+      before,
+      after,
+    });
+    return {
+      merged: true,
+      target,
+      before,
+      after,
+      note: 'Geri almak için: git revert -m 1 ' + after,
+    };
+  }
+
+  /**
+   * Biten işlerin worktree'lerini ve birleşmiş dallarını temizler.
+   * Aktif/incelemedeki işlerin veya kaydedilmemiş değişiklik içeren worktree'lere dokunmaz.
+   */
+  workspaceCleanup(taskId: string) {
+    const task = this.mustTask(taskId);
+    const root = this.store.paths.root;
+    const jobs = this.store.listJobs({ taskId }).filter((j) => j.workspaceMode === 'worktree');
+    const busy = new Set(
+      jobs
+        .filter((j) => [...ACTIVE_JOB_STATES, 'needs_review', 'approved'].includes(j.state))
+        .map((j) => j.workdir),
+    );
+    const removed: string[] = [];
+    const kept: { path: string; reason: string }[] = [];
+    for (const path of new Set(jobs.map((j) => j.workdir))) {
+      if (busy.has(path)) {
+        kept.push({ path, reason: 'aktif veya incelemede iş var' });
+        continue;
+      }
+      if (!existsSync(path)) continue;
+      if (hasChanges(path)) {
+        kept.push({ path, reason: 'kaydedilmemiş değişiklik var (silinmedi)' });
+        continue;
+      }
+      const owner = jobs.find((j) => j.workdir === path);
+      const merged = owner?.state === 'merged';
+      try {
+        removeWorktree(root, path, owner?.branch ?? null, merged);
+        removed.push(path);
+      } catch (e) {
+        kept.push({ path, reason: (e as Error).message });
+      }
+    }
+    if (isClosedTaskState(task.state)) {
+      const integ = join(this.store.paths.worktreesDir, `_task-${taskId}`);
+      if (existsSync(integ)) {
+        try {
+          removeWorktree(root, integ, null, false);
+          removed.push(integ);
+        } catch (e) {
+          kept.push({ path: integ, reason: (e as Error).message });
+        }
+      }
+    }
+    return { task_id: taskId, removed, kept };
   }
 
   taskClose(taskId: string, outcome: 'abandoned' | 'superseded', note: string) {
@@ -499,6 +715,8 @@ export class AnaforService {
       model: j.model,
       workspaceMode: j.workspaceMode,
       workdir: j.workdir,
+      branch: j.branch,
+      baseSha: j.baseSha,
       sessionRef: j.sessionRef,
       parentJobId: j.id,
       isCorrection: true,

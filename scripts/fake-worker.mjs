@@ -12,6 +12,7 @@ const prompt = Buffer.concat(chunks).toString('utf8');
 
 const pick = (key) => new RegExp(`${key}:\\s*\`?([\\w.-]+)`).exec(prompt)?.[1] ?? 'unknown';
 const scenario = /\[fake:([\w-]+)\]/.exec(prompt)?.[1] ?? 'ok';
+const outName = /\[fake-file:([\w.-]+)\]/.exec(prompt)?.[1] ?? 'FAKE_OUTPUT.txt';
 const resumeIdx = process.argv.indexOf('--resume');
 const thread = resumeIdx >= 0 ? process.argv[resumeIdx + 1] : randomUUID();
 const outIdx = process.argv.indexOf('-o');
@@ -31,10 +32,10 @@ if (scenario === 'fail') {
   process.exit(1);
 }
 
-writeFileSync('FAKE_OUTPUT.txt', `iş ${pick('job_id')} tamamlandı\n`);
+writeFileSync(outName, `iş ${pick('job_id')} tamamlandı\n`);
 emit({
   type: 'item.completed',
-  item: { type: 'file_change', changes: [{ path: 'FAKE_OUTPUT.txt', kind: 'add' }] },
+  item: { type: 'file_change', changes: [{ path: outName, kind: 'add' }] },
 });
 emit({
   type: 'item.completed',
@@ -47,8 +48,8 @@ const result = {
   job_id: scenario === 'wrong-id' ? 'J-uydurma' : pick('job_id'),
   agent_role: pick('agent_role'),
   status: 'completed',
-  summary: 'Sahte işçi FAKE_OUTPUT.txt dosyasını oluşturdu.',
-  changed_files: ['FAKE_OUTPUT.txt'],
+  summary: `Sahte işçi ${outName} dosyasını oluşturdu.`,
+  changed_files: [outName],
   requirements_completed: ['sahte gereksinim'],
   requirements_missing: [],
   tests: { executed: ['echo test'], passed: 1, failed: 0, exit_codes: [0] },

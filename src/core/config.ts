@@ -12,6 +12,8 @@ export interface AnaforConfig {
   allow_verify_commands: boolean;
   /** Varsayılan işçi. */
   default_worker: string;
+  /** Yeni worktree'de işçiden önce çalışacak kurulum komutu (ör. "npm ci"). */
+  worktree_setup: string | null;
 }
 
 export const DEFAULT_CONFIG: AnaforConfig = {
@@ -19,6 +21,7 @@ export const DEFAULT_CONFIG: AnaforConfig = {
   allow_paths: ['lat.md/**', '.anafor/**', 'CLAUDE.md', 'AGENTS.md', 'docs/**', '**/*.md'],
   allow_verify_commands: true,
   default_worker: 'codex',
+  worktree_setup: null,
 };
 
 /** `.anafor/config.json` + proje `anafor.config.json` (proje dosyası önceliklidir). */

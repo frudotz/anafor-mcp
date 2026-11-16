@@ -101,7 +101,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     'job_dispatch',
     {
       description:
-        'Görev için bir işçiye iş verir ve hemen job_id döner (iş arka planda sürer). implementation/test varsayılan olarak proje çalışma alanına yazar; analysis/review salt okunur.',
+        'Görev için bir işçiye iş verir ve hemen job_id döner (iş arka planda sürer). implementation/test git deposunda varsayılan olarak kendi worktree dalında çalışır (paralel güvenli); analysis/review salt okunur.',
       inputSchema: {
         task_id: z.string(),
         role,
@@ -113,6 +113,10 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
         files: z.array(z.string()).optional(),
         refs: z.array(z.string()).optional(),
         new_session: z.boolean().optional().describe('Önceki işçi oturumunu devam ettirme'),
+        target_job_id: z
+          .string()
+          .optional()
+          .describe('review/analysis: bu işin çalışma alanını (worktree) salt okunur incele'),
       },
     },
     (a) =>
@@ -127,6 +131,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
           timeoutS: a.timeout_s,
           inputs: { ...(a.files ? { files: a.files } : {}), ...(a.refs ? { refs: a.refs } : {}) },
           newSession: a.new_session,
+          targetJobId: a.target_job_id,
         }),
       ),
   );
@@ -236,6 +241,26 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
       },
     },
     (a) => wrap(() => svc().taskClose(a.task_id, a.outcome, a.note)),
+  );
+
+  server.registerTool(
+    'task_merge',
+    {
+      description:
+        'Kabul edilmiş görevin dalını (anafor/<task>) projenin çalışma ağacındaki dala birleştirir. Çalışma ağacı temiz olmalı; çakışmada geri alınır.',
+      inputSchema: { task_id: z.string(), target_branch: z.string().optional() },
+    },
+    (a) => wrap(() => svc().taskMerge(a.task_id, a.target_branch)),
+  );
+
+  server.registerTool(
+    'workspace_cleanup',
+    {
+      description:
+        'Görevin biten işlerinin worktree ve birleşmiş dallarını temizler; aktif işlere ve kaydedilmemiş değişikliklere dokunmaz.',
+      inputSchema: { task_id: z.string() },
+    },
+    (a) => wrap(() => svc().workspaceCleanup(a.task_id)),
   );
 
   server.registerTool(
