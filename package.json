@@ -4,6 +4,11 @@
   "description": "Claude Code'u yönetici, diğer yapay zekâ ajanlarını işçi yapan MCP tabanlı orkestrasyon sistemi",
   "license": "AGPL-3.0-only",
   "type": "module",
+  "bin": {
+    "anafor": "dist/cli/main.js",
+    "anafor-mcp": "dist/server/main.js",
+    "anafor-runner": "dist/runner/main.js"
+  },
   "engines": {
     "node": ">=24"
   },
@@ -14,6 +19,7 @@
   "files": [
     "dist",
     "schemas",
+    "scripts",
     "plugin"
   ],
   "scripts": {
