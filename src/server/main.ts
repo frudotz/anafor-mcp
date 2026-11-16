@@ -31,11 +31,13 @@ export async function startServer(projectRoot?: string): Promise<void> {
       );
     }
     const store = new Store(resolved.root);
+    const config = loadConfig(resolved.root);
     service = new AnaforService(
       store,
-      defaultAdapters(),
+      defaultAdapters(config),
       undefined,
-      loadConfig(resolved.root).default_worker,
+      config.default_worker,
+      config.routing,
     );
     for (const n of service.reconcile()) process.stderr.write(`[anafor] reconcile: ${n}\n`);
     return service;

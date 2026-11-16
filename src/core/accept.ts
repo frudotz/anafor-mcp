@@ -17,11 +17,16 @@ export interface AcceptInput {
   projectRoot: string;
 }
 
-const inside = (root: string, p: string) => {
-  const abs = isAbsolute(p) ? p : resolve(root, p);
+/**
+ * Kanıt yolunu çözer: göreli yollar işin çalışma dizinine göre (worktree), `dosya:satır[:sütun]`
+ * son eki atılır; sonuç proje kökünün içinde olmalıdır (worktree'ler `.anafor/` altında, içeride).
+ */
+export function resolveEvidence(root: string, workdir: string, p: string): string | null {
+  const clean = p.trim().replace(/:\d+(:\d+)?$/, '');
+  const abs = isAbsolute(clean) ? clean : resolve(workdir, clean);
   const rel = relative(root, abs);
   return !rel.startsWith('..') && !isAbsolute(rel) ? abs : null;
-};
+}
 
 /**
  * Kabul kapıları (eski orchestrator.ps1 `accept` kurallarının karşılığı).
@@ -68,7 +73,7 @@ export function evaluateAcceptance(input: AcceptInput): Gate[] {
       `kritik bulgu: ${r.review.critical_count}`,
     );
     const missing = r.evidence_locations.filter((p) => {
-      const abs = inside(projectRoot, p);
+      const abs = resolveEvidence(projectRoot, job.workdir, p);
       return abs === null || !existsSync(abs);
     });
     add(

@@ -121,7 +121,8 @@ ${r.stderr ?? ''}`,
     timeoutMs: job.timeoutS * 1000,
     resumeSessionRef: job.sessionRef ?? undefined,
   };
-  const ctx = { artifactsDir, env: opts.env ?? process.env };
+  // ANAFOR_WORKER: işçi süreci (ör. claude-lite) yönetici hook'larına takılmasın.
+  const ctx = { artifactsDir, env: { ...(opts.env ?? process.env), ANAFOR_WORKER: '1' } };
 
   let handle: RunHandle;
   try {

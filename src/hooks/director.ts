@@ -99,7 +99,11 @@ export function decide(
 }
 
 /** Hook giriş noktası: girdiyi değerlendirir, Claude Code'un beklediği çıktıyı üretir. */
-export function runPreToolUse(input: PreToolUseInput): string {
+export function runPreToolUse(
+  input: PreToolUseInput,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  if (env.ANAFOR_WORKER === '1') return ''; // işçi süreci: yönetici kuralı uygulanmaz
   const root = findAnaforRoot(input.cwd ?? process.cwd());
   if (!root) return ''; // Anafor projesi değil
   const config = loadConfig(root);

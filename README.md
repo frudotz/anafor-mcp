@@ -7,7 +7,7 @@
 - İletişim, tipli **MCP araçlarıyla** kurulur. Kurallar (düzenleme yasağı, kabul kapıları, yetki politikası) prompt'ta değil, kodda uygulanır.
 - Yeni bir yapay zekâ eklemek, bir `WorkerAdapter` yazmak kadar kolaydır.
 
-> **Durum:** v0.1. Claude Code → Anafor MCP → Codex akışı, yönetici disiplini hook'ları ve kabul kapıları çalışıyor. Worktree paralelliği çalışıyor; ikinci işçi sıradaki fazda.
+> **Durum:** v0.1. Claude Code → Anafor MCP → Codex akışı, yönetici disiplini hook'ları ve kabul kapıları çalışıyor. Worktree paralelliği, iki gerçek işçi (Codex, Claude Haiku) ve router çalışıyor.
 
 ## Mimari (özet)
 
@@ -71,6 +71,25 @@ main (senin çalışma ağacın: dokunulmaz)
 - `task_accept` değişiklikleri iş dalına commit edip görev dalına birleştirir; `task_merge` görev dalını senin dalına alır.
 - Yeni worktree'de bağımlılık kurulumu için: `anafor.config.json` → `"worktree_setup": "npm ci"`.
 
+### İşçiler ve yönlendirme
+
+| İşçi | Çalıştırma | Not |
+|---|---|---|
+| `codex` | `codex exec --json --output-schema` | Varsayılan uygulama işçisi |
+| `claude-lite` | `claude -p --model haiku --json-schema` | Ucuz analiz, test ve çapraz inceleme; MCP yüklenmez, izin atlatma yok |
+| `fake` | deterministik betik | Test ve kuru çalıştırma |
+
+`job_dispatch` işçi belirtilmezse rolün tercih sırasından ilk uygun işçiyi seçer. Review işinde, hedef işi yapandan **farklı** bir işçi tercih edilir. Ayarlar:
+
+```json
+{
+  "routing": { "implementation": ["codex", "claude-lite"], "review": ["codex", "claude-lite"] },
+  "workers": { "claude-lite": { "model": "haiku", "max_concurrency": 3 }, "codex": { "enabled": true } }
+}
+```
+
+Yeni bir işçi eklemek: `WorkerAdapter` uygulayan bir sınıf + `src/adapters/registry.ts`'e bir satır. Uyum testi: `test/integration/conformance.test.ts`.
+
 ### Claude Code plugin'i (yönetici disiplini)
 
 ```bash
@@ -86,7 +105,7 @@ claude --plugin-dir /path/to/anafor-mcp/plugin
 ```bash
 npm install
 npm run check   # biçim + tip + build + test
-ANAFOR_E2E_CODEX=1 npx vitest run -t Codex   # gerçek Codex ile uçtan uca (isteğe bağlı)
+ANAFOR_E2E_CODEX=1 ANAFOR_E2E_CLAUDE=1 npx vitest run test/integration/conformance.test.ts   # gerçek işçilerle uyum (isteğe bağlı)
 npm run build
 ```
 

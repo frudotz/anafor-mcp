@@ -10,7 +10,7 @@ import {
   type JobState,
 } from '../core/states.js';
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join, relative } from 'node:path';
 import { evaluateAcceptance } from '../core/accept.js';
 import { git, headSha, isGitRepo, workDiff } from '../git/git.js';
 import {
@@ -136,7 +136,47 @@ export class AnaforService {
     readonly adapters: AdapterRegistry,
     private readonly launch: Launcher = detachedLauncher,
     private readonly defaultWorker = 'codex',
+    private readonly routing: Partial<Record<Role, string[]>> = {},
   ) {}
+
+  /**
+   * Router: rol için tercih sırasındaki ilk uygun işçi (erişilebilir, oturum açık, kapasite var).
+   * Review işinde hedef işi yapan işçi sona alınır (çapraz model incelemesi).
+   */
+  async route(role: Role, target: Job | null): Promise<string> {
+    let order = [...new Set([...(this.routing[role] ?? []), this.defaultWorker])].filter((id) =>
+      this.adapters.has(id),
+    );
+    if (role === 'review' && target) {
+      order = [
+        ...order.filter((w) => w !== target.worker),
+        ...order.filter((w) => w === target.worker),
+      ];
+    }
+    const reasons: string[] = [];
+    for (const id of order) {
+      const a = this.adapters.get(id)!;
+      if (!a.capabilities().roles.includes(role)) continue;
+      const d = await a.detect();
+      if (!d.available || d.authOk === false) {
+        reasons.push(`${id}: ${d.reason ?? 'kullanılamıyor'}`);
+        continue;
+      }
+      const running = this.store
+        .listJobs({ states: ACTIVE_JOB_STATES })
+        .filter((j) => j.worker === id).length;
+      if (running >= a.capabilities().maxConcurrency) {
+        reasons.push(`${id}: kapasite dolu`);
+        continue;
+      }
+      return id;
+    }
+    throw new ServiceError(
+      'WORKER_UNAVAILABLE',
+      `'${role}' için uygun işçi yok`,
+      reasons.join('; ') || 'workers_list ile durumu kontrol edin',
+    );
+  }
 
   // ---- keşif ----
 
@@ -216,7 +256,8 @@ export class AnaforService {
     if (isClosedTaskState(task.state) || task.state === 'blocked') {
       throw new ServiceError('INVALID_STATE', `Görev ${task.id} durumu: ${task.state}`);
     }
-    const workerId = input.worker ?? this.defaultWorker;
+    const target = input.targetJobId ? this.mustJob(input.targetJobId) : null;
+    const workerId = input.worker ?? (await this.route(input.role, target));
     const adapter = this.adapters.get(workerId);
     if (!adapter) {
       throw new ServiceError(
@@ -252,7 +293,6 @@ export class AnaforService {
 
     const root = this.store.paths.root;
     const repoReady = isGitRepo(root) && headSha(root) !== null;
-    const target = input.targetJobId ? this.mustJob(input.targetJobId) : null;
     const writes = input.role === 'implementation' || input.role === 'test';
     const workspace: WorkspaceMode =
       input.workspace ??
@@ -373,7 +413,8 @@ export class AnaforService {
     const patchFile = join(dir, 'diff.patch');
     writeFileSync(patchFile, d.patch);
     const claimed = j.result?.changed_files ?? [];
-    const norm = (p: string) => p.replace(/\\/g, '/').replace(/^\.\//, '');
+    const norm = (p: string) =>
+      (isAbsolute(p) ? relative(j.workdir, p) : p).replace(/\\/g, '/').replace(/^\.\//, '');
     const actual = new Set(d.changedFiles.map(norm));
     const notClaimed = [...actual].filter((f) => !claimed.map(norm).includes(f));
     const claimedMissing = claimed.map(norm).filter((f) => !actual.has(f));
