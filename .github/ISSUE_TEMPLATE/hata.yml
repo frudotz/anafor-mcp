@@ -1,0 +1,27 @@
+name: Hata bildirimi
+description: Beklenmeyen davranış
+labels: [bug]
+body:
+  - type: textarea
+    id: ne-oldu
+    attributes:
+      label: Ne oldu, ne bekleniyordu?
+    validations:
+      required: true
+  - type: textarea
+    id: adimlar
+    attributes:
+      label: Yeniden üretme adımları
+    validations:
+      required: true
+  - type: input
+    id: ortam
+    attributes:
+      label: Ortam
+      placeholder: 'OS, Node, anafor, codex/claude sürümleri'
+  - type: textarea
+    id: log
+    attributes:
+      label: İlgili log
+      description: Gizli bilgileri çıkarın.
+      render: text
