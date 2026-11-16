@@ -1,0 +1,8 @@
+{
+  "name": "anafor",
+  "version": "0.1.0",
+  "description": "Claude Code'u yönetici yapar: işleri Codex gibi işçi ajanlara MCP ile dağıtır, düzenleme yasağını hook ile uygular.",
+  "author": { "name": "frudotz" },
+  "homepage": "https://github.com/frudotz/anafor-mcp",
+  "license": "AGPL-3.0-only"
+}

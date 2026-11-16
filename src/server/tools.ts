@@ -37,7 +37,7 @@ async function wrap(fn: () => unknown | Promise<unknown>): Promise<CallToolResul
   }
 }
 
-export function createMcpServer(service: AnaforService): McpServer {
+export function createMcpServer(svc: () => AnaforService): McpServer {
   const server = new McpServer(
     { name: 'anafor', version: ANAFOR_VERSION },
     { instructions: SERVER_INSTRUCTIONS },
@@ -48,13 +48,13 @@ export function createMcpServer(service: AnaforService): McpServer {
     {
       description: 'Kayıtlı işçiler: erişilebilirlik, oturum, roller, kapasite, çalışan iş sayısı.',
     },
-    () => wrap(() => service.workersList()),
+    () => wrap(() => svc().workersList()),
   );
 
   server.registerTool(
     'project_status',
     { description: 'Açık görevler, çalışan işler ve inceleme bekleyen işler (kısa özet).' },
-    () => wrap(() => service.projectStatus()),
+    () => wrap(() => svc().projectStatus()),
   );
 
   server.registerTool(
@@ -76,7 +76,7 @@ export function createMcpServer(service: AnaforService): McpServer {
     },
     (a) =>
       wrap(() =>
-        service.taskCreate({
+        svc().taskCreate({
           title: a.title,
           objective: a.objective,
           acceptanceCriteria: a.acceptance_criteria,
@@ -94,7 +94,7 @@ export function createMcpServer(service: AnaforService): McpServer {
       description: 'Görevin durumu, kriterleri ve işleri.',
       inputSchema: { task_id: z.string() },
     },
-    (a) => wrap(() => service.taskStatus(a.task_id)),
+    (a) => wrap(() => svc().taskStatus(a.task_id)),
   );
 
   server.registerTool(
@@ -117,7 +117,7 @@ export function createMcpServer(service: AnaforService): McpServer {
     },
     (a) =>
       wrap(() =>
-        service.jobDispatch({
+        svc().jobDispatch({
           taskId: a.task_id,
           role: a.role,
           instructions: a.instructions,
@@ -137,7 +137,7 @@ export function createMcpServer(service: AnaforService): McpServer {
       description: 'İşin durumu, geçen süre ve son 5 olay.',
       inputSchema: { job_id: z.string() },
     },
-    (a) => wrap(() => service.jobStatus(a.job_id)),
+    (a) => wrap(() => svc().jobStatus(a.job_id)),
   );
 
   server.registerTool(
@@ -151,7 +151,7 @@ export function createMcpServer(service: AnaforService): McpServer {
         mode: z.enum(['any', 'all']).optional(),
       },
     },
-    (a) => wrap(() => service.jobWait(a.job_ids, a.timeout_s ?? 45, a.mode ?? 'any')),
+    (a) => wrap(() => svc().jobWait(a.job_ids, a.timeout_s ?? 45, a.mode ?? 'any')),
   );
 
   server.registerTool(
@@ -161,7 +161,7 @@ export function createMcpServer(service: AnaforService): McpServer {
         'İşin doğrulanmış sonucu (WorkerResult v1), uyarılar, token kullanımı ve artefakt yolları.',
       inputSchema: { job_id: z.string() },
     },
-    (a) => wrap(() => service.jobResult(a.job_id)),
+    (a) => wrap(() => svc().jobResult(a.job_id)),
   );
 
   server.registerTool(
@@ -174,7 +174,7 @@ export function createMcpServer(service: AnaforService): McpServer {
         limit: z.number().int().min(1).max(200).optional(),
       },
     },
-    (a) => wrap(() => service.jobEvents(a.job_id, a.since_seq ?? 0, a.limit ?? 50)),
+    (a) => wrap(() => svc().jobEvents(a.job_id, a.since_seq ?? 0, a.limit ?? 50)),
   );
 
   server.registerTool(
@@ -183,7 +183,7 @@ export function createMcpServer(service: AnaforService): McpServer {
       description: 'Aktif işi iptal eder ve işçi sürecini sonlandırır.',
       inputSchema: { job_id: z.string(), reason: z.string().min(1) },
     },
-    (a) => wrap(() => service.jobCancel(a.job_id, a.reason)),
+    (a) => wrap(() => svc().jobCancel(a.job_id, a.reason)),
   );
 
   server.registerTool(
@@ -197,7 +197,39 @@ export function createMcpServer(service: AnaforService): McpServer {
         instructions: z.string().optional(),
       },
     },
-    (a) => wrap(() => service.jobRequestChanges(a.job_id, a.findings, a.instructions)),
+    (a) => wrap(() => svc().jobRequestChanges(a.job_id, a.findings, a.instructions)),
+  );
+
+  server.registerTool(
+    'intervene',
+    {
+      description:
+        'PÜRÜZ İSTİSNASI: yöneticiye belirli yollarda süreli (≤30 dk) doğrudan düzenleme izni verir ve audit kaydı açar. Yalnızca işçinin çözemediği küçük ve net sorunlarda kullan.',
+      inputSchema: {
+        reason: z.string().min(10).describe('Neden işçiye verilemiyor?'),
+        paths: z.array(z.string()).min(1).describe('Proje köküne göre glob, ör. src/foo.ts'),
+        ttl_min: z.number().int().min(1).max(30).optional(),
+        task_id: z.string().optional(),
+      },
+    },
+    (a) =>
+      wrap(() =>
+        svc().intervene({
+          reason: a.reason,
+          paths: a.paths,
+          ...(a.ttl_min ? { ttlMin: a.ttl_min } : {}),
+          ...(a.task_id ? { taskId: a.task_id } : {}),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    'intervene_end',
+    {
+      description: 'Müdahaleyi kapatır; ne yapıldığının özetini audit kaydına yazar.',
+      inputSchema: { grant_id: z.string(), summary: z.string().min(1) },
+    },
+    (a) => wrap(() => svc().interveneEnd(a.grant_id, a.summary)),
   );
 
   return server;
