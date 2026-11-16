@@ -49,13 +49,15 @@ Refs: #<issue>
 4. **PR başlığı Conventional Commit biçiminde** olur (squash commit mesajı başlıktan oluşur).
 5. CI yeşil olmalı. `main` ilerlediyse dalını güncelle: tercihen `git rebase origin/main` (yalnızca kendi dalında), ardından `--force-with-lease`; ya da GitHub'daki **Update branch** düğmesi.
 6. **Çakışmaları PR sahibi çözer.** Çözerken diğerinin değişikliğini silmek gerekiyorsa önce PR'da o kişiye sorulur.
-7. İnceleme: kod sahibi (CODEOWNERS) onayı gerekir. Tüm yorum konuşmaları çözülmeden birleştirilmez.
+7. **İnsan onayı gerekmez.** Birleştirme kapısı CI'dır: iki işletim sisteminde `check` yeşil + dal `main` ile güncel + tüm yorum konuşmaları çözülmüş. Hız için PR açarken `gh pr merge --squash --auto` ile otomatik birleştirme açılabilir; CI geçince kendiliğinden birleşir.
 8. Birleştirme yöntemi: **yalnızca squash merge**. `main` geçmişi doğrusal kalır; her PR `main`'de tek commit olur ve kolayca revert edilebilir.
 9. Birleşince dal otomatik silinir.
 
 ### Yapay zekâ ajanlarının PR'ları
 - Claude Code / Codex tarafından üretilen işler `claude/...` veya `codex/...` dallarında, aynı kurallarla PR olarak gelir. PR açıklaması "Generated with Claude Code" satırını içerir.
-- Repo sahibi kendi ajan PR'larını CI yeşil olduktan sonra birleştirebilir. Başka bir katkıcının PR'ını ajan **birleştirmez**; yalnızca sahip onaylar.
+- Claude (yönetici ajan), repo sahibinin yetkisiyle **tüm katkıcıların** PR'larını kontrol eder ve CI yeşilse birleştirir. Kontrol: kurallara uygunluk (dal adı, başlık, kapsam), başka bir açık PR'ın işini ezmemesi, gizli bilgi olmaması.
+- Dal korumasını atlayan birleştirme (`--admin`) kullanılmaz; tek kapı CI'dır.
+- İki açık PR aynı dosyalarda çakışıyorsa önce birleşen kazanır; diğer PR'ın sahibi (veya istenirse Claude) dalı `main` üzerine güncelleyip çakışmayı **iki tarafın değişikliğini koruyarak** çözer.
 
 ## 5. Kod standartları
 
