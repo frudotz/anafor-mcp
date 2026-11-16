@@ -7,7 +7,7 @@
 - İletişim, tipli **MCP araçlarıyla** kurulur. Kurallar (düzenleme yasağı, kabul kapıları, yetki politikası) prompt'ta değil, kodda uygulanır.
 - Yeni bir yapay zekâ eklemek, bir `WorkerAdapter` yazmak kadar kolaydır.
 
-> **Durum:** erken geliştirme (v0.1). Henüz kullanıma hazır değildir.
+> **Durum:** v0.1, F1 MVP. Claude Code → Anafor MCP → Codex akışı çalışıyor. Yönetici disiplini (hook), worktree paralelliği ve ikinci işçi sıradaki fazlarda.
 
 ## Mimari (özet)
 
@@ -23,11 +23,38 @@ Claude Code (yönetici) ──MCP──▶ anafor-mcp sunucusu ──▶ runner 
 - Claude Code
 - En az bir işçi: [Codex CLI](https://github.com/openai/codex)
 
+## Hızlı başlangıç
+
+```bash
+git clone https://github.com/frudotz/anafor-mcp && cd anafor-mcp
+npm install && npm run build
+
+cd /path/to/projen            # bir git deposu olmalı
+node /path/to/anafor-mcp/dist/cli/main.js init     # .anafor/ ve .mcp.json oluşturur
+node /path/to/anafor-mcp/dist/cli/main.js doctor   # node, git, sqlite, işçiler
+claude                         # Claude Code, .mcp.json'daki "anafor" sunucusunu yükler
+```
+
+Claude Code içinde örnek istek: *"Anafor ile görev aç, Codex'e dağıt, bitince sonucu incele."*
+
+### MCP araçları (v0.1)
+
+| Araç | İşlev |
+|---|---|
+| `workers_list`, `project_status` | İşçiler ve proje panosu |
+| `task_create`, `task_status` | Kabul kriterli görev |
+| `job_dispatch` | İşi işçiye verir; hemen `job_id` döner, iş ayrık süreçte sürer |
+| `job_wait`, `job_status`, `job_events` | En fazla 50 sn bekleme, durum, olay günlüğü |
+| `job_result` | Şemayla doğrulanmış sonuç, token kullanımı, artefakt yolları |
+| `job_request_changes` | Bulgularla, aynı işçi oturumunda düzeltme (görev başına en fazla 5) |
+| `job_cancel` | İptal ve süreç ağacını sonlandırma |
+
 ## Geliştirme
 
 ```bash
 npm install
-npm run check   # biçim + tip + test
+npm run check   # biçim + tip + build + test
+ANAFOR_E2E_CODEX=1 npx vitest run -t Codex   # gerçek Codex ile uçtan uca (isteğe bağlı)
 npm run build
 ```
 
