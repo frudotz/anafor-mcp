@@ -549,7 +549,9 @@ export class AnaforService {
         'Hedef dala geçin veya target_branch vermeyin',
       );
     }
-    const dirty = git(root, ['status', '--porcelain'])
+    // Yalnızca izlenen dosyalardaki değişiklikler engeller. İzlenmeyen dosyalar (ör. kanıtlar)
+    // birleştirmeyi etkilemez; üzerlerine yazılacaksa git birleştirmeyi kendisi reddeder.
+    const dirty = git(root, ['status', '--porcelain', '--untracked-files=no'])
       .stdout.split('\n')
       .filter((l) => l.trim() && !l.includes('.anafor/'));
     if (dirty.length) {

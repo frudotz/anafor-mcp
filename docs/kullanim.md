@@ -79,7 +79,7 @@ Sunucu yeniden başlarsa ölü işler `failed (orphaned)` olur. **Hiçbir iş ot
 ## 6. Yönetişim (commit, push, merge, deploy)
 
 1. `checkpoint`: git durumunun kaydı. Çalışma ağacını değiştirmez.
-2. `operation_authorize`: `.anafor/policy.json` + kanıt dosyaları + checkpoint tazeliği.
+2. `operation_authorize`: `.anafor/policy.json` + kanıt dosyaları + checkpoint tazeliği. Kanıtları **`.anafor/evidence/`** altına yazın (proje içi, git'e girmez, hook serbest bırakır).
    - Varsayılan politika: otonom commit açık; push, PR, merge ve deploy allowlist'leri **boş** (ret); üretim kapalı.
    - Korumalı riskler (üretim veri kaybı, geri alınamaz değişiklik, güvenlik/erişim politikası, plan dışı maliyet) **her zaman** açık kullanıcı onayı ve kanıtı ister.
 3. İşlemi projenin normal araçlarıyla yap.
@@ -115,5 +115,6 @@ node /yol/anafor-mcp/dist/cli/main.js migrate /projen
 | `WORKER_UNAVAILABLE` | `anafor doctor`; `codex login`; `workers_list` nedenleri |
 | `invalid_output` | `job_events` / `.anafor/jobs/<iş>/stdout.log`; işçi şemaya uymadı, yeniden dağıt |
 | `CONFLICT` (shared) | Paylaşılan alanda tek yazan iş; worktree kullan |
+| `task_merge` CONFLICT | İzlenen dosyalarda commit edilmemiş değişiklik var; commit veya stash. İzlenmeyen dosyalar engellemez |
 | `task_merge` çakışma | Birleştirme geri alındı; çakışan dosyalar için düzeltme işi dağıt veya `intervene` |
 | Hook her şeyi engelliyor | `anafor.config.json` → `director_mode: "warn"` (geçici) |
