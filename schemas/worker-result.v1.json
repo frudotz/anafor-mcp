@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "anafor://schemas/worker-result/v1",
+  "title": "WorkerResult v1",
+  "description": "İşçinin son mesajı olarak döndüğü yapılandırılmış sonuç. Codex --output-schema ile uyumlu alt küme: tüm alanlar zorunlu, additionalProperties false, const/maxLength yok.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "job_id",
+    "agent_role",
+    "status",
+    "summary",
+    "changed_files",
+    "requirements_completed",
+    "requirements_missing",
+    "tests",
+    "review",
+    "evidence_locations",
+    "blockers",
+    "recommended_next_action"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "enum": ["1"] },
+    "task_id": { "type": "string" },
+    "job_id": { "type": "string" },
+    "agent_role": { "type": "string", "enum": ["implementation", "review", "analysis", "test"] },
+    "status": { "type": "string", "enum": ["completed", "partial", "blocked", "failed"] },
+    "summary": { "type": "string" },
+    "changed_files": { "type": "array", "items": { "type": "string" } },
+    "requirements_completed": { "type": "array", "items": { "type": "string" } },
+    "requirements_missing": { "type": "array", "items": { "type": "string" } },
+    "tests": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["executed", "passed", "failed", "exit_codes"],
+      "properties": {
+        "executed": { "type": "array", "items": { "type": "string" } },
+        "passed": { "type": "integer" },
+        "failed": { "type": "integer" },
+        "exit_codes": { "type": "array", "items": { "type": "integer" } }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "critical_count", "findings"],
+      "properties": {
+        "level": { "type": "string", "enum": ["lightweight", "standard", "deep", "none"] },
+        "critical_count": { "type": "integer" },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["severity", "title", "file", "line", "evidence"],
+            "properties": {
+              "severity": {
+                "type": "string",
+                "enum": ["critical", "high", "medium", "low", "info"]
+              },
+              "title": { "type": "string" },
+              "file": { "type": ["string", "null"] },
+              "line": { "type": ["integer", "null"] },
+              "evidence": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "evidence_locations": { "type": "array", "items": { "type": "string" } },
+    "blockers": { "type": "array", "items": { "type": "string" } },
+    "recommended_next_action": { "type": "string" }
+  }
+}
