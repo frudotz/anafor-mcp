@@ -22,6 +22,20 @@ import {
   removeWorktree,
   taskBranchName,
 } from '../git/worktree.js';
+import { createCheckpoint, readCheckpoint, type CheckpointMeta } from '../governance/checkpoint.js';
+import {
+  acquireMemoryLock,
+  recordMemoryMetric,
+  releaseMemoryLock,
+  type MemoryMetric,
+} from '../governance/memory.js';
+import {
+  authorizeOperation,
+  recordOperation,
+  type OperationInput,
+  type RecordInput,
+} from '../governance/operations.js';
+import { ensurePolicy } from '../governance/policy.js';
 import { activeGrants, createGrant, endGrant } from '../hooks/grants.js';
 
 function appendTaskAudit(auditDir: string, record: object): void {
@@ -793,6 +807,112 @@ export class AnaforService {
       }
     }
     return notes;
+  }
+
+  // ---- yönetişim (eski orchestrator.ps1 karşılıkları) ----
+
+  private get checkpointsDir() {
+    return join(this.store.paths.anaforDir, 'checkpoints');
+  }
+  private get memoryDir() {
+    return join(this.store.paths.anaforDir, 'memory');
+  }
+
+  checkpoint(reason: string, taskId?: string, actor = 'claude') {
+    if (taskId) this.mustTask(taskId);
+    try {
+      return createCheckpoint(this.store.paths.root, this.checkpointsDir, {
+        projectId: this.store.paths.projectId,
+        taskId: taskId ?? null,
+        actor,
+        reason,
+      });
+    } catch (e) {
+      throw new ServiceError('VALIDATION_FAILED', (e as Error).message);
+    }
+  }
+
+  operationAuthorize(input: OperationInput) {
+    this.mustTask(input.task_id);
+    const policy = ensurePolicy(this.store.paths.anaforDir, this.store.paths.projectId);
+    let cp: CheckpointMeta | null = null;
+    const reasons: string[] = [];
+    try {
+      cp = readCheckpoint(this.store.paths.root, this.checkpointsDir, input.checkpoint);
+    } catch (e) {
+      reasons.push((e as Error).message);
+    }
+    const impl = this.store
+      .listJobs({ taskId: input.task_id })
+      .filter((j) => j.role === 'implementation' && j.endedAt);
+    reasons.push(
+      ...authorizeOperation(input, {
+        root: this.store.paths.root,
+        projectId: this.store.paths.projectId,
+        policy,
+        checkpoint: cp,
+        lastImplementationAt: impl.length ? impl[impl.length - 1]!.endedAt : null,
+      }).filter((r) => !(cp === null && r.startsWith('Önce checkpoint'))),
+    );
+    return {
+      authorized: reasons.length === 0,
+      operation: input.operation,
+      task_id: input.task_id,
+      reasons,
+      note: reasons.length
+        ? 'Yetkisiz: daha riskli bir yönteme geçmeyin; eksik kanıtı tamamlayın veya kullanıcı onayı isteyin. Denemeyi operation_record ile blocked olarak kaydedin.'
+        : 'Yetkili. İşlemi projenin normal araçlarıyla yapın ve sonucu operation_record ile kaydedin.',
+    };
+  }
+
+  operationRecord(input: RecordInput) {
+    this.mustTask(input.task_id);
+    try {
+      readCheckpoint(this.store.paths.root, this.checkpointsDir, input.checkpoint);
+      return {
+        recorded: true,
+        ...recordOperation(this.store.paths.auditDir, input, {
+          root: this.store.paths.root,
+          projectId: this.store.paths.projectId,
+        }),
+      };
+    } catch (e) {
+      throw new ServiceError('VALIDATION_FAILED', (e as Error).message);
+    }
+  }
+
+  memoryLock(
+    mode: 'acquire' | 'release',
+    opts: { taskId?: string; token?: string; actor?: string },
+  ) {
+    try {
+      if (mode === 'acquire') {
+        const l = acquireMemoryLock(this.memoryDir, {
+          projectId: this.store.paths.projectId,
+          taskId: opts.taskId ?? null,
+          actor: opts.actor ?? 'claude',
+        });
+        return {
+          acquired: true,
+          token: l.token,
+          note: 'İş bitince mutlaka release edin (finally).',
+        };
+      }
+      if (!opts.token) throw new Error('release için token gerekli');
+      const l = releaseMemoryLock(this.memoryDir, this.store.paths.projectId, opts.token);
+      return { released: true, task_id: l.task_id };
+    } catch (e) {
+      throw new ServiceError('CONFLICT', (e as Error).message);
+    }
+  }
+
+  memoryMetrics(m: MemoryMetric) {
+    try {
+      recordMemoryMetric(this.memoryDir, this.store.paths.projectId, m);
+      return { recorded: true };
+    } catch (e) {
+      throw new ServiceError('VALIDATION_FAILED', (e as Error).message);
+    }
   }
 
   // ---- müdahale (pürüz istisnası) ----
