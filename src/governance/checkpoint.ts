@@ -1,5 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { git } from '../git/git.js';
 
@@ -30,7 +37,9 @@ export function createCheckpoint(
   if (!input.reason.trim()) throw new Error('checkpoint gerekçesi zorunlu');
   const top = git(root, ['rev-parse', '--show-toplevel']);
   if (top.code !== 0) throw new Error('checkpoint bir git deposu gerektirir');
-  if (resolve(top.stdout.trim()).toLowerCase() !== resolve(root).toLowerCase()) {
+  // Windows'ta 8.3 kısa yollar (RUNNER~1) ve büyük/küçük harf farkı için gerçek yollar karşılaştırılır.
+  const real = (p: string) => realpathSync.native(resolve(p)).toLowerCase();
+  if (real(top.stdout.trim()) !== real(root)) {
     throw new Error('checkpoint proje kökünün git deposu kökü olmasını gerektirir');
   }
   const branch = git(root, ['branch', '--show-current']).stdout.trim();
