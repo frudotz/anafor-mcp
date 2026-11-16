@@ -14,6 +14,18 @@ export interface AnaforConfig {
   default_worker: string;
   /** Yeni worktree'de işçiden önce çalışacak kurulum komutu (ör. "npm ci"). */
   worktree_setup: string | null;
+  /** İşçi başına ayarlar. */
+  workers: Record<string, WorkerSettings>;
+  /** Rol → tercih edilen işçi sırası (ilk uygun olan seçilir). */
+  routing: Partial<Record<'implementation' | 'review' | 'analysis' | 'test', string[]>>;
+}
+
+export interface WorkerSettings {
+  bin?: string;
+  model?: string;
+  max_concurrency?: number;
+  allowed_tools?: string[];
+  enabled?: boolean;
 }
 
 export const DEFAULT_CONFIG: AnaforConfig = {
@@ -22,6 +34,13 @@ export const DEFAULT_CONFIG: AnaforConfig = {
   allow_verify_commands: true,
   default_worker: 'codex',
   worktree_setup: null,
+  workers: {},
+  routing: {
+    implementation: ['codex', 'claude-lite'],
+    test: ['claude-lite', 'codex'],
+    analysis: ['claude-lite', 'codex'],
+    review: ['codex', 'claude-lite'],
+  },
 };
 
 /** `.anafor/config.json` + proje `anafor.config.json` (proje dosyası önceliklidir). */

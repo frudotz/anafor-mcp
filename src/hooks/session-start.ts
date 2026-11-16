@@ -4,7 +4,11 @@ import { Store } from '../store/store.js';
 import { activeGrants } from './grants.js';
 
 /** SessionStart: yöneticiye kısa rol hatırlatması + proje panosu (token dostu). */
-export function runSessionStart(input: { cwd?: string }): string {
+export function runSessionStart(
+  input: { cwd?: string },
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  if (env.ANAFOR_WORKER === '1') return '';
   const root = findAnaforRoot(input.cwd ?? process.cwd());
   if (!root) return '';
   const config = loadConfig(root);

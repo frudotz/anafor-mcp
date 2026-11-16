@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** Ayrık runner giriş noktası: `anafor-runner <projectRoot> <jobId>` */
 import { defaultAdapters } from '../adapters/registry.js';
+import { loadConfig } from '../core/config.js';
 import { Store } from '../store/store.js';
 import { runJob } from './run-job.js';
 
@@ -11,7 +12,7 @@ if (!projectRoot || !jobId) {
 }
 const store = new Store(projectRoot);
 try {
-  const job = await runJob(store, jobId, defaultAdapters());
+  const job = await runJob(store, jobId, defaultAdapters(loadConfig(store.paths.root)));
   process.stdout.write(`${job.id} ${job.state}\n`);
 } finally {
   store.close();

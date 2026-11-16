@@ -167,3 +167,14 @@ describe('runPreToolUse + izinler (dosya sistemi)', () => {
     expect(Date.parse(g.expires_at) - Date.parse(g.created_at)).toBe(30 * 60_000);
   });
 });
+
+describe('resolveEvidence', () => {
+  it('göreli yol iş dizinine göre, satır son eki atılır, proje dışı reddedilir', async () => {
+    const { resolveEvidence } = await import('../../src/core/accept.js');
+    const root = process.platform === 'win32' ? 'C:\\p' : '/p';
+    const wt = join(root, '.anafor', 'worktrees', 'J-1');
+    expect(resolveEvidence(root, wt, 'src/a.ts:12')).toBe(join(wt, 'src', 'a.ts'));
+    expect(resolveEvidence(root, wt, 'a.ts:3:7')).toBe(join(wt, 'a.ts'));
+    expect(resolveEvidence(root, wt, '../../../../outside.txt')).toBeNull();
+  });
+});
