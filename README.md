@@ -7,7 +7,7 @@
 - İletişim, tipli **MCP araçlarıyla** kurulur. Kurallar (düzenleme yasağı, kabul kapıları, yetki politikası) prompt'ta değil, kodda uygulanır.
 - Yeni bir yapay zekâ eklemek, bir `WorkerAdapter` yazmak kadar kolaydır.
 
-> **Durum:** v0.1, F1 MVP. Claude Code → Anafor MCP → Codex akışı çalışıyor. Yönetici disiplini (hook), worktree paralelliği ve ikinci işçi sıradaki fazlarda.
+> **Durum:** v0.1. Claude Code → Anafor MCP → Codex akışı, yönetici disiplini hook'ları ve kabul kapıları çalışıyor. Worktree paralelliği ve ikinci işçi sıradaki fazlarda.
 
 ## Mimari (özet)
 
@@ -48,6 +48,20 @@ Claude Code içinde örnek istek: *"Anafor ile görev aç, Codex'e dağıt, biti
 | `job_result` | Şemayla doğrulanmış sonuç, token kullanımı, artefakt yolları |
 | `job_request_changes` | Bulgularla, aynı işçi oturumunda düzeltme (görev başına en fazla 5) |
 | `job_cancel` | İptal ve süreç ağacını sonlandırma |
+| `job_diff` | İş başlangıcındaki HEAD'e göre fark ve işçi raporuyla uyuşmazlıklar |
+| `task_accept` | Kabul kapıları (testler, eksik gereksinim, kritik bulgu, kanıt; deep'te bağımsız review) |
+| `task_close` | Görevi kabul etmeden kapatma |
+| `intervene`, `intervene_end` | Pürüz istisnası: süreli ve yol kısıtlı, audit'li doğrudan düzenleme izni |
+
+### Claude Code plugin'i (yönetici disiplini)
+
+```bash
+claude --plugin-dir /path/to/anafor-mcp/plugin
+```
+
+- **PreToolUse hook:** Anafor projelerinde Claude'un kod dosyalarını doğrudan düzenlemesini ve dosya değiştiren shell komutlarını engeller, işi `job_dispatch`'e yönlendirir. Dokümantasyon ve hafıza yolları serbesttir. Mod: `anafor.config.json` → `"director_mode": "enforce" | "warn" | "off"`.
+- **SessionStart hook:** oturum başında rol hatırlatması ve görev panosu.
+- **Komutlar:** `/anafor:plan`, `/anafor:run`, `/anafor:status`, `/anafor:accept`.
 
 ## Geliştirme
 

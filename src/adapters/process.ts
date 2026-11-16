@@ -77,8 +77,14 @@ export function runLineProcess(opts: LineProcessOptions): RunHandle {
     detached: process.platform !== 'win32',
     windowsHide: true,
   });
-  const stdoutLog = createWriteStream(join(opts.artifactsDir, 'stdout.log'));
-  const stderrLog = createWriteStream(join(opts.artifactsDir, 'stderr.log'));
+  const stdoutLog = createWriteStream(join(opts.artifactsDir, 'stdout.log')).on(
+    'error',
+    () => undefined,
+  );
+  const stderrLog = createWriteStream(join(opts.artifactsDir, 'stderr.log')).on(
+    'error',
+    () => undefined,
+  );
   child.stderr?.pipe(stderrLog);
 
   let lastMessage: string | null = null;
