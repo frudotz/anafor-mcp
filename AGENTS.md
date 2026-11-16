@@ -16,6 +16,7 @@ Anafor: Claude Code'u yönetici, diğer yapay zekâ ajanlarını (önce Codex CL
 ## Kurallar
 - Dal: `<sahip>/<tür>/<kısa-ad>` (ajanlar: `claude/...`, `codex/...`). `main`'e doğrudan push yok, force push yok, başkasının dalına commit yok.
 - Commit ve PR başlığı Conventional Commits: `feat(core): ...`.
+- Birleştirme: squash, insan onayı yok; kapı CI (ubuntu + windows) + güncel dal. `gh pr merge --squash --auto`.
 - İzin veya sandbox atlatma bayrakları (`--dangerously-*`, bypass permissions) kullanılmaz.
 - Gizli bilgi commit edilmez, loglanmaz.
 - Yeni davranış = test. Ortak arayüz (`src/adapters/types.ts`, `schemas/`) değişikliği ayrı PR.
