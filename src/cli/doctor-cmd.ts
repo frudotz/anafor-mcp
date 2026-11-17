@@ -5,6 +5,7 @@ import { checkExtensions } from '../extensions/registry.js';
 import { findSkillspector, skillspectorVersion } from '../extensions/skillspector.js';
 import { readSetupState } from '../setup/setup.js';
 import { Store } from '../store/store.js';
+import { m } from '../i18n/index.js';
 import { ANAFOR_VERSION } from '../version.js';
 import { recentFailures, writeHealth } from './health.js';
 import { c, mark, p, rows, withSpinner } from './ui.js';
@@ -37,6 +38,7 @@ const chk = (
 
 export async function collectChecks(dir: string, spin = true): Promise<Check[]> {
   const out: Check[] = [];
+  const t = m().doctor;
 
   // Anafor
   const upd = availableUpdate(readUpdateCache());
@@ -46,40 +48,31 @@ export async function collectChecks(dir: string, spin = true): Promise<Check[]> 
           'UPDATE_AVAILABLE',
           'Anafor',
           'warn',
-          'sürüm',
-          `v${ANAFOR_VERSION} → v${upd} mevcut`,
+          t.version,
+          t.updateAvail(ANAFOR_VERSION, upd),
           UPDATE_COMMAND,
         )
-      : chk('VERSION', 'Anafor', 'ok', 'sürüm', `v${ANAFOR_VERSION}`),
+      : chk('VERSION', 'Anafor', 'ok', t.version, `v${ANAFOR_VERSION}`),
   );
   const setup = readSetupState();
   if (!setup)
-    out.push(
-      chk(
-        'SETUP_MISSING',
-        'Anafor',
-        'warn',
-        'kurulum',
-        'kurulum sihirbazı çalıştırılmamış',
-        'anafor setup',
-      ),
-    );
+    out.push(chk('SETUP_MISSING', 'Anafor', 'warn', t.setup, t.setupMissing, 'anafor setup'));
   else if (setup.plugin_installed && setup.version !== ANAFOR_VERSION)
     out.push(
       chk(
         'PLUGIN_OUTDATED',
         'Anafor',
         'warn',
-        'plugin',
+        t.plugin,
         `v${setup.version} (CLI v${ANAFOR_VERSION})`,
         'anafor setup --yes --no-statusline --no-project',
       ),
     );
   else if (setup.plugin_installed)
-    out.push(chk('PLUGIN_OK', 'Anafor', 'ok', 'plugin', `kalıcı kurulu (v${setup.version})`));
+    out.push(chk('PLUGIN_OK', 'Anafor', 'ok', t.plugin, t.pluginPersistent(setup.version)));
   else
     out.push(
-      chk('PLUGIN_SESSION', 'Anafor', 'off', 'plugin', 'kalıcı kurulu değil', 'anafor setup'),
+      chk('PLUGIN_SESSION', 'Anafor', 'off', t.plugin, t.pluginNotPersistent, 'anafor setup'),
     );
 
   // Ortam
@@ -87,14 +80,7 @@ export async function collectChecks(dir: string, spin = true): Promise<Check[]> 
   out.push(
     nodeOk
       ? chk('NODE_OK', 'Ortam', 'ok', 'Node', process.versions.node)
-      : chk(
-          'NODE_OLD',
-          'Ortam',
-          'fail',
-          'Node',
-          process.versions.node,
-          'Node 24+ kurun: https://nodejs.org',
-        ),
+      : chk('NODE_OLD', 'Ortam', 'fail', 'Node', process.versions.node, t.nodeFix),
   );
   const claude = spawnSync('claude', ['--version'], { encoding: 'utf8', windowsHide: true });
   out.push(
@@ -111,7 +97,7 @@ export async function collectChecks(dir: string, spin = true): Promise<Check[]> 
           'Ortam',
           'fail',
           'Claude Code',
-          'bulunamadı',
+          t.notFound,
           'https://claude.com/claude-code → claude auth login',
         ),
   );
@@ -122,13 +108,13 @@ export async function collectChecks(dir: string, spin = true): Promise<Check[]> 
   });
   out.push(
     git.status === 0
-      ? chk('GIT_REPO', 'Ortam', 'ok', 'git deposu', 'evet')
+      ? chk('GIT_REPO', 'Ortam', 'ok', t.gitRepo, t.yes)
       : chk(
           'NOT_GIT_REPO',
           'Ortam',
           'off',
-          'git deposu',
-          'bu dizin git deposu değil',
+          t.gitRepo,
+          t.notGitRepo,
           'git init && git commit --allow-empty -m init',
         ),
   );
@@ -137,44 +123,19 @@ export async function collectChecks(dir: string, spin = true): Promise<Check[]> 
   const proj = findAnaforRoot(dir);
   const cfg = proj ? loadConfig(proj) : undefined;
   if (!proj || !cfg) {
-    out.push(
-      chk(
-        'PROJECT_NOT_INIT',
-        'Proje',
-        'off',
-        'proje',
-        'bu dizin Anafor’a bağlı değil',
-        'anafor init',
-      ),
-    );
+    out.push(chk('PROJECT_NOT_INIT', 'Proje', 'off', t.project, t.notInit, 'anafor init'));
   } else {
     try {
       new Store(proj).close();
-      out.push(chk('STORE_OK', 'Proje', 'ok', 'durum deposu', proj));
+      out.push(chk('STORE_OK', 'Proje', 'ok', t.store, proj));
     } catch (e) {
-      out.push(
-        chk(
-          'STORE_ERROR',
-          'Proje',
-          'fail',
-          'durum deposu',
-          (e as Error).message,
-          '.anafor/state.db başka bir süreç tarafından kilitli olabilir; Claude Code oturumlarını kapatıp yeniden deneyin',
-        ),
-      );
+      out.push(chk('STORE_ERROR', 'Proje', 'fail', t.store, (e as Error).message, t.storeFix));
     }
     const n = recentFailures(proj, 24);
     out.push(
       n >= 3
-        ? chk(
-            'JOBS_FAILING',
-            'Proje',
-            'warn',
-            'son 24 sa',
-            `${n} başarısız iş`,
-            'anafor jobs --all (hata nedenleri)',
-          )
-        : chk('JOBS_OK', 'Proje', 'ok', 'son 24 sa', `${n} başarısız iş`),
+        ? chk('JOBS_FAILING', 'Proje', 'warn', t.last24, t.failedJobs(n), t.jobsFix)
+        : chk('JOBS_OK', 'Proje', 'ok', t.last24, t.failedJobs(n)),
     );
     if (cfg.extensions.enforce !== 'off') {
       const bad = checkExtensions(proj).filter((e) => e.status !== 'ok');
@@ -184,11 +145,11 @@ export async function collectChecks(dir: string, spin = true): Promise<Check[]> 
               'EXTENSIONS_BLOCKED',
               'Proje',
               'warn',
-              'eklentiler',
-              `${bad.length} engelli: ${bad.map((e) => `${e.name} (${e.status})`).join(', ')}`,
+              t.extensions,
+              t.extBlocked(bad.length, bad.map((e) => `${e.name} (${e.status})`).join(', ')),
               'anafor ext check → anafor ext adopt <ad> [--user]',
             )
-          : chk('EXTENSIONS_OK', 'Proje', 'ok', 'eklentiler', 'tümü taranmış'),
+          : chk('EXTENSIONS_OK', 'Proje', 'ok', t.extensions, t.extOk),
       );
     }
   }
@@ -197,20 +158,13 @@ export async function collectChecks(dir: string, spin = true): Promise<Check[]> 
   out.push(
     ssv
       ? chk('SKILLSPECTOR_OK', 'Proje', 'ok', 'SkillSpector', ssv)
-      : chk(
-          'SKILLSPECTOR_MISSING',
-          'Proje',
-          'off',
-          'SkillSpector',
-          'yok: harici skill/MCP eklenemez',
-          'Python 3.13 venv + pip install git+https://github.com/NVIDIA/skillspector.git (docs/kullanim.md §7e)',
-        ),
+      : chk('SKILLSPECTOR_MISSING', 'Proje', 'off', 'SkillSpector', t.ssMissing, t.ssFix),
   );
 
   // İşçiler
   const adapters = [...defaultAdapters(cfg).values()];
   const detect = () => Promise.all(adapters.map(async (w) => ({ id: w.id, d: await w.detect() })));
-  const ws = spin ? await withSpinner('İşçiler denetleniyor', detect) : await detect();
+  const ws = spin ? await withSpinner(t.workersCheck, detect) : await detect();
   for (const { id, d } of ws) {
     const ready = d.available && d.authOk !== false;
     const code = !d.available
@@ -228,7 +182,7 @@ export async function collectChecks(dir: string, spin = true): Promise<Check[]> 
         'İşçiler',
         !ready ? 'off' : d.reason ? 'warn' : 'ok',
         id,
-        ready ? (d.version ?? '') : 'kullanılamıyor',
+        ready ? (d.version ?? '') : t.unavailable,
         d.reason,
       ),
     );
@@ -239,8 +193,8 @@ export async function collectChecks(dir: string, spin = true): Promise<Check[]> 
         'NO_WORKERS',
         'İşçiler',
         'fail',
-        'işçi',
-        'hiç kullanılabilir işçi yok',
+        t.worker,
+        t.noWorkers,
         'npm install -g @openai/codex && codex login',
       ),
     );
@@ -257,7 +211,7 @@ export async function runDoctor(dir: string, json = false): Promise<number> {
   const checks = json
     ? await collectChecks(dir, false)
     : await (async () => {
-        p.intro(c(['bgCyan', 'black'], ` anafor doctor · v${ANAFOR_VERSION} `));
+        p.intro(c(['bgCyan', 'black'], m().doctor.title(ANAFOR_VERSION)));
         return collectChecks(dir);
       })();
   const s = summarize(checks);
@@ -284,8 +238,8 @@ export async function runDoctor(dir: string, json = false): Promise<number> {
     const workers = list.filter((x) => x.code !== 'NO_WORKERS');
     const title =
       section === 'İşçiler'
-        ? `İşçiler (${workers.filter((x) => x.status !== 'off').length}/${workers.length} hazır)`
-        : section;
+        ? m().doctor.workersReady(workers.filter((x) => x.status !== 'off').length, workers.length)
+        : m().doctor.sections[section];
     p.note(
       rows(
         list.map((x) => [
@@ -300,16 +254,18 @@ export async function runDoctor(dir: string, json = false): Promise<number> {
     );
   }
   if (!s.ok) {
-    p.outro(c('red', `${s.problems.length} sorun: ${s.problems.map((x) => x.label).join(', ')}`));
+    p.outro(
+      c('red', m().doctor.problems(s.problems.length, s.problems.map((x) => x.label).join(', '))),
+    );
     return 1;
   }
   p.outro(
     s.warnings.length
       ? c(
           'yellow',
-          `Çalışır durumda; ${s.warnings.length} öneri: ${s.warnings.map((x) => x.label).join(', ')}`,
+          m().doctor.warnings(s.warnings.length, s.warnings.map((x) => x.label).join(', ')),
         )
-      : c('green', 'Her şey yolunda.'),
+      : c('green', m().doctor.allGood),
   );
   return 0;
 }

@@ -61,6 +61,8 @@ anafor setup
 
 Sihirbazın adımları:
 
+0. **Dil:** Türkçe veya English. Seçim `~/.anafor/setup.json` dosyasına kaydedilir. Etkileşimsiz kurulumda `--lang tr|en` kullanılır; geçici olarak değiştirmek için `ANAFOR_LANG=en` tanımlanabilir.
+
 1. **Ortam:** Node, git ve Claude Code kontrolü.
 2. **İşçiler:** hangileri hazır, oturum ve limit durumu, eksikler için kurulum ipucu.
 3. **Plugin:** Anafor plugin'ini üretir. Onay verirsen resmi `claude plugin install` komutuyla Claude Code'a **kalıcı** kurar; böylece `--plugin-dir` gerekmez.

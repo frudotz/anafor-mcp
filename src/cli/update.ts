@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { m } from '../i18n/index.js';
 import { anaforHome } from '../limits/limits.js';
 import { ANAFOR_VERSION } from '../version.js';
 
@@ -122,10 +123,10 @@ export async function runUpdate(log: (s: string) => void, check = false): Promis
   const latest = await fetchLatest(15_000);
   await refreshUpdateCache();
   if (compareVersions(latest, ANAFOR_VERSION) <= 0) {
-    log(`Anafor güncel: v${ANAFOR_VERSION}`);
+    log(m().update.upToDate(ANAFOR_VERSION));
     return 0;
   }
-  log(`Yeni sürüm: v${ANAFOR_VERSION} → v${latest}`);
+  log(m().update.newVersion(ANAFOR_VERSION, latest));
   if (check) return 0;
   const tmp = mkdtempSync(join(tmpdir(), 'anafor-update-'));
   try {
@@ -145,7 +146,7 @@ export async function runUpdate(log: (s: string) => void, check = false): Promis
     const actual = createHash('sha256').update(tgz).digest('hex');
     if (actual !== expected)
       throw new Error(`özet uyuşmuyor: beklenen ${expected}, gelen ${actual}`);
-    log(`✔ SHA256 doğrulandı (${actual.slice(0, 12)}…)`);
+    log(m().update.verified(actual.slice(0, 12)));
     const path = join(tmp, file);
     writeFileSync(path, tgz);
     const npm = spawnSync('npm', ['install', '-g', path], {
@@ -154,15 +155,15 @@ export async function runUpdate(log: (s: string) => void, check = false): Promis
       windowsHide: true,
     });
     if (npm.status !== 0) throw new Error(`npm install başarısız (${npm.status})`);
-    log('✔ Paket kuruldu; plugin yenileniyor…');
+    log(m().update.installed);
     // Yeni kurulan sürümün setup'ı: yalnızca plugin (statusline ve proje adımı atlanır).
     const setup = spawnSync('anafor', ['setup', '--yes', '--no-statusline', '--no-project'], {
       stdio: 'inherit',
       shell: process.platform === 'win32',
       windowsHide: true,
     });
-    if (setup.status !== 0) log('▲ Plugin yenilenemedi; `anafor setup` komutunu elle çalıştırın.');
-    log(`Güncellendi: v${latest}. Claude Code’u yeniden başlatın.`);
+    if (setup.status !== 0) log(m().update.pluginFail);
+    log(m().update.done(latest));
     return 0;
   } finally {
     rmSync(tmp, { recursive: true, force: true });

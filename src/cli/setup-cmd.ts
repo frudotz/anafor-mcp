@@ -11,11 +11,14 @@ import {
   readSetupState,
   writeSetupState,
 } from '../setup/setup.js';
+import { lang, m, setLang, systemLang, type Lang } from '../i18n/index.js';
 import { ANAFOR_VERSION } from '../version.js';
-import { ask, c, mark, p, rows, withSpinner } from './ui.js';
+import { ask, c, interactive, mark, p, rows, withSpinner } from './ui.js';
 
 export interface SetupOptions {
   yes: boolean;
+  /** Arayüz dili (--lang); verilmezse kurulumda sorulur (etkileşimliyse). */
+  lang?: Lang | undefined;
   plugin: boolean;
   statusline: boolean;
   /** Proje bağlama adımı (ör. `anafor update` sonrası atlanır). */
@@ -27,10 +30,38 @@ const WORKERS = ['codex', 'claude-lite', 'gemini', 'opencode', 'local', 'antigra
 
 /** İlk kurulum sihirbazı: ortam, işçiler, kalıcı plugin, statusline, proje. */
 export async function runSetup(opts: SetupOptions): Promise<number> {
-  p.intro(c(['bgCyan', 'black'], ` Anafor kurulumu · v${ANAFOR_VERSION} `));
+  // 0. Dil: --lang > (etkileşimliyse) soru > önceki seçim / sistem dili
+  let language: Lang = opts.lang ?? readSetupState()?.language ?? lang();
+  if (!opts.lang && !opts.yes && interactive()) {
+    p.intro(c(['bgCyan', 'black'], ` Anafor · v${ANAFOR_VERSION} `));
+    const sel = await p.select({
+      message: m().setup.language,
+      initialValue: language,
+      options: [
+        {
+          value: 'tr' as const,
+          label: 'Türkçe',
+          hint: systemLang() === 'tr' ? 'sistem' : undefined,
+        },
+        {
+          value: 'en' as const,
+          label: 'English',
+          hint: systemLang() === 'en' ? 'system' : undefined,
+        },
+      ],
+    });
+    if (p.isCancel(sel)) {
+      p.cancel(m().ui.cancelled);
+      return 130;
+    }
+    language = sel;
+  }
+  setLang(language);
+  const t = m().setup;
+  p.intro(c(['bgCyan', 'black'], t.title(ANAFOR_VERSION)));
 
   // 1. Ortam
-  const env = await withSpinner('Ortam denetleniyor', () => {
+  const env = await withSpinner(t.envCheck, () => {
     const nodeOk = Number(process.versions.node.split('.')[0]) >= 24;
     const git = spawnSync('git', ['--version'], { encoding: 'utf8', windowsHide: true });
     const claude = spawnSync('claude', ['--version'], { encoding: 'utf8', windowsHide: true });
@@ -39,32 +70,32 @@ export async function runSetup(opts: SetupOptions): Promise<number> {
   const envOk = env.nodeOk && env.claude.status === 0;
   p.note(
     rows([
-      [mark[env.nodeOk ? 'ok' : 'fail'](), 'Node', `${process.versions.node} (24+ gerekli)`],
+      [mark[env.nodeOk ? 'ok' : 'fail'](), 'Node', `${process.versions.node} ${t.nodeNeed}`],
       [
         mark[env.git.status === 0 ? 'ok' : 'fail'](),
         'git',
-        env.git.status === 0 ? env.git.stdout.trim().replace(/^git version /, '') : 'bulunamadı',
+        env.git.status === 0 ? env.git.stdout.trim().replace(/^git version /, '') : t.notFound,
       ],
       [
         mark[env.claude.status === 0 ? 'ok' : 'fail'](),
         'Claude Code',
         env.claude.status === 0
           ? env.claude.stdout.trim().replace(/\s*\(Claude Code\)$/, '')
-          : 'bulunamadı',
+          : t.notFound,
         env.claude.status === 0 ? undefined : 'https://claude.com/claude-code',
       ],
     ]),
-    '1 · Ortam',
+    t.envTitle,
   );
   if (!envOk) {
-    p.cancel('Gerekli bileşenler eksik; kurup `anafor setup` komutunu yeniden çalıştırın.');
+    p.cancel(t.envMissing);
     return 1;
   }
 
   // 2. İşçiler
   const root = findAnaforRoot(process.cwd());
   const adapters = defaultAdapters(root ? loadConfig(root) : undefined);
-  const found = await withSpinner('İşçiler algılanıyor', () =>
+  const found = await withSpinner(t.workersDetect, () =>
     Promise.all(
       WORKERS.map(async (id) => {
         const a = adapters.get(id);
@@ -80,7 +111,7 @@ export async function runSetup(opts: SetupOptions): Promise<number> {
         const lim = avail ? currentLimits(limitAccount(id)) : null;
         const info = avail
           ? `${c('gray', (d?.version ?? '').replace(/\s*\(Claude Code\)$/, ''))}${lim ? `  ${formatWindows(lim.windows)}` : ''}`
-          : c('gray', !d?.reason || d.reason.length > 40 ? 'kullanılamıyor' : d.reason);
+          : c('gray', !d?.reason || d.reason.length > 40 ? t.unavailable : d.reason);
         // Uzun neden ipucu satırına; kısa nedende kurulum ipucu gösterilir.
         const hint = avail
           ? undefined
@@ -90,35 +121,28 @@ export async function runSetup(opts: SetupOptions): Promise<number> {
         return [avail ? mark.ok() : mark.off(), id, info, hint];
       }),
     ),
-    `2 · İşçiler (${ready.length}/${WORKERS.length} hazır · beyin: Claude Code)`,
+    t.workersTitle(ready.length, WORKERS.length),
   );
 
   // 3. Plugin
   const { pluginDir, marketplaceDir } = buildUserPlugin();
   let pluginInstalled = readSetupState()?.plugin_installed ?? false;
-  p.log.step(
-    `${c('bold', '3 · Claude Code plugin’i')}  ${c('gray', 'yönetici hook’ları, Anafor MCP, /anafor:* komutları')}`,
-  );
-  if (opts.plugin && (await ask('Plugin Claude Code’a kalıcı kurulsun mu?', true, opts.yes))) {
+  p.log.step(`${c('bold', t.pluginStep)}  ${c('gray', t.pluginStepHint)}`);
+  if (opts.plugin && (await ask(t.pluginAsk, true, opts.yes))) {
     const r = await withSpinner('claude plugin install', () =>
       installPluginToClaude(marketplaceDir),
     );
     pluginInstalled = r.ok;
-    if (r.ok) p.log.success(`Kuruldu: anafor@anafor-local ${c('gray', `(v${ANAFOR_VERSION})`)}`);
-    else p.log.error(`Kurulamadı\n${c('gray', r.log)}`);
+    if (r.ok) p.log.success(`${t.pluginOk} ${c('gray', `(v${ANAFOR_VERSION})`)}`);
+    else p.log.error(`${t.pluginFail}\n${c('gray', r.log)}`);
   } else {
-    p.log.info(`Kalıcı kurulmadı; oturumluk: ${c('cyan', `claude --plugin-dir "${pluginDir}"`)}`);
+    p.log.info(`${t.pluginSession} ${c('cyan', `claude --plugin-dir "${pluginDir}"`)}`);
   }
 
   // 4. Statusline
   let statusline = readSetupState()?.statusline_installed ?? false;
-  p.log.step(
-    `${c('bold', '4 · Statusline')}  ${c('gray', 'sürüm, güncelleme, limitler ve sağlık durumu')}`,
-  );
-  if (
-    opts.statusline &&
-    (await ask('Statusline kurulsun mu? (mevcut ayar korunur)', true, opts.yes))
-  ) {
+  p.log.step(`${c('bold', t.statusStep)}  ${c('gray', t.statusStepHint)}`);
+  if (opts.statusline && (await ask(t.statusAsk, true, opts.yes))) {
     const r = installStatusline();
     statusline = r.ok || statusline;
     (r.ok ? p.log.success : p.log.warn)(r.reason);
@@ -126,26 +150,22 @@ export async function runSetup(opts: SetupOptions): Promise<number> {
 
   // 5. Proje
   if (opts.project !== false) {
-    p.log.step(c('bold', '5 · Proje'));
+    p.log.step(c('bold', t.projectStep));
     const inRepo =
       spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
         encoding: 'utf8',
         windowsHide: true,
       }).stdout.trim() === 'true';
     if (root) {
-      p.log.success(`Bu dizin zaten Anafor projesi: ${c('gray', root)}`);
+      p.log.success(`${t.projectAlready} ${c('gray', root)}`);
     } else if (
       inRepo &&
-      (await ask(
-        `Bu git deposu Anafor’a bağlansın mı?\n${c('gray', process.cwd())}`,
-        false,
-        opts.yes,
-      ))
+      (await ask(`${t.projectAsk}\n${c('gray', process.cwd())}`, false, opts.yes))
     ) {
       opts.init(process.cwd());
-      p.log.success('Proje bağlandı.');
+      p.log.success(t.projectDone);
     } else {
-      p.log.info(`Bir projede bağlamak için: ${c('cyan', 'anafor init')}`);
+      p.log.info(`${t.projectHint} ${c('cyan', 'anafor init')}`);
     }
   }
 
@@ -156,23 +176,23 @@ export async function runSetup(opts: SetupOptions): Promise<number> {
     plugin_installed: pluginInstalled,
     statusline_installed: statusline,
     updated_at: new Date().toISOString(),
+    language,
   });
 
   p.note(
     [
-      `${c('cyan', 'claude')}            Claude Code içinde: /anafor:plan <hedef>`,
-      `${c('cyan', 'anafor chat')}       beyin ajanla terminalden konuş`,
-      `${c('cyan', 'anafor capacity')}   limitler, kalan iş ve rol önerisi`,
-      `${c('cyan', 'anafor doctor')}     sorun olursa kontrol`,
-      c('gray', 'Kılavuz: https://github.com/frudotz/anafor-mcp/blob/main/docs/kurulum.md'),
+      `${c('cyan', 'claude')}            ${t.nextClaude}`,
+      `${c('cyan', 'anafor chat')}       ${t.nextChat}`,
+      `${c('cyan', 'anafor capacity')}   ${t.nextCapacity}`,
+      `${c('cyan', 'anafor doctor')}     ${t.nextDoctor}`,
+      c(
+        'gray',
+        `${t.guide} https://github.com/frudotz/anafor-mcp/blob/main/docs/${language === 'en' ? 'agent-install.md' : 'kurulum.md'}`,
+      ),
     ].join('\n'),
-    'Sonraki adımlar',
+    t.nextTitle,
   );
-  p.outro(
-    pluginInstalled
-      ? `${c('green', 'Hazır.')} Değişikliklerin geçerli olması için Claude Code’u yeniden başlatın.`
-      : c('green', 'Hazır.'),
-  );
+  p.outro(pluginInstalled ? `${c('green', t.ready)} ${t.restart}` : c('green', t.ready));
   return 0;
 }
 
