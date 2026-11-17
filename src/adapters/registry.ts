@@ -15,7 +15,9 @@ export type AdapterRegistry = ReadonlyMap<string, WorkerAdapter>;
  * Yapılandırma gerektiren işçiler (opencode, local) ve gri alandaki işçiler (antigravity)
  * yalnızca açıkça yapılandırılınca kaydedilir.
  */
-export function defaultAdapters(config?: Pick<AnaforConfig, 'workers'>): AdapterRegistry {
+export function defaultAdapters(
+  config?: Pick<AnaforConfig, 'workers'> & Partial<Pick<AnaforConfig, 'test_command'>>,
+): AdapterRegistry {
   const w = config?.workers ?? {};
   const opt = <T extends object>(o: T) =>
     Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
@@ -76,6 +78,10 @@ export function defaultAdapters(config?: Pick<AnaforConfig, 'workers'>): Adapter
           model: w.antigravity.model,
           maxConcurrency: w.antigravity.max_concurrency,
           acknowledged: w.antigravity.acknowledge_terms === true,
+          allowedCommands: [
+            ...(config?.test_command ? [config.test_command] : []),
+            ...(w.antigravity.allowed_commands ?? []),
+          ],
         }),
       ),
     );

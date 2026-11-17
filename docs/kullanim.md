@@ -185,6 +185,12 @@ node /yol/anafor-mcp/dist/cli/main.js migrate /projen
 }
 ```
 
+
+**Antigravity ve terminal komutları:** headless `agy`, izin soramadığı için komutları otomatik reddeder. Anafor izin atlatma bayrağı kullanmaz; bunun yerine o oturuma özel `--settings` ile yalnızca şu komutlara izin verir: projenin `test_command` değeri ve `workers.antigravity.allowed_commands`. agy 1.5.9 joker desteklemez, komutlar **birebir** eşleşmelidir. İzin listesi iş emrine de yazılır. Reddedilen komutlar iş olaylarında `error` olarak görünür.
+
+```json
+{ "test_command": "npm test", "workers": { "antigravity": { "enabled": true, "acknowledge_terms": true, "allowed_commands": ["npm run lint"] } } }
+```
 Gerçek uyum testleri (Antigravity: `agy` ile bir kez giriş yaptıktan sonra `ANAFOR_AGY_BIN=<agy.exe yolu> ANAFOR_E2E_AGY=1`):
 - OpenCode, hesap gerektirmeden sahte sağlayıcıyla: `ANAFOR_E2E_OPENCODE_BIN=<opencode yolu> npx vitest run test/integration/opencode-real.test.ts`
 - Gemini, hesap gerektirmeden sahte API ile: `ANAFOR_E2E_GEMINI_BIN=<gemini yolu> npx vitest run test/integration/gemini-real.test.ts`
