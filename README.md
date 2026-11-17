@@ -9,7 +9,7 @@
 - İletişim, tipli **MCP araçlarıyla** kurulur. Kurallar (düzenleme yasağı, kabul kapıları, yetki politikası) prompt'ta değil, kodda uygulanır.
 - Yeni bir yapay zekâ eklemek, bir `WorkerAdapter` yazmak kadar kolaydır.
 
-> **Durum:** v0.3. Claude Code yönetici; Codex, Claude Haiku, OpenCode, Gemini, Antigravity ve yerel model işçileri; worktree paralelliği, kabul ve yönetişim kapıları, terminal CLI (`anafor chat/run`), limit takibi, Lat.md otomatik bağlam ve worktree bağımlılık önbelleği.
+> **Durum:** v0.5. Claude Code yönetici; Codex, Claude Haiku, OpenCode, Gemini, Antigravity ve yerel model işçileri; worktree paralelliği, kabul ve yönetişim kapıları, kapasite modeli ve yük dengeleyici, token optimizasyonu, SkillSpector eklenti kapısı, Türkçe/İngilizce arayüz, `anafor update`.
 
 ## Mimari (özet)
 
