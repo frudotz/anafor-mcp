@@ -30,10 +30,12 @@ sha256sum -c --ignore-missing gitleaks_8.30.1_checksums.txt   # eşleşmeli
 ## 2. Anafor'u kur
 
 ```bash
-npm install -g github:frudotz/anafor-mcp
+npm install -g https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz
 ```
 
-Kurulum sırasında paket derlenir (`prepare`). Ardından `anafor` komutu kullanılabilir. Doğrulamak için: `anafor version`.
+Bu, CI'da derlenmiş sürüm paketidir; kurulumda derleme yapılmaz. Belirli bir sürüm: `…/releases/download/v0.2.0/anafor-mcp-0.2.0.tgz` (SHA-256 değerleri sürümdeki `SHA256SUMS.txt`'de). Doğrulamak için: `anafor version`.
+
+> `npm install -g github:frudotz/anafor-mcp` **kullanmayın**: npm git'ten kurulumda bağımlılıkları kurmadığı için derleme başarısız olur.
 
 > Geliştirici kurulumu (kaynak koddan): `git clone https://github.com/frudotz/anafor-mcp && cd anafor-mcp && npm install && npm link`
 

@@ -1,0 +1,39 @@
+name: Release
+
+# Sürüm etiketi (v*) itildiğinde: tam kontrol, derlenmiş paket (npm pack) ve GitHub Release.
+# Kurulum derleme gerektirmez:
+#   npm install -g https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Sürüm etiketle package.json eşleşmeli
+        run: |
+          PKG="v$(node -p "require('./package.json').version")"
+          if [ "$PKG" != "$GITHUB_REF_NAME" ]; then echo "etiket $GITHUB_REF_NAME ≠ package.json $PKG"; exit 1; fi
+      - name: Paket
+        run: |
+          npm pack
+          cp "anafor-mcp-${GITHUB_REF_NAME#v}.tgz" anafor-mcp.tgz
+          sha256sum anafor-mcp-*.tgz anafor-mcp.tgz > SHA256SUMS.txt
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES=$(awk "/^## \\[${GITHUB_REF_NAME#v}\\]/{f=1;next} /^## \\[/{f=0} f" CHANGELOG.md)
+          gh release create "$GITHUB_REF_NAME" anafor-mcp-*.tgz anafor-mcp.tgz SHA256SUMS.txt \
+            --title "Anafor $GITHUB_REF_NAME" --notes "${NOTES:-Sürüm $GITHUB_REF_NAME}"

@@ -174,10 +174,12 @@ export function readCodexLimits(env: NodeJS.ProcessEnv = process.env): WorkerLim
 }
 
 /** İnsan okunur kısa özet: "5s %44 (14:30'da sıfırlanır) · 7g %26". */
-export function formatWindows(windows: LimitWindow[]): string {
+export function formatWindows(windows: LimitWindow[], now = Date.now()): string {
   const label = (n: string) => (n === 'five_hour' ? '5s' : n.startsWith('seven_day') ? '7g' : n);
   return windows
     .map((w) => {
+      // Sıfırlanma zamanı geçmişse gözlem bayattır: pencere sıfırlanmıştır.
+      if (w.resets_at !== null && w.resets_at * 1000 <= now) return `${label(w.name)} sıfırlandı`;
       const reset = w.resets_at
         ? ` (${new Date(w.resets_at * 1000).toLocaleString('tr-TR', { weekday: 'short', hour: '2-digit', minute: '2-digit' })})`
         : '';

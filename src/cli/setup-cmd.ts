@@ -96,9 +96,10 @@ export async function runSetup(opts: SetupOptions): Promise<number> {
 
     // 4. Statusline
     let statusline = readSetupState()?.statusline_installed ?? false;
+    console.log('\n4) Statusline (Claude limitleri için)');
     if (
       opts.statusline &&
-      (await ask('\n4) Claude limitleri için statusLine kurulsun mu? (mevcut ayar korunur)'))
+      (await ask('   Claude Code statusLine kurulsun mu? (mevcut ayar korunur)'))
     ) {
       const r = installStatusline();
       statusline = r.changed || statusline;
