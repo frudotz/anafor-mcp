@@ -78,11 +78,13 @@ describe('önbellek dostu iş emri (F22)', () => {
       // devam oturumu: kısa emir, yalnızca kimlik + talimat + bulgular
       const r = compilePrompt(a.task, a.job, {
         resumed: true,
-        findings: [{ severity: 'major', title: 'Eksik test', evidence: 'yok', file: 'a.ts' }],
+        findings: [
+          { severity: 'high', title: 'Eksik test', evidence: 'yok', file: 'a.ts', line: null },
+        ],
       });
       expect(r).toMatch(/iş emri \(devam\)/);
       expect(r).toContain(`job_id: ${a.job.id}`);
-      expect(r).toContain('[major] Eksik test (a.ts): yok');
+      expect(r).toContain('[high] Eksik test (a.ts): yok');
       expect(r).not.toContain('A hedefi');
       expect(r.length).toBeLessThan(pa.length / 2);
     } finally {
