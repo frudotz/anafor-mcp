@@ -27,6 +27,19 @@ gh release download v8.30.1 --repo gitleaks/gitleaks --pattern "gitleaks_8.30.1_
 sha256sum -c --ignore-missing gitleaks_8.30.1_checksums.txt   # eşleşmeli
 ```
 
+### Windows: Codex sandbox modu (önemli)
+
+Codex'in Windows'taki varsayılan **unelevated** sandbox'ı isimli pipe oluşturmaya izin vermez. Bu yüzden işçi içinden başlatılan, pipe'lı stdio kullanan her alt süreç `spawn EPERM` ile düşer: `npm test`, vitest/jest, derleyiciler. Sonuçta Codex testleri çalıştıramaz. **elevated** sandbox ayrı `CodexSandbox*` hesaplarıyla çalışır ve bu sorunu yaşamaz.
+
+```json
+{ "workers": { "codex": { "windows_sandbox": "elevated" } } }
+```
+
+- Ayar yalnızca Anafor'un Codex işlerine uygulanır (`-c windows.sandbox="elevated"`); `~/.codex/config.toml` dosyana dokunulmaz.
+- elevated mod bir kez yönetici onayıyla kurulum ister (Codex ilk kullanımda sorar). `anafor doctor` mevcut durumu gösterir.
+- Proje `AppData` altındaysa sandbox hesabı oraya erişemez; projeyi örneğin Masaüstü veya `C:\src` altında tut.
+- Codex ayrıca her `.git` dizinini salt okunur tutar; işçi commit atmaz, commit'i Anafor yapar.
+
 ## 2. Anafor'u kur
 
 ```bash
