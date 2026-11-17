@@ -34,7 +34,11 @@ export interface JobSpec {
   sandbox: 'read-only' | 'workspace-write';
   timeoutMs: number;
   resumeSessionRef?: string | undefined;
+  /** Akıl yürütme düzeyi (token profili, F22); desteklemeyen işçi yok sayar. */
+  effort?: Effort | undefined;
 }
+
+export type Effort = 'low' | 'medium' | 'high';
 
 export interface JobContext {
   artifactsDir: string;
