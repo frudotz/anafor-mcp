@@ -256,7 +256,6 @@ export class AntigravityAdapter implements WorkerAdapter {
       writesFiles: true,
       costTier: 'medium',
       maxConcurrency: this.opts.maxConcurrency ?? 1,
-      experimental: true,
     };
   }
 
@@ -302,17 +301,85 @@ export class AntigravityAdapter implements WorkerAdapter {
   }
 
   private run(args: string[], job: JobSpec, ctx: JobContext): RunHandle {
-    return runGoogle({
+    return runLineProcess({
       command: this.bin,
       args,
       cwd: job.workdir,
       env: ctx.env,
       stdin: '',
       artifactsDir: ctx.artifactsDir,
-      parseLine: createGoogleParser(),
+      parseLine: parseAntigravityLine,
       finalize: ({ lastMessage, sessionRef }) => ({ finalMessage: lastMessage, sessionRef }),
     });
   }
+}
+
+/**
+ * agy 1.5.9 `--output-format stream-json` (GERÇEK çıktıyla doğrulandı; belgelerden farklı):
+ * olay adı `event` alanında, veri iç içe:
+ *   {event:"init", conversation_id, init:{cwd, tools}}
+ *   {event:"step_update", step_update:{state, step_type, tool_name, tool_info:{parameters}, text_delta, usage}}
+ *   {event:"result", result:{status, response, structured_output, usage}}
+ * Kullanım yalnızca `result.usage`'tan alınır (adım kullanımları toplamla çift sayılmasın).
+ */
+export function parseAntigravityLine(line: string): WorkerEvent[] {
+  if (!line.trim().startsWith('{')) return [];
+  const ev = JSON.parse(line) as Record<string, unknown>;
+  const out: WorkerEvent[] = [];
+  if (ev.event === 'init' && typeof ev.conversation_id === 'string') {
+    out.push({ type: 'session', sessionRef: ev.conversation_id });
+  }
+  if (ev.event === 'step_update' && ev.step_update && typeof ev.step_update === 'object') {
+    const s = ev.step_update as Record<string, unknown>;
+    if (s.state !== 'DONE') return out;
+    if (
+      s.step_type === 'agent_response' &&
+      typeof s.text_delta === 'string' &&
+      s.text_delta.trim()
+    ) {
+      out.push({ type: 'message', text: s.text_delta });
+    }
+    if (s.step_type === 'tool') {
+      const name = String(s.tool_name ?? '');
+      const params = ((s.tool_info as { parameters?: unknown } | undefined)?.parameters ??
+        {}) as Record<string, unknown>;
+      const path = params.Path ?? params.path ?? params.file_path ?? params.TargetFile;
+      const command = params.CommandLine ?? params.Command ?? params.command;
+      if (/command|shell|terminal|bash/i.test(name) && command !== undefined) {
+        out.push({
+          type: 'command',
+          command: String(command),
+          exitCode: num(params.ExitCode ?? params.exit_code) ?? null,
+        });
+      } else if (/write|edit|replace|file/i.test(name) && typeof path === 'string') {
+        out.push({ type: 'file_change', path, kind: name });
+      }
+    }
+  }
+  if (ev.event === 'result' && ev.result && typeof ev.result === 'object') {
+    const r = ev.result as Record<string, unknown>;
+    const u = (r.usage ?? {}) as Record<string, unknown>;
+    out.push({
+      type: 'usage',
+      inputTokens: num(u.input_tokens),
+      cachedInputTokens: num(u.cache_read_tokens),
+      outputTokens: num(u.output_tokens),
+      reasoningOutputTokens: num(u.thinking_tokens),
+    });
+    if (r.status !== 'SUCCESS' || r.error) {
+      out.push({
+        type: 'error',
+        message: String(r.error ?? r.status ?? 'agy hatası'),
+        fatal: true,
+      });
+    }
+    if (r.structured_output && typeof r.structured_output === 'object') {
+      out.push({ type: 'message', text: JSON.stringify(r.structured_output) });
+    } else if (typeof r.response === 'string' && r.response.trim()) {
+      out.push({ type: 'message', text: r.response });
+    }
+  }
+  return out;
 }
 
 /** Gemini CLI ayarlarında (GEMINI_CLI_HOME veya ev dizini) kimlik yöntemi seçili mi? */

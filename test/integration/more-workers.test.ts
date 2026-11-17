@@ -302,3 +302,42 @@ describe('antigravity argümanları (agy 1.5.9 --help ile doğrulandı)', () => 
     }
   });
 });
+
+describe('antigravity gerçek olay biçimi (agy 1.5.9)', () => {
+  // Gerçek çıktıdan kısaltılmış satırlar: olay adı `event`, veri iç içe.
+  const REAL = [
+    '{"event":"init","conversation_id":"fafe7991","init":{"cwd":"C:/w","tools":["write_file"]}}',
+    '{"event":"step_update","step_update":{"conversation_id":"fafe7991","step_index":1,"state":"DONE","step_type":"agent_response","usage":{"input_tokens":9961,"output_tokens":194}}}',
+    '{"event":"step_update","step_update":{"conversation_id":"fafe7991","step_index":2,"state":"ACTIVE","step_type":"tool","tool_name":"write_file","tool_info":{"name":"write_file","parameters":{"Path":"C:/w/conformance.txt"}}}}',
+    '{"event":"step_update","step_update":{"conversation_id":"fafe7991","step_index":2,"state":"DONE","step_type":"tool","tool_name":"write_file","tool_info":{"name":"write_file","parameters":{"Path":"C:/w/conformance.txt"}}}}',
+    '{"event":"step_update","step_update":{"conversation_id":"fafe7991","step_index":3,"state":"DONE","step_type":"agent_response","text_delta":"{\\"a\\":1}"}}',
+    '{"event":"result","result":{"conversation_id":"fafe7991","status":"SUCCESS","response":"{\\"a\\":1}","structured_output":{"a":1},"usage":{"input_tokens":12289,"output_tokens":402,"thinking_tokens":80,"cache_read_tokens":7907,"total_tokens":12691}}}',
+  ];
+  it('init → oturum, DONE tool → file_change (ACTIVE yok sayılır), result → kullanım + yapılandırılmış çıktı', async () => {
+    const { parseAntigravityLine } = await import('../../src/adapters/google.js');
+    expect(REAL.flatMap(parseAntigravityLine)).toEqual([
+      { type: 'session', sessionRef: 'fafe7991' },
+      { type: 'file_change', path: 'C:/w/conformance.txt', kind: 'write_file' },
+      { type: 'message', text: '{"a":1}' },
+      {
+        type: 'usage',
+        inputTokens: 12289,
+        cachedInputTokens: 7907,
+        outputTokens: 402,
+        reasoningOutputTokens: 80,
+      },
+      { type: 'message', text: '{"a":1}' },
+    ]);
+  });
+  it('başarısız sonuç → fatal hata', async () => {
+    const { parseAntigravityLine } = await import('../../src/adapters/google.js');
+    const evs = parseAntigravityLine(
+      '{"event":"result","result":{"status":"ERROR","error":"authentication failed or timed out","usage":{}}}',
+    );
+    expect(evs).toContainEqual({
+      type: 'error',
+      message: 'authentication failed or timed out',
+      fatal: true,
+    });
+  });
+});
