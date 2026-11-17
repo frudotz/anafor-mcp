@@ -26,6 +26,8 @@ export interface AnaforConfig {
   routing: Partial<Record<'implementation' | 'review' | 'analysis' | 'test', string[]>>;
   /** Uyarlamalı yönlendirme: yeterli geçmişi olan işçileri kabul oranıyla sırala. */
   routing_mode: RoutingMode;
+  /** Makine genelinde aynı anda çalışabilecek toplam iş (tüm işçiler ve projeler). */
+  max_parallel_jobs: number;
 }
 
 export interface WorkerSettings {
@@ -62,6 +64,7 @@ export const DEFAULT_CONFIG: AnaforConfig = {
   allow_verify_commands: true,
   default_worker: 'codex',
   routing_mode: 'static',
+  max_parallel_jobs: 4,
   worktree_setup: null,
   escalation: { failure_threshold: 3, stall_minutes: 60, takeover_minutes: 120 },
   test_command: null,

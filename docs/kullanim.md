@@ -98,12 +98,14 @@ Sunucu yeniden başlarsa ölü işler `failed (orphaned)` olur. **Hiçbir iş ot
     "review": ["codex", "claude-lite"]
   },
   "workers": {
-    "codex": { "max_concurrency": 2 },
+    "codex": { "max_concurrency": 2, "windows_sandbox": "elevated" },
     "claude-lite": { "model": "haiku", "max_concurrency": 3 },
     "fake": { "enabled": false }
   }
 }
 ```
+
+`max_parallel_jobs` (varsayılan 4) **makine genelinde** aynı anda çalışabilecek toplam iş sayısıdır: tüm işçiler ve tüm projeler sayılır. Her çalışan runner `~/.anafor/running/` altında süreç kimlikli bir kira bırakır; ölü süreçlerin kiraları sayılmaz. Sınır doluysa `job_dispatch` `LIMIT_REACHED` döner. Anlık kullanım `project_status.parallel` alanında görünür. İşçi başına sınır ayrıca `workers.<id>.max_concurrency` ile verilir.
 
 `.anafor/config.json` yerel ezmeler içindir (commit edilmez). Proje dosyası önceliklidir.
 
