@@ -273,3 +273,32 @@ describe('politika kuralları', () => {
     }
   });
 });
+
+describe('antigravity argümanları (agy 1.5.9 --help ile doğrulandı)', () => {
+  it('şema dosya yoluyla, mod rol bazlı, print-timeout iş süresinden, izin atlatma yok', () => {
+    const t = tempDir();
+    try {
+      const a = new AntigravityAdapter({ acknowledged: true });
+      const job = {
+        jobId: 'J',
+        taskId: 'T',
+        role: 'implementation' as const,
+        prompt: 'iş\nemri',
+        outputSchemaPath: join(process.cwd(), 'schemas', 'worker-result.v1.json'),
+        workdir: t.dir,
+        sandbox: 'workspace-write' as const,
+        timeoutMs: 600_000,
+      };
+      const args = a.args(job, { artifactsDir: t.dir, env: {} });
+      const schemaPath = args[args.indexOf('--json-schema') + 1]!;
+      expect(JSON.parse(readFileSync(schemaPath, 'utf8')).$schema).toBeUndefined();
+      expect(args[args.indexOf('--mode') + 1]).toBe('accept-edits');
+      expect(args[args.indexOf('--print-timeout') + 1]).toBe('600s');
+      expect(args.join(' ')).not.toMatch(/dangerously|--mode auto/);
+      const ro = a.args({ ...job, sandbox: 'read-only' }, { artifactsDir: t.dir, env: {} });
+      expect(ro[ro.indexOf('--mode') + 1]).toBe('plan');
+    } finally {
+      t.cleanup();
+    }
+  });
+});
