@@ -10,6 +10,7 @@ Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme:
   - Hesap başına boş KP (rezerv sonrası), tempo ve dolma süresi.
   - İş başına maliyet, işten önceki ve sonraki pencere farkından öğrenilir (EMA + p80).
   - Rol başına kalan iş tahmini ve yönlendirme ipuçları.
+- **Yük dengeleyici (F21):** router, rol zincirini abonelik kapasitesine göre yeniden sıralar. Stratejiler: `balanced` (varsayılan), `protect-brain`, `cheap-first`, `off`. Rezerve ulaşmış veya maliyeti sığmayan hesaplar sona, hızlı tükenenler ortaya alınır. Kararın gerekçesi `job_dispatch` uyarısında ve `route` olayında görünür.
 - **Rol dağılımı önerisi:** `anafor capacity recommend <abonelikler> [--apply]` dönemsel meta profilinden (2026-Q4) çalışır. Öneri beynin hesabını korur ve incelemeyi farklı bir model ailesine verir.
 
 ## [0.3.0] - 2026-11-17

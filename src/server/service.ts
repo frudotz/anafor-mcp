@@ -30,6 +30,7 @@ import {
   removeWorktree,
   taskBranchName,
 } from '../git/worktree.js';
+import { balance } from '../capacity/balancer.js';
 import { capacityReport, readCosts } from '../capacity/capacity.js';
 import { recommend } from '../capacity/meta.js';
 import { currentLimits, formatWindows, limitAccount } from '../limits/limits.js';
@@ -233,20 +234,27 @@ export class AnaforService {
     ) as Record<Role, string[]>;
   }
 
-  /** Kapasite modeli (KP), ipuçları ve aboneliklere göre önerilen rol dağılımı. */
-  capacityStatus() {
-    const cfg = loadConfig(this.store.paths.root);
+  private capacitySnapshot(cap: ReturnType<typeof loadConfig>['capacity']) {
     const accounts: Record<string, string[]> = { claude: ['beyin'] };
     for (const id of this.adapters.keys()) (accounts[limitAccount(id)] ??= []).push(id);
     const limits = Object.fromEntries(Object.keys(accounts).map((a) => [a, currentLimits(a)]));
-    const report = capacityReport({
+    return capacityReport({
       accounts,
       limits,
       costs: readCosts(),
       routing: this.routingChains(),
       accountOf: limitAccount,
-      cfg: cfg.capacity,
+      cfg: cap,
     });
+  }
+
+  /** Son yönlendirme kararının açıklaması (job_dispatch uyarılarına eklenir). */
+  private routeNotes: string[] = [];
+
+  /** Kapasite modeli (KP), ipuçları ve aboneliklere göre önerilen rol dağılımı. */
+  capacityStatus() {
+    const cfg = loadConfig(this.store.paths.root);
+    const report = this.capacitySnapshot(cfg.capacity);
     return {
       ...report,
       unit: 'KP = pencerenin %1i; free = 100 − kullanım − rezerv',
@@ -288,6 +296,23 @@ export class AnaforService {
         ...order.filter((w) => w !== target.worker),
         ...order.filter((w) => w === target.worker),
       ];
+    }
+    this.routeNotes = [];
+    const cfg = loadConfig(this.store.paths.root);
+    if (cfg.balancer.strategy !== 'off' && order.length > 1) {
+      const b = balance(
+        role,
+        order.map((worker) => ({
+          worker,
+          account: limitAccount(worker),
+          costTier: this.adapters.get(worker)!.capabilities().costTier,
+        })),
+        this.capacitySnapshot(cfg.capacity).accounts,
+        cfg.balancer.strategy,
+        cfg.capacity.pace_threshold,
+      );
+      order = b.order;
+      this.routeNotes = b.notes;
     }
     const reasons: string[] = [];
     for (const id of order) {
@@ -458,7 +483,9 @@ export class AnaforService {
       throw new ServiceError('INVALID_STATE', `Görev ${task.id} durumu: ${task.state}`);
     }
     const target = input.targetJobId ? this.mustJob(input.targetJobId) : null;
+    this.routeNotes = [];
     const workerId = input.worker ?? (await this.route(input.role, target));
+    const routeNotes = this.routeNotes;
     const adapter = this.adapters.get(workerId);
     if (!adapter) {
       throw new ServiceError(
@@ -585,6 +612,10 @@ export class AnaforService {
       this.store.updateTask(task.id, { state: 'in_progress' });
     }
     const warnings: string[] = [];
+    if (routeNotes.length) {
+      this.store.appendEvent(job.id, 'route', routeNotes.join('; '));
+      warnings.push(...routeNotes);
+    }
     if (workspace === 'shared') {
       const dirty = git(this.store.paths.root, ['status', '--porcelain'])
         .stdout.split('\n')
