@@ -13,6 +13,12 @@ import type {
   WorkerEvent,
 } from './types.js';
 
+/** Dosya DEĞİŞTİREN araç mı? (read_file, view_file, list_dir vb. değil.) */
+export function isWriteTool(name: string): boolean {
+  if (/read|view|list|find|search|grep|glob/i.test(name)) return false;
+  return /write|edit|replace|create|file/i.test(name);
+}
+
 const num = (v: unknown) => (typeof v === 'number' ? v : undefined);
 
 /**
@@ -93,7 +99,7 @@ function parseGoogleEvent(
       {}) as Record<string, unknown>;
     if (/shell|bash|command|terminal/i.test(name)) {
       out.push({ type: 'command', command: String(params.command ?? ''), exitCode: null });
-    } else if (/write|edit|replace|file/i.test(name) && (params.file_path || params.path)) {
+    } else if (isWriteTool(name) && (params.file_path || params.path)) {
       out.push({ type: 'file_change', path: String(params.file_path ?? params.path), kind: name });
     }
   }
@@ -227,6 +233,8 @@ export class AntigravityAdapter implements WorkerAdapter {
       model?: string;
       maxConcurrency?: number;
       acknowledged?: boolean;
+      /** Headless agy'nin çalıştırabileceği BİREBİR komutlar (joker yok; agy 1.5.9). */
+      allowedCommands?: string[];
     } = {},
   ) {}
 
@@ -271,9 +279,21 @@ export class AntigravityAdapter implements WorkerAdapter {
     const schemaFile = join(ctx.artifactsDir, 'schema.agy.json');
     writeFileSync(schemaFile, JSON.stringify(raw));
     const model = job.model ?? this.opts.model;
+    const commands =
+      job.sandbox === 'read-only' ? [] : [...new Set(this.opts.allowedCommands ?? [])];
+    const prompt = commands.length
+      ? [
+          job.prompt,
+          '',
+          '## Terminal izinleri',
+          'Headless modda yalnızca şu komutlar izinlidir ve BİREBİR bu biçimde yazılmalıdır:',
+          ...commands.map((c) => `- \`${c}\``),
+          'Başka bir komut reddedilir; reddedilirse tests_run alanında çalıştırılamadığını belirt.',
+        ].join('\n')
+      : job.prompt;
     return [
       '-p',
-      job.prompt,
+      prompt,
       '--output-format',
       'stream-json',
       '--json-schema',
@@ -285,6 +305,13 @@ export class AntigravityAdapter implements WorkerAdapter {
       '--print-timeout',
       `${Math.max(30, Math.round(job.timeoutMs / 1000))}s`,
       ...(model ? ['--model', model] : []),
+      // Oturumluk izinler (kaydedilmez): yalnızca birebir komutlar. Bkz. F16 gerçek doğrulama.
+      ...(commands.length
+        ? [
+            '--settings',
+            JSON.stringify({ permissions: { allow: commands.map((c) => `command(${c})`) } }),
+          ]
+        : []),
     ];
   }
 
@@ -331,7 +358,9 @@ export function parseAntigravityLine(line: string): WorkerEvent[] {
   }
   if (ev.event === 'step_update' && ev.step_update && typeof ev.step_update === 'object') {
     const s = ev.step_update as Record<string, unknown>;
-    if (s.state !== 'DONE') return out;
+    if (s.state !== 'DONE' && s.state !== 'ERROR') return out;
+    const failed = s.state === 'ERROR';
+    if (failed && s.step_type !== 'tool') return out;
     if (
       s.step_type === 'agent_response' &&
       typeof s.text_delta === 'string' &&
@@ -341,17 +370,31 @@ export function parseAntigravityLine(line: string): WorkerEvent[] {
     }
     if (s.step_type === 'tool') {
       const name = String(s.tool_name ?? '');
-      const params = ((s.tool_info as { parameters?: unknown } | undefined)?.parameters ??
-        {}) as Record<string, unknown>;
+      const info = (s.tool_info ?? {}) as {
+        parameters?: unknown;
+        output?: unknown;
+        error?: { message?: unknown };
+      };
+      const params = (info.parameters ?? {}) as Record<string, unknown>;
       const path = params.Path ?? params.path ?? params.file_path ?? params.TargetFile;
       const command = params.CommandLine ?? params.Command ?? params.command;
       if (/command|shell|terminal|bash/i.test(name) && command !== undefined) {
+        // Gerçek çıktı: tool_info.output = "...Command exited with code N. ... Command output: ..."
+        const exit =
+          typeof info.output === 'string' ? /exited with code (-?\d+)/.exec(info.output) : null;
         out.push({
           type: 'command',
           command: String(command),
-          exitCode: num(params.ExitCode ?? params.exit_code) ?? null,
+          exitCode: exit ? Number(exit[1]) : (num(params.ExitCode ?? params.exit_code) ?? null),
         });
-      } else if (/write|edit|replace|file/i.test(name) && typeof path === 'string') {
+        if (failed) {
+          out.push({
+            type: 'error',
+            message: `agy komutu başarısız: ${String(info.error?.message ?? 'bilinmeyen').split('\n')[0]}`,
+            fatal: false,
+          });
+        }
+      } else if (!failed && isWriteTool(name) && typeof path === 'string') {
         out.push({ type: 'file_change', path, kind: name });
       }
     }
@@ -371,6 +414,18 @@ export function parseAntigravityLine(line: string): WorkerEvent[] {
         type: 'error',
         message: String(r.error ?? r.status ?? 'agy hatası'),
         fatal: true,
+      });
+    }
+    const denied = Array.isArray(r.denied_actions)
+      ? (r.denied_actions as Record<string, unknown>[])
+      : [];
+    if (denied.length) {
+      out.push({
+        type: 'error',
+        message:
+          `agy izin reddi (headless): ${denied.map((d) => String(d.action ?? '?')).join(', ')}. ` +
+          'Komutlar için anafor.config.json → test_command veya workers.antigravity.allowed_commands (birebir).',
+        fatal: false,
       });
     }
     if (r.structured_output && typeof r.structured_output === 'object') {
