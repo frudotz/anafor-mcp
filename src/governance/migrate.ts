@@ -5,6 +5,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -54,6 +55,24 @@ function appendLines(from: string, to: string, extra: object): number {
  * Eski software-orchestrator `.orchestrator/` durumunu `.anafor/`'a taşır (kopyalar).
  * Kaynak salt okunur; hiçbir şey silinmez. Tekrar çalıştırmaya karşı işaret dosyası tutulur.
  */
+/** Anafor'da karşılığı olmayan, yerinde bırakılan eski içerik (raporda listelenir). */
+const LEGACY_ONLY = [
+  'implementation',
+  'reviews',
+  'history',
+  'logs',
+  'prompts',
+  'sessions.json',
+  'DECISIONS.md',
+  'PROJECT_STATE.md',
+];
+
+function nonEmpty(p: string): boolean {
+  if (!existsSync(p)) return false;
+  const s = statSync(p);
+  return s.isDirectory() ? readdirSync(p).length > 0 : s.size > 0;
+}
+
 export function migrateFromOrchestrator(store: Store): MigrationReport {
   const root = store.paths.root;
   const src = join(root, '.orchestrator');
@@ -142,6 +161,17 @@ export function migrateFromOrchestrator(store: Store): MigrationReport {
   );
   if (existsSync(join(src, 'memory', 'write.lock.json'))) {
     report.notes.push('⚠️ Eski hafıza yazma kilidi var; taşınmadı. İnceleyip elle kaldırın.');
+  }
+  if (existsSync(join(src, 'orchestrator.lock'))) {
+    report.notes.push(
+      '⚠️ Eski orchestrator.lock var: eski orkestratör artık kullanılmıyorsa .orchestrator/ ile birlikte silinebilir.',
+    );
+  }
+  const kept = LEGACY_ONLY.filter((n) => nonEmpty(join(src, n)));
+  if (kept.length) {
+    report.notes.push(
+      `Taşınmayan eski artefaktlar .orchestrator/ içinde yerinde kalır (silinmez): ${kept.join(', ')}`,
+    );
   }
 
   writeFileSync(marker, JSON.stringify({ at: new Date().toISOString(), report }, null, 2));
