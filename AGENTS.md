@@ -16,7 +16,7 @@ Anafor: Claude Code'u yönetici, diğer yapay zekâ ajanlarını (önce Codex CL
 ## Kurallar
 - Dal: `<sahip>/<tür>/<kısa-ad>` (ajanlar: `claude/...`, `codex/...`). `main`'e doğrudan push yok, force push yok, başkasının dalına commit yok.
 - Commit ve PR başlığı Conventional Commits: `feat(core): ...`.
-- Birleştirme: squash; kapılar CI (ubuntu + windows) + `guard` (katkı koruması) + güncel dal. Ana katkıcıların (frudotz, RedRiveRR) PR'ları onay beklemez: `gh pr merge --squash --auto`. Diğer herkesin PR'ı bu ikisinden birinin onayını ister (ruleset).
+- Birleştirme: squash; kapılar CI (ubuntu + windows) + `guard` (katkı koruması) + güncel dal. Ana katkıcıların (frudotz, RedRiveRR) PR'ları onay beklemez: CI ve `guard` yeşil olunca `gh pr merge <no> --squash --admin --repo frudotz/anafor-mcp` (yalnızca onay kuralını atlar; kapılar atlanamaz). Diğer herkesin PR'ı bu ikisinden birinin onayını ister (ruleset).
 - İzin veya sandbox atlatma bayrakları (`--dangerously-*`, bypass permissions) kullanılmaz.
 - Gizli bilgi commit edilmez, loglanmaz.
 - Yeni davranış = test. Ortak arayüz (`src/adapters/types.ts`, `schemas/`) değişikliği ayrı PR.
