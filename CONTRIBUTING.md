@@ -81,3 +81,43 @@ SemVer. `0.x` döneminde küçük sürüm (minor) kırıcı olabilir; değişikl
 ## 8. Dokümantasyon
 
 Kısa kullanıcı dokümantasyonu bu repoda (`README.md`, `docs/`). Ayrıntılı tasarım, kararlar (ADR) ve yol haritası projenin özel dokümantasyon kasasında tutulur. Erişim için repo sahibine başvurun.
+
+## 9. Katkı koruması
+
+Her PR'da `Contribution Guard / guard` kontrolü çalışır. Bu kontrol PR'ın diff'ini yalnızca veri olarak inceler ve PR kodunu asla çalıştırmaz. Amaç, kimsenin "Anafor'a katkı" görüntüsü altında zararlı kod yaymasına izin vermemek. Kurallar ve gerekçeleri (G01–G19) [docs/contribution-guard.md](docs/contribution-guard.md) dosyasında.
+
+**Engellenenler (block):**
+- kurulum betikleri ve kurulum betikli paketler
+- npm kayıt deposu dışından gelen bağımlılıklar
+- `eval` ve `new Function`
+- indir-ve-çalıştır desenleri
+- kimlik bilgisi erişimi veya ortam değişkenlerinin dışarı sızdırılması
+- izin atlatma bayrakları
+- telemetri
+- gizlenmiş kod
+- ikili dosyalar
+- gizli Unicode karakterler (Trojan Source)
+- koda gömülü gizli bilgiler
+
+**Bakımcı incelemesi gerektirenler (review):**
+- yeni ya da sürümü değişen bağımlılık
+- CI iş akışları
+- hassas yollar (`package.json`, `scripts/`, `plugin/`, `src/cli/update.ts`, `src/hooks/`, `src/extensions/`, `src/setup/`, …)
+- yeni ağ uç noktaları
+- kabuk üzerinden süreç başlatma
+
+Güvenilir katkıcılar (sahip, üye, ortak çalışan) review bulgularıyla birlikte geçer. Dış katkıcıların PR'ı ise bakımcı inceleyip `guard-approved` etiketini eklemeden birleşemez.
+
+PR açmadan önce yerelde çalıştırın: `node scripts/contribution-guard.mjs --base origin/main --head HEAD`.
+
+## 10. doctor ile bulunan sorunların çözümünü paylaşmak
+
+`anafor doctor` ile bulunan bir sorunu Anafor'un kendi kodunda düzelttiyseniz (yerel ayarınızda değil), lütfen PR açın. Düzeltmeniz `anafor update` ile tüm kullanıcılara ulaşır.
+
+Adımlar [docs/sharing-fixes.md](docs/sharing-fixes.md) dosyasında (İngilizce; insanlar ve yapay zekâ ajanları için):
+1. Sorunu yeniden üreten bir test yazın.
+2. Düzeltmeyi en küçük kapsamda yapın.
+3. `npm run check` ve katkı korumasını çalıştırın.
+4. PR şablonuna doctor kodunu, kök nedeni ve doğrulamayı yazın.
+
+Güvenlik açıkları için açık PR veya issue açmayın; [SECURITY.md](SECURITY.md) dosyasındaki yolu izleyin.

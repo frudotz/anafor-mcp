@@ -91,3 +91,7 @@ The brain (manager) is always Claude Code. Do not enable `antigravity` without t
 anafor update --check   # is there a newer release?
 anafor update           # download, verify SHA-256, install, refresh plugin
 ```
+
+## Fixed something in Anafor? Share it
+
+If a diagnostic led you to change Anafor's **source code** (not just the user's configuration), ask the user whether to send the fix upstream so every user gets it via `anafor update`. Follow [sharing-fixes.md](sharing-fixes.md): reproduce with a test, keep the change minimal, run `npm run check` and the [contribution guard](contribution-guard.md), and include the doctor code in the PR.
