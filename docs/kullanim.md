@@ -166,7 +166,7 @@ node /yol/anafor-mcp/dist/cli/main.js migrate /projen
 | `local` | OpenAI uyumlu API (Ollama, LM Studio) | ✅ sahte sunucuyla test | Yalnızca `analysis`/`review` (dosya düzenlemez) |
 | `opencode` | `opencode run --format json` | ✅ doğrulandı (gerçek opencode 1.19.5 + OpenAI uyumlu sağlayıcı) | API anahtarı, yerel model veya ChatGPT planı. **Claude aboneliği OpenCode ile kullanılamaz**; `anthropic/*` modelleri yalnızca `allow_anthropic_api` ile |
 | `gemini` | `gemini -p --output-format stream-json --approval-mode auto_edit\|plan` | ✅ doğrulandı (gerçek gemini-cli 0.68 + Gemini API uyumlu sahte sunucu) | Kişisel Google girişleri 2026-06-18'de kapandı: **yalnızca `GEMINI_API_KEY`**. `~/.gemini/settings.json` → `security.auth.selectedType: "gemini-api-key"` gerekli |
-| `antigravity` | `agy -p --output-format stream-json --json-schema` | 🧪 deneysel, **varsayılan kapalı** | Koşullar gri alan (üçüncü taraf erişimi ihlal sayılabiliyor). Açmak için `enabled` + `acknowledge_terms`; API anahtarı önerilir |
+| `antigravity` | `agy -p --output-format stream-json --json-schema <dosya> --mode accept-edits\|plan` | ✅ doğrulandı (gerçek agy 1.5.9 + gerçek hesap, uyum testi), **varsayılan kapalı** | Koşullar gri alan (üçüncü taraf erişimi ihlal sayılabiliyor). Açmak için `enabled` + `acknowledge_terms`; API anahtarı önerilir |
 
 Örnek yapılandırma:
 
@@ -181,7 +181,7 @@ node /yol/anafor-mcp/dist/cli/main.js migrate /projen
 }
 ```
 
-Gerçek uyum testleri:
+Gerçek uyum testleri (Antigravity: `agy` ile bir kez giriş yaptıktan sonra `ANAFOR_AGY_BIN=<agy.exe yolu> ANAFOR_E2E_AGY=1`):
 - OpenCode, hesap gerektirmeden sahte sağlayıcıyla: `ANAFOR_E2E_OPENCODE_BIN=<opencode yolu> npx vitest run test/integration/opencode-real.test.ts`
 - Gemini, hesap gerektirmeden sahte API ile: `ANAFOR_E2E_GEMINI_BIN=<gemini yolu> npx vitest run test/integration/gemini-real.test.ts`
 - Gerçek modellerle: `ANAFOR_E2E_OPENCODE_MODEL=ollama/qwen3-coder`, `ANAFOR_E2E_GEMINI=1`, `ANAFOR_E2E_AGY=1` ile `npx vitest run test/integration/conformance.test.ts`
