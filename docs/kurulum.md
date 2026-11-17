@@ -1,3 +1,5 @@
+🇬🇧 English: [installation.md](en/installation.md)
+
 # Anafor kurulumu (yeni bilgisayar, ~5 dakika)
 
 ## 1. Ön koşullar

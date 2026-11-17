@@ -1,3 +1,5 @@
+🇬🇧 [English](README.en.md)
+
 # anafor-mcp
 
 **Anafor**, Claude Code'u *yönetici*, diğer yapay zekâ kodlama ajanlarını (önce OpenAI Codex CLI) *işçi* yapan bir orkestrasyon sistemidir.
