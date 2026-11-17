@@ -16,6 +16,8 @@ import { findAnaforRoot, loadConfig } from '../core/config.js';
 import { jobsTable, runChat } from './chat.js';
 import { buildGoalPrompt, type RunGoalOptions } from './run.js';
 import { runSetup, setupStateSummary } from './setup-cmd.js';
+import { formatCapacity, runRecommend } from './capacity-cmd.js';
+import { AnaforService } from '../server/service.js';
 import { readSetupState } from '../setup/setup.js';
 import {
   formatWindows,
@@ -272,6 +274,36 @@ switch (cmd) {
     }
     break;
   }
+  case 'capacity': {
+    const r = projectRoot();
+    if (rest[0] === 'recommend') {
+      const ids = (rest[1] && !rest[1].startsWith('-') ? rest[1] : '')
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean);
+      runRecommend(r, ids, rest.includes('--apply')).forEach((l) => console.log(l));
+      break;
+    }
+    const cfg = loadConfig(r);
+    const store = new Store(r);
+    try {
+      const svc = new AnaforService(
+        store,
+        defaultAdapters(cfg),
+        undefined,
+        cfg.default_worker,
+        cfg.routing,
+        cfg.routing_mode,
+        cfg.max_parallel_jobs,
+      );
+      const rep = svc.capacityStatus();
+      if (rest.includes('--json')) console.log(JSON.stringify(rep, null, 2));
+      else formatCapacity(rep).forEach((l) => console.log(l));
+    } finally {
+      store.close();
+    }
+    break;
+  }
   case 'statusline': {
     // Claude Code statusLine komutu: stdin JSON'daki rate_limits kaydedilir, kısa satır yazılır.
     const chunks: Buffer[] = [];
@@ -325,6 +357,9 @@ kullanım:
   anafor roles [set <rol> <işçi1,işçi2>]
                           beyin ve işçi rolleri
   anafor limits           bağlı yapay zekâların oturum/kullanım limitleri
+  anafor capacity [--json] kapasite (KP), rol başına kalan iş tahmini ve yük ipuçları
+  anafor capacity recommend <abonelik1,abonelik2> [--apply]
+                          aboneliklere göre önerilen rol dağılımı (meta profili)
   anafor statusline       Claude Code statusLine komutu (limitleri kaydeder)
   anafor hook <olay>      Claude Code hook'u (pre-tool-use | session-start), girdi stdin'den
   anafor version`);

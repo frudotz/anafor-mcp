@@ -9,7 +9,14 @@ import {
   WORKER_RESULT_SCHEMA_PATH,
 } from '../contracts/worker-result.js';
 import { loadConfig } from '../core/config.js';
-import { formatWindows, limitAccount, recordLimits, statusFrom } from '../limits/limits.js';
+import { jobDeltas, recordJobCost } from '../capacity/capacity.js';
+import {
+  currentLimits,
+  formatWindows,
+  limitAccount,
+  recordLimits,
+  statusFrom,
+} from '../limits/limits.js';
 import { nowIso } from '../core/ids.js';
 import { memoryContext } from '../core/memory-context.js';
 import { applyDepCache } from '../git/dep-cache.js';
@@ -171,6 +178,11 @@ ${r.stderr ?? ''}`,
   // ANAFOR_WORKER: işçi süreci (ör. claude-lite) yönetici hook'larına takılmasın.
   const ctx = { artifactsDir, env: { ...(opts.env ?? process.env), ANAFOR_WORKER: '1' } };
 
+  // Kapasite ölçümü (F20): işten önceki limit gözlemi.
+  const account = limitAccount(job.worker);
+  const limitsBefore = currentLimits(account, opts.env);
+  const startedMs = Date.now();
+
   let handle: RunHandle;
   try {
     handle =
@@ -221,6 +233,7 @@ ${r.stderr ?? ''}`,
     clearTimeout(timer);
   }
   const outcome = await handle.done;
+  learnCost();
 
   if (outcome.sessionRef) {
     store.patchJob(job.id, { sessionRef: outcome.sessionRef });
@@ -253,6 +266,29 @@ ${r.stderr ?? ''}`,
   });
   settleTask(store, job.taskId);
   return store.mustGetJob(job.id);
+
+  /** İş tek başına çalıştıysa (aynı hesapta başka iş yoksa) pencere farkını maliyet olarak kaydet. */
+  function learnCost(): void {
+    try {
+      const others = store
+        .listJobs({ states: ACTIVE_JOB_STATES })
+        .filter((j) => j.id !== job.id && limitAccount(j.worker) === account);
+      if (others.length) return;
+      const deltas = jobDeltas(limitsBefore, currentLimits(account, opts.env), startedMs);
+      recordJobCost(account, job.role, deltas, opts.env);
+      if (Object.keys(deltas).length) {
+        store.appendEvent(
+          job.id,
+          'capacity',
+          Object.entries(deltas)
+            .map(([w, d]) => `${w} +${d} KP`)
+            .join(', '),
+        );
+      }
+    } catch {
+      // ölçüm işi durdurmaz
+    }
+  }
 
   function invalid(error: string): Job {
     store.appendEvent(job.id, 'error', `invalid_output: ${error}`);

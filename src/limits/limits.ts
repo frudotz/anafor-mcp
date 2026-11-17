@@ -187,3 +187,16 @@ export function formatWindows(windows: LimitWindow[], now = Date.now()): string 
     })
     .join(' · ');
 }
+
+/** Bir hesabın en güncel limit gözlemi (Codex: rollout dosyası; diğerleri: kayıtlı). */
+export function currentLimits(
+  account: string,
+  env: NodeJS.ProcessEnv = process.env,
+): WorkerLimits | null {
+  const stored = readStoredLimits(env)[account] ?? null;
+  if (account !== 'codex') return stored;
+  const live = readCodexLimits(env);
+  if (!live) return stored;
+  if (!stored) return live;
+  return Date.parse(live.observed_at) >= Date.parse(stored.observed_at) ? live : stored;
+}

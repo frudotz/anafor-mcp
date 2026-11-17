@@ -30,12 +30,9 @@ import {
   removeWorktree,
   taskBranchName,
 } from '../git/worktree.js';
-import {
-  formatWindows,
-  limitAccount,
-  readCodexLimits,
-  readStoredLimits,
-} from '../limits/limits.js';
+import { capacityReport, readCosts } from '../capacity/capacity.js';
+import { recommend } from '../capacity/meta.js';
+import { currentLimits, formatWindows, limitAccount } from '../limits/limits.js';
 import { createCheckpoint, readCheckpoint, type CheckpointMeta } from '../governance/checkpoint.js';
 import {
   acquireMemoryLock,
@@ -199,11 +196,10 @@ export class AnaforService {
    */
   /** İşçi oturum/kullanım limitleri (bilinen kaynaklardan; bilinmiyorsa unknown). */
   workersLimits() {
-    const stored = readStoredLimits();
     const ids = [...new Set([...this.adapters.keys()].map(limitAccount))];
     if (!ids.includes('claude')) ids.unshift('claude');
     return ids.map((id) => {
-      const l = id === 'codex' ? (readCodexLimits() ?? stored[id]) : stored[id];
+      const l = currentLimits(id);
       if (!l) {
         return {
           worker: id,
@@ -224,11 +220,44 @@ export class AnaforService {
     });
   }
 
+  /** Rol başına tercih zinciri (config.routing + varsayılan işçi, kayıtlı olanlar). */
+  routingChains(): Record<Role, string[]> {
+    const roles: Role[] = ['implementation', 'review', 'analysis', 'test'];
+    return Object.fromEntries(
+      roles.map((r) => [
+        r,
+        [...new Set([...(this.routing[r] ?? []), this.defaultWorker])].filter((id) =>
+          this.adapters.has(id),
+        ),
+      ]),
+    ) as Record<Role, string[]>;
+  }
+
+  /** Kapasite modeli (KP), ipuçları ve aboneliklere göre önerilen rol dağılımı. */
+  capacityStatus() {
+    const cfg = loadConfig(this.store.paths.root);
+    const accounts: Record<string, string[]> = { claude: ['beyin'] };
+    for (const id of this.adapters.keys()) (accounts[limitAccount(id)] ??= []).push(id);
+    const limits = Object.fromEntries(Object.keys(accounts).map((a) => [a, currentLimits(a)]));
+    const report = capacityReport({
+      accounts,
+      limits,
+      costs: readCosts(),
+      routing: this.routingChains(),
+      accountOf: limitAccount,
+      cfg: cfg.capacity,
+    });
+    return {
+      ...report,
+      unit: 'KP = pencerenin %1i; free = 100 − kullanım − rezerv',
+      subscriptions: cfg.subscriptions,
+      recommendation: cfg.subscriptions.length ? recommend(cfg.subscriptions) : null,
+    };
+  }
+
   /** Limiti dolmuş (sıfırlanma zamanı gelmemiş) işçi mi? */
   private limited(workerId: string): string | null {
-    const acc = limitAccount(workerId);
-    const l =
-      acc === 'codex' ? (readCodexLimits() ?? readStoredLimits()[acc]) : readStoredLimits()[acc];
+    const l = currentLimits(limitAccount(workerId));
     if (!l) return null;
     const now = Date.now() / 1000;
     const full = l.windows.find(

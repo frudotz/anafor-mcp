@@ -156,6 +156,44 @@ Beyin oturumunun limitlerini de görmek için Claude Code ayarlarına (`~/.claud
 
 Router, bir penceresi %100 dolmuş (ve henüz sıfırlanmamış) işçiyi atlar.
 
+## 7c. Kapasite modeli ve rol dağılımı önerisi
+
+`anafor capacity` her hesabı (claude, codex …) limit pencereleriyle gösterir.
+
+**KP (kapasite puanı)** bir pencerenin %1'idir. Boş alan şöyle hesaplanır: `100 − kullanım − rezerv`. Rezerv, senin etkileşimli kullanımın için ayrılan paydır; varsayılan değeri 5 saatlik pencerede %10, haftalık pencerede %15'tir.
+
+**Tempo**, kullanım oranının pencerede geçen süre oranına bölümüdür. Tempo 1'in üstündeyse pencere süresi bitmeden dolar.
+
+**İş başına maliyet nasıl öğrenilir?** Bir iş, aynı hesapta başka iş çalışmazken bittiğinde, runner pencerenin işten önceki ve sonraki kullanımını karşılaştırır. Aradaki fark ilgili hesap, rol ve pencere için `~/.anafor/capacity-costs.json` dosyasına kaydedilir. Planlamada bu ölçümlerin p80 değeri kullanılır. Bu değerden rol başına "~N iş kaldı" tahmini çıkarılır.
+
+Not: Claude hesabını beyin ile `claude-lite` paylaşır. Bu yüzden Claude için çıkan maliyetler bir üst sınırdır.
+
+**İpuçları:** Bir pencere rezerve ulaştığında, hızlı tükendiğinde ya da bir rolde 2 veya daha az iş kapasitesi kaldığında `anafor capacity` uyarır. Rolün ilk işçisi kısıtlıysa sağlıklı bir yedek önerir ve bunun için kullanılacak `anafor roles set …` komutunu da verir. Aynı bilgi MCP aracı `capacity_status` ile de alınabilir.
+
+**Önerilen rol dağılımı** dönemsel meta profilinden üretilir (2026-Q4, vault'taki F19 araştırması). Örnek:
+
+```bash
+anafor capacity recommend claude-max,chatgpt-plus          # öneriyi göster
+anafor capacity recommend claude-max,chatgpt-plus --apply  # anafor.config.json → subscriptions + routing
+anafor capacity recommend                                  # abonelik kimlikleri listesi
+```
+
+Önerinin dayandığı ilkeler:
+- Beyin öncü kademede (Opus) çalışır.
+- Eşit kademede beynin hesabını paylaşmayan işçi öne alınır.
+- İnceleme, uygulayıcıdan farklı bir model ailesine verilir.
+- Yerel modeller yalnızca test ve analiz için yedek olarak kullanılır.
+- Koşulları gri alanda olan abonelikler uyarıyla gösterilir.
+
+Ayarlar (`anafor.config.json`):
+
+```json
+{
+  "subscriptions": ["claude-max", "chatgpt-plus"],
+  "capacity": { "reserve_five_hour": 10, "reserve_weekly": 15, "pace_threshold": 1.2 }
+}
+```
+
 ## 8. Eski software-orchestrator'dan göç
 
 ```bash

@@ -1,3 +1,4 @@
+import { DEFAULT_CAPACITY, type CapacityConfig } from '../capacity/capacity.js';
 import type { DepCacheConfig } from '../git/dep-cache.js';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -33,6 +34,10 @@ export interface AnaforConfig {
   max_parallel_jobs: number;
   /** Yeni işlerde Lat.md hafızasından ilgili bölümleri iş emrine ekle (lat.md/ varsa). */
   memory_context: boolean;
+  /** Kullanıcının abonelikleri (meta profili kimlikleri; ör. "claude-max", "chatgpt-plus"). */
+  subscriptions: string[];
+  /** Kapasite modeli: rezervler ve tempo eşiği. */
+  capacity: CapacityConfig;
 }
 
 export interface WorkerSettings {
@@ -71,6 +76,8 @@ export const DEFAULT_CONFIG: AnaforConfig = {
   routing_mode: 'static',
   max_parallel_jobs: 4,
   memory_context: true,
+  subscriptions: [],
+  capacity: DEFAULT_CAPACITY,
   worktree_setup: null,
   worktree_cache: null,
   escalation: { failure_threshold: 3, stall_minutes: 60, takeover_minutes: 120 },
@@ -94,10 +101,13 @@ export function loadConfig(root: string): AnaforConfig {
       return {};
     }
   };
+  const local = read(join(root, '.anafor', 'config.json'));
+  const project = read(join(root, 'anafor.config.json'));
   return {
     ...DEFAULT_CONFIG,
-    ...read(join(root, '.anafor', 'config.json')),
-    ...read(join(root, 'anafor.config.json')),
+    ...local,
+    ...project,
+    capacity: { ...DEFAULT_CAPACITY, ...local.capacity, ...project.capacity },
   };
 }
 
