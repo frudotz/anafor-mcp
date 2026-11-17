@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { isWindowsShim, runLineProcess } from './process.js';
+import { m } from '../i18n/index.js';
 import type {
   JobContext,
   JobSpec,
@@ -162,20 +163,18 @@ export class GeminiAdapter implements WorkerAdapter {
     if (!key) {
       return {
         available: false,
-        reason:
-          'Gemini CLI yalnızca API anahtarıyla (GEMINI_API_KEY); kişisel hesap girişleri 2026-06-18’de kapandı',
+        reason: m().adapters.geminiKey,
       };
     }
     const v = version(this.bin);
-    if (!v) return { available: false, reason: 'gemini CLI kurulu değil' };
+    if (!v) return { available: false, reason: m().adapters.geminiMissing };
     // Etkileşimsiz modda kimlik yöntemi ayarlardan seçilmiş olmalı; yalnızca ortam değişkeni
     // yetmiyor ("Invalid auth method selected", gerçek testte bulundu).
     if (!geminiAuthSelected()) {
       return {
         available: false,
         version: v,
-        reason:
-          'Gemini ayarlarında kimlik yöntemi seçili değil: ~/.gemini/settings.json → "security": { "auth": { "selectedType": "gemini-api-key" } }',
+        reason: m().adapters.geminiAuth,
       };
     }
     return { available: true, version: v, authOk: true };
@@ -246,12 +245,11 @@ export class AntigravityAdapter implements WorkerAdapter {
     if (!this.opts.acknowledged) {
       return {
         available: false,
-        reason:
-          'Antigravity koşulları gri alan: workers.antigravity.acknowledge_terms=true gerekli (API anahtarı önerilir)',
+        reason: m().adapters.agyTerms,
       };
     }
     const v = version(this.bin);
-    if (!v) return { available: false, reason: 'agy kurulu değil' };
+    if (!v) return { available: false, reason: m().adapters.agyMissing };
     return { available: true, version: v, authOk: true };
   }
 

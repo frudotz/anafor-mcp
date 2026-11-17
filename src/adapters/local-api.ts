@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { git } from '../git/git.js';
 import { EventQueue } from './process.js';
+import { m } from '../i18n/index.js';
 import type {
   JobContext,
   JobSpec,
@@ -70,12 +71,15 @@ export class LocalApiAdapter implements WorkerAdapter {
       if (ids.length && !ids.includes(this.model)) {
         return {
           available: false,
-          reason: `model yok: ${this.model} (mevcut: ${ids.slice(0, 5).join(', ')})`,
+          reason: m().adapters.localNoModel(this.model, ids.slice(0, 5).join(', ')),
         };
       }
       return { available: true, version: this.model, authOk: true };
     } catch (e) {
-      return { available: false, reason: `${this.baseUrl} erişilemiyor: ${(e as Error).message}` };
+      return {
+        available: false,
+        reason: m().adapters.localUnreachable(this.baseUrl, (e as Error).message),
+      };
     }
   }
 

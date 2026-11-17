@@ -1,4 +1,5 @@
 import type { AccountCapacity } from './capacity.js';
+import { m } from '../i18n/index.js';
 
 /**
  * Yük dengeleyici (F21): rolün tercih zincirini abonelik kapasitesine göre yeniden sıralar.
@@ -28,12 +29,12 @@ const TIER_RANK = { low: 0, medium: 1, high: 2 } as const;
 function group(a: AccountCapacity | undefined, role: string, paceThreshold: number) {
   if (!a || !a.observed) return { g: 0, why: '' };
   const full = a.windows.find((w) => w.free <= 0);
-  if (full) return { g: 2, why: `${full.name} rezerve ulaştı (%${full.used})` };
+  if (full) return { g: 2, why: m().balancer.reserve(full.name, full.used) };
   const r = a.roles[role];
   if (r && r.jobs_left !== null && r.jobs_left < 1)
-    return { g: 2, why: `tahmini iş maliyeti (~${r.kp_p80} KP) boş alana sığmıyor` };
+    return { g: 2, why: m().balancer.noFit(r.kp_p80) };
   const fast = a.windows.find((w) => w.pace !== null && w.pace > paceThreshold);
-  if (fast) return { g: 1, why: `${fast.name} hızlı tükeniyor (tempo ×${fast.pace})` };
+  if (fast) return { g: 1, why: m().balancer.fast(fast.name, fast.pace!) };
   return { g: 0, why: '' };
 }
 
@@ -64,13 +65,11 @@ export function balance(
     const why = was.why
       ? `${was.c.account}: ${was.why}`
       : was.brain
-        ? 'beynin hesabı korunuyor'
+        ? m().balancer.protectBrain
         : was.cost > sorted[0]!.cost
-          ? 'daha ucuz kademe'
+          ? m().balancer.cheaper
           : '';
-    notes.push(
-      `yük dengeleyici (${strategy}): ${firstBefore} yerine ${firstAfter}${why ? ` — ${why}` : ''}`,
-    );
+    notes.push(m().balancer.note(strategy, firstBefore, firstAfter) + (why ? ` — ${why}` : ''));
   }
   return { order: sorted.map((s) => s.c.worker), notes };
 }

@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { runLineProcess } from './process.js';
+import { m } from '../i18n/index.js';
 import type {
   JobContext,
   JobSpec,
@@ -112,10 +113,8 @@ export function parseWindowsSandbox(toml: string): CodexWindowsSandbox | null {
  */
 export function windowsSandboxWarning(effective: CodexWindowsSandbox | null): string | null {
   if (effective === 'elevated') return null;
-  return (
-    `Windows sandbox "${effective ?? 'varsayılan'}": işçi alt süreç başlatamayabilir (spawn EPERM), ` +
-    'testler çalışmaz. Öneri: anafor.config.json → workers.codex.windows_sandbox = "elevated"'
-  );
+  const t = m().adapters;
+  return t.windowsSandbox(effective ?? t.sandboxDefault);
 }
 
 export interface CodexAdapterOptions {
@@ -168,7 +167,7 @@ export class CodexAdapter implements WorkerAdapter {
       this.platform === 'win32'
         ? windowsSandboxWarning(this.windowsSandbox ?? readCodexWindowsSandbox())
         : null;
-    const reasons = [auth.status === 0 ? null : 'codex oturum açılmamış: `codex login`', warn];
+    const reasons = [auth.status === 0 ? null : m().adapters.codexLogin, warn];
     const reason = reasons.filter(Boolean).join(' · ');
     return {
       available: true,

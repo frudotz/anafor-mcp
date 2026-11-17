@@ -22,6 +22,7 @@ import {
   type ExtensionScope,
 } from './registry.js';
 import { scanPath, type ScanResult } from './skillspector.js';
+import { m } from '../i18n/index.js';
 
 /**
  * SkillSpector kapısı (F23). Politika (kullanıcı kararı 2026-11-17):
@@ -36,17 +37,15 @@ export type GateDecision =
   | { action: 'block'; reason: string };
 
 export function decideGate(scan: ScanResult, acceptRisk: boolean): GateDecision {
-  if (!scan.ok) return { action: 'block', reason: `tarama başarısız (fail-closed): ${scan.error}` };
-  const label = `skor ${scan.score} ${scan.severity} ${scan.recommendation}`;
+  const t = m().gate;
+  if (!scan.ok) return { action: 'block', reason: t.scanFailed(scan.error) };
+  const label = t.label(scan.score, scan.severity, scan.recommendation);
   if (scan.recommendation === 'DO_NOT_INSTALL' || scan.score > 50)
-    return { action: 'block', reason: `${label}: kurulamaz` };
+    return { action: 'block', reason: t.blocked(label) };
   if (scan.recommendation !== 'SAFE' || scan.score > 20) {
     return acceptRisk
-      ? { action: 'allow', decision: 'accepted-risk', reason: `${label}: risk açıkça onaylandı` }
-      : {
-          action: 'needs-ack',
-          reason: `${label}: bulguları inceleyip --accept-risk ile onaylayın`,
-        };
+      ? { action: 'allow', decision: 'accepted-risk', reason: t.riskAccepted(label) }
+      : { action: 'needs-ack', reason: t.needsAck(label) };
   }
   return { action: 'allow', decision: 'allow', reason: label };
 }
@@ -82,7 +81,7 @@ function fetchSource(source: string): { dir: string; cleanup: () => void } {
   if (!isRemote(source)) {
     const dir = resolve(source);
     if (!existsSync(dir) || !statSync(dir).isDirectory())
-      throw new Error(`kaynak dizin bulunamadı: ${source}`);
+      throw new Error(m().gate.sourceMissing(source));
     return { dir, cleanup: () => {} };
   }
   const tmp = mkdtempSync(join(tmpdir(), 'anafor-ext-'));
@@ -94,7 +93,7 @@ function fetchSource(source: string): { dir: string; cleanup: () => void } {
   const cleanup = () => rmSync(tmp, { recursive: true, force: true, maxRetries: 3 });
   if (r.status !== 0) {
     cleanup();
-    throw new Error(`git clone başarısız: ${(r.stderr || '').trim().split('\n').pop()}`);
+    throw new Error(m().gate.cloneFailed((r.stderr || '').trim().split('\n').pop() ?? ''));
   }
   return { dir: tmp, cleanup };
 }
@@ -103,7 +102,7 @@ function fetchSource(source: string): { dir: string; cleanup: () => void } {
 export function locateSkill(dir: string, subpath?: string): string {
   if (subpath) {
     const p = resolve(dir, subpath);
-    if (!existsSync(join(p, 'SKILL.md'))) throw new Error(`${subpath} içinde SKILL.md yok`);
+    if (!existsSync(join(p, 'SKILL.md'))) throw new Error(m().gate.noSkillMd(subpath));
     return p;
   }
   if (existsSync(join(dir, 'SKILL.md'))) return dir;
@@ -120,10 +119,8 @@ export function locateSkill(dir: string, subpath?: string): string {
   };
   walk(dir, 0);
   if (found.length === 1) return found[0]!;
-  if (!found.length) throw new Error('SKILL.md bulunamadı');
-  throw new Error(
-    `birden çok skill var; --path ile seçin: ${found.map((f) => f.slice(dir.length + 1)).join(', ')}`,
-  );
+  if (!found.length) throw new Error(m().gate.skillMdMissing);
+  throw new Error(m().gate.multipleSkills(found.map((f) => f.slice(dir.length + 1)).join(', ')));
 }
 
 function skillName(dir: string): string {
@@ -185,7 +182,7 @@ export function addSkill(
       return {
         status: 'error',
         name,
-        reason: `${dest} zaten var ve kayıtlı değil: önce \`anafor ext adopt ${name}\` ile taratın`,
+        reason: m().gate.destExists(dest, `anafor ext adopt ${name}`),
       };
     }
     const scan = scanWith(o, dir);
@@ -219,7 +216,7 @@ export function adoptSkill(root: string, name: string, o: GateOptions): GateOutc
   const scope = o.scope ?? 'project';
   const dir = join(skillDirs(root, o.home ?? homedir())[scope], name);
   if (!existsSync(join(dir, 'SKILL.md')))
-    return { status: 'error', name, reason: `${dir} içinde SKILL.md yok` };
+    return { status: 'error', name, reason: m().gate.noSkillMd(dir) };
   const scan = scanWith(o, dir);
   const d = decideGate(scan, !!o.acceptRisk);
   if (d.action !== 'allow')
@@ -244,8 +241,9 @@ export function addMcp(
   o: GateOptions,
 ): GateOutcome {
   const n = safeName(name);
-  if (!command.length || !command[0]) return { status: 'error', name: n, reason: 'komut boş' };
-  if (n === 'anafor') return { status: 'error', name: n, reason: '"anafor" adı ayrılmış' };
+  if (!command.length || !command[0])
+    return { status: 'error', name: n, reason: m().gate.emptyCommand };
+  if (n === 'anafor') return { status: 'error', name: n, reason: m().gate.reservedName };
   let fetched: { dir: string; cleanup: () => void };
   try {
     fetched = fetchSource(source);

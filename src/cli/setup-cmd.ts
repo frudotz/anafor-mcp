@@ -5,7 +5,7 @@ import { findAnaforRoot, loadConfig } from '../core/config.js';
 import { currentLimits, formatWindows, limitAccount } from '../limits/limits.js';
 import {
   buildUserPlugin,
-  INSTALL_HINTS,
+  installHints,
   installPluginToClaude,
   installStatusline,
   readSetupState,
@@ -117,7 +117,7 @@ export async function runSetup(opts: SetupOptions): Promise<number> {
           ? undefined
           : d?.reason && d.reason.length > 40
             ? d.reason
-            : INSTALL_HINTS[id];
+            : installHints()[id];
         return [avail ? mark.ok() : mark.off(), id, info, hint];
       }),
     ),

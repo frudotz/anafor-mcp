@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { anaforHome, type LimitWindow, type WorkerLimits } from '../limits/limits.js';
+import { m } from '../i18n/index.js';
 
 /**
  * Kapasite modeli (F20). Birim: KP (kapasite puanı) = bir limit penceresinin %1'i.
@@ -122,7 +123,7 @@ export interface WindowState {
 }
 
 export const windowLabel = (n: string) =>
-  n === 'five_hour' ? '5s' : n.startsWith('seven_day') ? '7g' : n;
+  n === 'five_hour' ? m().windows.fiveHour : n.startsWith('seven_day') ? m().windows.sevenDay : n;
 
 export function windowState(w: LimitWindow, cfg: CapacityConfig, nowMs: number): WindowState {
   const nowS = nowMs / 1000;
@@ -175,13 +176,15 @@ export interface CapacityInput {
 }
 
 const hhmm = (s: number) =>
-  new Date(s * 1000).toLocaleString('tr-TR', {
+  new Date(s * 1000).toLocaleString(m().windows.locale, {
     weekday: 'short',
     hour: '2-digit',
     minute: '2-digit',
   });
 const dur = (s: number) =>
-  s >= 86400 ? `${Math.round(s / 3600 / 24)} gün` : `${Math.max(1, Math.round(s / 3600))} sa`;
+  s >= 86400
+    ? m().capacity.days(Math.round(s / 3600 / 24))
+    : m().capacity.hours(Math.max(1, Math.round(s / 3600)));
 
 /** Hesap kapasiteleri + kullanıcıya gösterilecek ipuçları. */
 export function capacityReport(input: CapacityInput): {
@@ -189,6 +192,7 @@ export function capacityReport(input: CapacityInput): {
   hints: string[];
 } {
   const now = input.now ?? Date.now();
+  const t = m().capacity;
   const hints: string[] = [];
   const accounts: AccountCapacity[] = [];
   const roles = Object.keys(input.routing);
@@ -232,33 +236,30 @@ export function capacityReport(input: CapacityInput): {
     });
 
     if (!l) {
-      if (usedBy.length)
-        hints.push(
-          `${account}: limit henüz gözlenmedi (${usedBy.join(', ')} rollerinde kullanılıyor); ilk işlerden sonra tahmin oluşur.`,
-        );
+      if (usedBy.length) hints.push(t.notObserved(account, usedBy.join(', ')));
       continue;
     }
     for (const w of windows) {
       const label = windowLabel(w.name);
       if (w.free <= 0) {
         hints.push(
-          `${account}: ${label} penceresi rezerve ulaştı (%${w.used}, rezerv %${w.reserve})` +
-            (w.resets_at ? `; ${hhmm(w.resets_at)} sıfırlanır` : '') +
-            '. Yeni işler sıradaki işçiye gitmeli.',
+          t.reserveReached(
+            account,
+            label,
+            w.used,
+            w.reserve,
+            w.resets_at ? hhmm(w.resets_at) : null,
+          ),
         );
       } else if (w.pace !== null && w.pace > input.cfg.pace_threshold && w.eta_full_s !== null) {
         const before = w.resets_at !== null && now / 1000 + w.eta_full_s < w.resets_at;
         if (before)
-          hints.push(
-            `${account}: ${label} hızlı tükeniyor (tempo ×${w.pace}); bu hızla ~${dur(w.eta_full_s)} içinde dolar, sıfırlanma ${hhmm(w.resets_at!)}.`,
-          );
+          hints.push(t.fastDrain(account, label, w.pace, dur(w.eta_full_s), hhmm(w.resets_at!)));
       }
     }
     for (const [r, c] of Object.entries(roleCosts)) {
       if (c.jobs_left !== null && c.jobs_left <= 2 && c.samples >= 2) {
-        hints.push(
-          `${account}: '${r}' için ~${c.jobs_left} iş kapasitesi kaldı (iş başı ~${c.kp_p80} KP).`,
-        );
+        hints.push(t.jobsLeft(account, r, c.jobs_left, c.kp_p80));
       }
     }
   }
@@ -277,8 +278,13 @@ export function capacityReport(input: CapacityInput): {
     });
     hints.push(
       next
-        ? `'${r}' rolü: ${first} kısıtlı → ${next} öne alınabilir (anafor roles set ${r} ${[next, ...chain.filter((w) => w !== next)].join(',')}).`
-        : `'${r}' rolü: ${first} kısıtlı ve zincirde sağlıklı yedek yok; başka bir işçi eklemeyi düşünün.`,
+        ? t.promote(
+            r,
+            first,
+            next,
+            `anafor roles set ${r} ${[next, ...chain.filter((w) => w !== next)].join(',')}`,
+          )
+        : t.noBackup(r, first),
     );
   }
   return { accounts, hints };
