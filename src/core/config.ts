@@ -17,6 +17,8 @@ export interface AnaforConfig {
   worktree_setup: string | null;
   /** İşçiler başarısız olunca yöneticinin görevi devralma eşikleri. */
   escalation: { failure_threshold: number; stall_minutes: number; takeover_minutes: number };
+  /** Kanıt üretiminde kullanılacak test komutu (yoksa package.json'dan tahmin). */
+  test_command: string | null;
   /** İşçi başına ayarlar. */
   workers: Record<string, WorkerSettings>;
   /** Rol → tercih edilen işçi sırası (ilk uygun olan seçilir). */
@@ -54,6 +56,7 @@ export const DEFAULT_CONFIG: AnaforConfig = {
   default_worker: 'codex',
   worktree_setup: null,
   escalation: { failure_threshold: 3, stall_minutes: 60, takeover_minutes: 120 },
+  test_command: null,
   workers: {},
   routing: {
     implementation: ['codex', 'claude-lite'],
