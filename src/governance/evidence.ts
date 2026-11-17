@@ -1,0 +1,173 @@
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { git } from '../git/git.js';
+
+/** Yaygın gizli bilgi desenleri (eklenen satırlarda aranır). */
+export const SECRET_PATTERNS: { id: string; re: RegExp }[] = [
+  { id: 'private-key', re: /-----BEGIN (RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----/ },
+  { id: 'aws-access-key', re: /\b(AKIA|ASIA)[0-9A-Z]{16}\b/ },
+  {
+    id: 'github-token',
+    re: /\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36,}\b|\bgithub_pat_[A-Za-z0-9_]{60,}\b/,
+  },
+  { id: 'anthropic-key', re: /\bsk-ant-[A-Za-z0-9_-]{20,}\b/ },
+  { id: 'openai-key', re: /\bsk-(proj-)?[A-Za-z0-9_-]{32,}\b/ },
+  { id: 'slack-token', re: /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/ },
+  { id: 'google-api-key', re: /\bAIza[0-9A-Za-z_-]{35}\b/ },
+  { id: 'stripe-key', re: /\b(sk|rk)_live_[0-9A-Za-z]{20,}\b/ },
+  { id: 'jwt', re: /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/ },
+  {
+    id: 'generic-secret',
+    re: /\b(password|passwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token)\b\s*[:=]\s*['"][^'"\s]{8,}['"]/i,
+  },
+];
+
+export interface SecretFinding {
+  rule: string;
+  file: string;
+  line: number;
+}
+
+/** Birleşik diff metninde yalnızca eklenen satırları tarar. Gizli değerin kendisi döndürülmez. */
+export function scanDiffForSecrets(patch: string): SecretFinding[] {
+  const out: SecretFinding[] = [];
+  let file = '';
+  let line = 0;
+  for (const raw of patch.split('\n')) {
+    if (raw.startsWith('+++ ')) {
+      file = raw.slice(4).replace(/^b\//, '');
+      continue;
+    }
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)/.exec(raw);
+    if (hunk) {
+      line = Number(hunk[1]) - 1;
+      continue;
+    }
+    if (raw.startsWith('+') && !raw.startsWith('+++')) {
+      line++;
+      for (const p of SECRET_PATTERNS) {
+        if (p.re.test(raw)) out.push({ rule: p.id, file, line });
+      }
+    } else if (!raw.startsWith('-')) {
+      line++;
+    }
+  }
+  return out;
+}
+
+export interface EvidenceResult {
+  path: string;
+  passed: boolean;
+  summary: string;
+}
+
+const stamp = () => new Date().toISOString();
+
+/** Test komutunu çalıştırır ve sonucu kanıt dosyasına yazar. */
+export function generateTestEvidence(
+  root: string,
+  cwd: string,
+  evidenceDir: string,
+  taskId: string,
+  command: string,
+): EvidenceResult {
+  mkdirSync(evidenceDir, { recursive: true });
+  const started = Date.now();
+  const r = spawnSync(command, {
+    cwd,
+    shell: true,
+    encoding: 'utf8',
+    timeout: 20 * 60_000,
+    windowsHide: true,
+    maxBuffer: 32 * 1024 * 1024,
+  });
+  const tail = (s: string) => s.split('\n').slice(-60).join('\n');
+  const file = join(evidenceDir, `${taskId}-tests.txt`);
+  const passed = r.status === 0;
+  writeFileSync(
+    file,
+    [
+      `zaman: ${stamp()}`,
+      `komut: ${command}`,
+      `dizin: ${relative(root, cwd) || '.'}`,
+      `çıkış kodu: ${r.status ?? 'yok'}${r.error ? ` (${r.error.message})` : ''}`,
+      `süre: ${Date.now() - started} ms`,
+      '--- stdout (son 60 satır) ---',
+      tail(r.stdout ?? ''),
+      '--- stderr (son 60 satır) ---',
+      tail(r.stderr ?? ''),
+    ].join('\n'),
+  );
+  return {
+    path: relative(root, file).replace(/\\/g, '/'),
+    passed,
+    summary: `${command} → ${r.status ?? 'hata'}`,
+  };
+}
+
+/**
+ * Taban..hedef arasındaki değişikliklerde gizli bilgi taraması.
+ * gitleaks kuruluysa o da çalıştırılır; değilse yerleşik desenler kullanılır.
+ */
+export function generateScanEvidence(
+  root: string,
+  evidenceDir: string,
+  taskId: string,
+  base: string,
+  target: string | null,
+): EvidenceResult & { findings: SecretFinding[]; scanner: string } {
+  mkdirSync(evidenceDir, { recursive: true });
+  const range = target ? `${base}..${target}` : base; // hedef yoksa çalışma ağacı
+  const patch = git(root, ['diff', '--unified=0', range, '--', '.', ':(exclude).anafor']).stdout;
+  const findings = scanDiffForSecrets(patch);
+  let scanner = 'anafor-builtin';
+  const gl = spawnSync('gitleaks', ['version'], { encoding: 'utf8', windowsHide: true });
+  let gitleaksNote = '';
+  if (!gl.error && gl.status === 0) {
+    scanner = 'anafor-builtin + gitleaks';
+    const g = spawnSync(
+      'gitleaks',
+      ['git', '--no-banner', '--redact', `--log-opts=${range}`, '.'],
+      { cwd: root, encoding: 'utf8', windowsHide: true },
+    );
+    gitleaksNote = `gitleaks çıkış kodu: ${g.status}`;
+    if (g.status === 1)
+      findings.push({ rule: 'gitleaks', file: '(bkz. gitleaks çıktısı)', line: 0 });
+  }
+  const file = join(evidenceDir, `${taskId}-scan.txt`);
+  const passed = findings.length === 0;
+  writeFileSync(
+    file,
+    [
+      `zaman: ${stamp()}`,
+      `tarayıcı: ${scanner}`,
+      `aralık: ${range}${target ? '' : ' (çalışma ağacı)'}`,
+      gitleaksNote,
+      `bulgu: ${findings.length}`,
+      ...findings.map((f) => `- ${f.rule} @ ${f.file}:${f.line}`),
+      passed ? 'sonuç: temiz' : 'sonuç: GİZLİ BİLGİ ŞÜPHESİ',
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  );
+  return {
+    path: relative(root, file).replace(/\\/g, '/'),
+    passed,
+    summary: passed ? 'temiz' : `${findings.length} şüpheli bulgu`,
+    findings,
+    scanner,
+  };
+}
+
+/** Projede bir test komutu tahmin eder (package.json test betiği). */
+export function detectTestCommand(cwd: string): string | null {
+  const pkg = join(cwd, 'package.json');
+  if (!existsSync(pkg)) return null;
+  try {
+    const j = JSON.parse(readFileSync(pkg, 'utf8')) as { scripts?: Record<string, string> };
+    return j.scripts?.test ? 'npm test' : null;
+  } catch {
+    return null;
+  }
+}

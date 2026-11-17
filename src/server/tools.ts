@@ -434,6 +434,26 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
   );
 
   server.registerTool(
+    'evidence_generate',
+    {
+      description:
+        'Yönetişim kanıtını otomatik üretir: test komutunu (config test_command veya package.json) çalıştırır ve görevin değişikliklerinde gizli bilgi taraması yapar (yerleşik desenler; varsa gitleaks). Dosyalar .anafor/evidence/ altına; sonuçlar doğrudan operation_authorize girdisidir.',
+      inputSchema: {
+        task_id: z.string(),
+        test_command: z.string().optional(),
+        skip_tests: z.boolean().optional(),
+      },
+    },
+    (a) =>
+      wrap(() =>
+        svc().evidenceGenerate(a.task_id, {
+          ...(a.test_command ? { testCommand: a.test_command } : {}),
+          ...(a.skip_tests ? { skipTests: true } : {}),
+        }),
+      ),
+  );
+
+  server.registerTool(
     'takeover_status',
     {
       description:

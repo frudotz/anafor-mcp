@@ -42,6 +42,11 @@ import {
   type OperationInput,
   type RecordInput,
 } from '../governance/operations.js';
+import {
+  detectTestCommand,
+  generateScanEvidence,
+  generateTestEvidence,
+} from '../governance/evidence.js';
 import { ensurePolicy } from '../governance/policy.js';
 import { activeGrants, createGrant, endGrant } from '../hooks/grants.js';
 
@@ -274,11 +279,16 @@ export class AnaforService {
     const tasks = this.store.listTasks();
     const active = this.store.listJobs({ states: ACTIVE_JOB_STATES });
     const review = this.store.listJobs({ states: ['needs_review'] });
+    const recent = this.store
+      .listTasks({ includeClosed: true })
+      .filter((t) => isClosedTaskState(t.state))
+      .slice(0, 5);
     return {
       project_root: this.store.paths.root,
       open_tasks: tasks.map(taskBrief),
       active_jobs: active.map(jobBrief),
       jobs_needing_review: review.map(jobBrief),
+      recently_closed: recent.map(taskBrief),
     };
   }
 
@@ -1140,6 +1150,57 @@ export class AnaforService {
       ...jobBrief(this.store.mustGetJob(jobId)),
       changed_files: changed,
       next: 'task_accept',
+    };
+  }
+
+  /**
+   * Yönetişim için otomatik kanıt: test komutunu çalıştırır ve görev değişikliklerinde
+   * gizli bilgi taraması yapar. Dosyalar .anafor/evidence/ altına yazılır.
+   */
+  evidenceGenerate(taskId: string, opts: { testCommand?: string; skipTests?: boolean } = {}) {
+    const task = this.mustTask(taskId);
+    const root = this.store.paths.root;
+    const evidenceDir = join(this.store.paths.anaforDir, 'evidence');
+    const integ = join(this.store.paths.worktreesDir, `_task-${taskId}`);
+    const hasBranch = branchExists(root, taskBranchName(taskId));
+    const cwd = existsSync(integ) ? integ : root;
+    const jobs = this.store.listJobs({ taskId }).filter((j) => j.baseSha);
+    const base = jobs[0]?.baseSha ?? headSha(root);
+    if (!base)
+      throw new ServiceError(
+        'VALIDATION_FAILED',
+        'Taban commit bulunamadı (git deposu ve commit gerekli)',
+      );
+
+    let tests: ReturnType<typeof generateTestEvidence> | null = null;
+    if (!opts.skipTests) {
+      const cmd = opts.testCommand ?? loadConfig(root).test_command ?? detectTestCommand(cwd);
+      if (!cmd) {
+        throw new ServiceError(
+          'VALIDATION_FAILED',
+          'Test komutu bulunamadı',
+          'test_command verin veya anafor.config.json → test_command',
+        );
+      }
+      tests = generateTestEvidence(root, cwd, evidenceDir, taskId, cmd);
+    }
+    const scan = generateScanEvidence(
+      root,
+      evidenceDir,
+      taskId,
+      base,
+      hasBranch ? taskBranchName(taskId) : null,
+    );
+    return {
+      task_id: task.id,
+      tests: tests ? { evidence: tests.path, passed: tests.passed, summary: tests.summary } : null,
+      scan: {
+        evidence: scan.path,
+        clean: scan.passed,
+        scanner: scan.scanner,
+        findings: scan.findings,
+      },
+      note: 'operation_authorize için: test_evidence, sensitive_scan_evidence, tests_passed, sensitive_scan_clean bu değerlerden.',
     };
   }
 
