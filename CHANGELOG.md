@@ -2,29 +2,32 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/) (0.x döneminde küçük sürüm kırıcı olabilir).
 
-## [Yayımlanmamış]
+## [0.4.0] - 2026-11-17
 
 ### Eklenenler
-- **SkillSpector eklenti kapısı (F23):**
-  - `anafor ext add / add-mcp / adopt / check / list / remove`.
-  - HIGH/CRITICAL ve tarama hatası engellenir. CAUTION yalnızca kullanıcının `--accept-risk` onayıyla geçer.
-  - Kayıt içerik özetiyle tutulur.
-  - PreToolUse hook'u kayıtsız/değişmiş skill ve MCP çağrılarını, doğrudan yazmayı ve resmi kurulum komutlarını engeller (`extensions.enforce`).
-  - SessionStart ve `anafor doctor` durumu gösterir.
 - **Kapasite modeli ve ipuçları (F20):**
-  - `anafor capacity` ve MCP `capacity_status` aracı.
-  - Hesap başına boş KP (rezerv sonrası), tempo ve dolma süresi.
-  - İş başına maliyet, işten önceki ve sonraki pencere farkından öğrenilir (EMA + p80).
+  - `anafor capacity` ve MCP `capacity_status`: hesap başına boş KP (rezerv sonrası), tempo ve dolma süresi.
+  - İş başına maliyet, pencerenin işten önceki ve sonraki farkından öğrenilir (EMA + p80).
   - Rol başına kalan iş tahmini ve yönlendirme ipuçları.
-- **Yük dengeleyici (F21):** router, rol zincirini abonelik kapasitesine göre yeniden sıralar. Stratejiler: `balanced` (varsayılan), `protect-brain`, `cheap-first`, `off`. Rezerve ulaşmış veya maliyeti sığmayan hesaplar sona, hızlı tükenenler ortaya alınır. Kararın gerekçesi `job_dispatch` uyarısında ve `route` olayında görünür.
+  - Rol dağılımı önerisi: `anafor capacity recommend <abonelikler> [--apply]`, meta 2026-Q4 profilinden (#38).
+- **Yük dengeleyici (F21):** router, rol zincirini abonelik kapasitesine göre yeniden sıralar. Stratejiler: `balanced`, `protect-brain`, `cheap-first`, `off`. Kararın gerekçesi `job_dispatch` uyarısında ve `route` olayında görünür (#39).
 - **Token optimizasyonu (F22):**
   - Önbellek dostu iş emri: sabit önek önde, işe özgü kısım sonda.
   - Devam oturumunda kısa düzeltme emri.
   - `summary` 2000 karakterle sınırlı.
-  - Token profili (`saver`, `balanced`, `quality`, `off`) ile rol başına effort; Codex `model_reasoning_effort`, claude-lite `--effort`.
-  - `workers.<id>.effort` ile işçi bazında ezme.
-  - Codex işlerinde `analytics.enabled=false`.
-- **Rol dağılımı önerisi:** `anafor capacity recommend <abonelikler> [--apply]` dönemsel meta profilinden (2026-Q4) çalışır. Öneri beynin hesabını korur ve incelemeyi farklı bir model ailesine verir.
+  - `token_profile` ile rol başına effort: Codex `model_reasoning_effort`, claude-lite `--effort`. `workers.<id>.effort` ile işçi bazında ezilebilir.
+  - Codex işlerinde `analytics.enabled=false` (#40, #41).
+- **SkillSpector eklenti kapısı (F23):**
+  - `anafor ext add | add-mcp | adopt | check | list | remove`.
+  - HIGH/CRITICAL ve tarama hatası engellenir. CAUTION yalnızca kullanıcının `--accept-risk` onayıyla geçer.
+  - Kayıt içerik özetiyle tutulur. PreToolUse hook'u kayıtsız ya da değişmiş skill ve MCP çağrılarını, doğrudan yazmayı ve resmi kurulum komutlarını engeller (`extensions.enforce`).
+  - SessionStart ve `anafor doctor` durumu gösterir (#42).
+
+### Değişenler (güncellerken dikkat)
+- **Hook matcher'a `Skill|mcp__.*` eklendi.** `anafor setup` ile plugin yenilenince, Anafor projelerinde taranmamış yerel skill'ler (`.claude/skills`, `~/.claude/skills`) ve proje `.mcp.json` sunucuları engellenir. Önce `anafor ext check`, ardından `anafor ext adopt <ad> [--user]` çalıştırın. Geçici olarak kapatmak için: `extensions.enforce: "warn"`.
+- **Router artık varsayılan olarak `balancer.strategy: "balanced"`.** İstemiyorsanız `"off"` yapın.
+- **İşlere artık varsayılan olarak `token_profile: "balanced"` effort'u geçirilir:** review high, test low. İşçinin kendi varsayılanı için `"off"` yapın.
+- **İş emrinin bölüm sırası değişti.** Kimlik bilgisi artık sonda, `## Kimlik` bölümünde.
 
 ## [0.3.0] - 2026-11-17
 
