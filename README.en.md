@@ -117,6 +117,13 @@ npm run build
 
 Contribution guidelines: [CONTRIBUTING.md](CONTRIBUTING.md)
 
-## License
+## License, forks and attribution
 
-[AGPL-3.0](LICENSE)
+Anafor is licensed under [AGPL-3.0-only](LICENSE). You are free to fork it, modify it and develop it along your own roadmap, under these conditions:
+
+- **Keep `LICENSE` and [`NOTICE`](NOTICE).** Under AGPL-3.0 §7(b), NOTICE requires the **original source and original authors** (https://github.com/frudotz/anafor-mcp, frudotz and RedRiveRR) to be credited in your README and in the output of `anafor version`.
+- **Mark your changes (§5(a)).** Do not present a modified version as the original Anafor.
+- **Derivative works are AGPL-3.0 too.** If you offer a modified version to others over a network (for example as an MCP server), you must give those users its source code (§13).
+- **Send fixes back.** Bugs you fix in your fork help everyone when you open a PR upstream: [docs/sharing-fixes.md](docs/sharing-fixes.md).
+
+This section is not legal advice; [LICENSE](LICENSE) is authoritative.

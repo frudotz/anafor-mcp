@@ -1,0 +1,24 @@
+Anafor (anafor-mcp)
+Original project: https://github.com/frudotz/anafor-mcp
+Original authors: frudotz (https://github.com/frudotz) and RedRiveRR (https://github.com/RedRiveRR), with contributors
+
+This program is licensed under the GNU Affero General Public License, version 3
+only (AGPL-3.0-only). See LICENSE.
+
+Additional terms under AGPL-3.0 section 7(b) (preservation of legal notices
+and author attributions):
+
+  1. Any copy, fork or modified version of this program, in source or object
+     form, must keep this NOTICE file and the LICENSE file intact.
+  2. Any copy, fork or modified version must state, in its README (or an
+     equivalent prominent place) and in the output of `anafor version`, that it
+     is based on Anafor, with a link to the original project:
+     https://github.com/frudotz/anafor-mcp
+  3. Modified versions must be marked as modified (AGPL-3.0 section 5(a)) and
+     must not be presented as the original project.
+
+If you run a modified version that users interact with over a network (for
+example an MCP server offered to others), AGPL-3.0 section 13 requires you to
+offer those users the Corresponding Source of your modified version.
+
+This notice is not legal advice. The LICENSE text is authoritative.

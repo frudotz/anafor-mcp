@@ -42,7 +42,7 @@ Exemptions: documentation (`*.md`, `*.txt`) is exempt from most code rules. `tes
 
 - Read the full diff before adding `guard-approved`. The label overrides **all** findings for the current head.
 - Treat `G01`/`G02`/`G03` like code review: check the package, its maintainers, its age (prefer versions older than two weeks), its install scripts and `npm audit`.
-- `Contribution Guard / guard` should be a **required status check** on `main`, next to `check (ubuntu-latest)` and `check (windows-latest)`.
+- `guard` is a **required status check** on `main` (ruleset "Kalite kapıları"), next to `check (ubuntu-latest)` and `check (windows-latest)`. A second ruleset requires an approval from a code owner (frudotz or RedRiveRR) for everyone else; the two maintainers can merge their own PRs independently. `v*` tags can only be created by maintainers.
 
 ## Limits
 

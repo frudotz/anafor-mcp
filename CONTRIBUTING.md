@@ -49,7 +49,10 @@ Refs: #<issue>
 4. **PR başlığı Conventional Commit biçiminde** olur (squash commit mesajı başlıktan oluşur).
 5. CI yeşil olmalı. `main` ilerlediyse dalını güncelle: tercihen `git rebase origin/main` (yalnızca kendi dalında), ardından `--force-with-lease`; ya da GitHub'daki **Update branch** düğmesi.
 6. **Çakışmaları PR sahibi çözer.** Çözerken diğerinin değişikliğini silmek gerekiyorsa önce PR'da o kişiye sorulur.
-7. **İnsan onayı gerekmez.** Birleştirme kapısı CI'dır: iki işletim sisteminde `check` yeşil + dal `main` ile güncel + tüm yorum konuşmaları çözülmüş. Hız için PR açarken `gh pr merge --squash --auto` ile otomatik birleştirme açılabilir; CI geçince kendiliğinden birleşir.
+7. **Onay kuralı (ruleset).** `main`'e yalnızca PR ile girilir. Herkes için zorunlu kapılar: iki işletim sisteminde `check`, `guard` (katkı koruması), dalın `main` ile güncel olması, tüm yorum konuşmalarının çözülmesi, doğrusal geçmiş. Force push ve dal silme yasaktır.
+   - **Ana katkıcılar (frudotz, RedRiveRR)** birbirlerinin onayını beklemeden kendi PR'larını birleştirebilir; bu, onay kuralını yalnızca PR üzerinden atlayabilen rol muafiyetidir.
+   - **Diğer herkes**, frudotz veya RedRiveRR'dan birinin onayını alır (CODEOWNERS). Son push'tan sonra onay yenilenir.
+   - `v*` sürüm etiketlerini yalnızca ana katkıcılar oluşturabilir. Hız için PR açarken `gh pr merge --squash --auto` ile otomatik birleştirme açılabilir; CI geçince kendiliğinden birleşir.
 8. Birleştirme yöntemi: **yalnızca squash merge**. `main` geçmişi doğrusal kalır; her PR `main`'de tek commit olur ve kolayca revert edilebilir.
 9. Birleşince dal otomatik silinir.
 
