@@ -237,6 +237,54 @@ Bunlar ek ayar gerektirmeden çalışır:
 ```
 
 `workers.<id>.effort` ya tek bir değer ya da rol başına bir harita olabilir ve profili ezer.
+## 7e. Eklenti kapısı (SkillSpector)
+
+Harici skill ve MCP sunucuları, Anafor projelerinde ancak [NVIDIA SkillSpector](https://github.com/NVIDIA/skillspector) taramasını geçerse kurulabilir ve çalıştırılabilir.
+
+Tarama her zaman `--no-llm` ile yapılır, yani dosya içeriği hiçbir LLM sağlayıcısına gönderilmez. Tek dış çağrı, bağımlılık adlarının OSV.dev'de sorgulanmasıdır.
+
+| SkillSpector sonucu | Karar |
+|---|---|
+| Tarama hatası | Engellenir (fail-closed) |
+| HIGH / CRITICAL (skor > 50, `DO_NOT_INSTALL`) | Engellenir |
+| CAUTION (skor 21–50) | Yalnızca `--accept-risk` ile kurulur; onay kayda geçer |
+| SAFE (skor 0–20) | Kurulur |
+
+```bash
+anafor ext add ./benim-skill                                  # yerel dizin
+anafor ext add https://github.com/kurum/skills --path pdf     # git deposundan bir skill
+anafor ext add-mcp arama --source https://github.com/kurum/arama-mcp -- npx -y arama-mcp@1.2.3
+anafor ext adopt codex-gpt --user                             # zaten kurulu skill'i yerinde tarat
+anafor ext check                                              # kurulu olanların durumu
+anafor ext list
+```
+
+**Kayıt.** Taramayı geçen eklentiler içerik özetiyle (sha256) kaydedilir:
+- proje kapsamı: `.anafor/extensions.json`
+- kullanıcı kapsamı: `~/.anafor/extensions.json`
+
+Dosyalar sonradan değişirse eklenti yeniden taranmadan çalışmaz. MCP sunucularında `.mcp.json`'daki komut kayıttakinden farklıysa sunucu yine engellenir.
+
+**Zorlama** PreToolUse hook'uyla yapılır ve yönetici modundan bağımsızdır. Ayar: `extensions.enforce`; değerleri `block` (varsayılan), `warn` ve `off`.
+- Kayıtsız ya da değişmiş bir yerel skill'i (`.claude/skills`, `~/.claude/skills`) çağıran `Skill` aracı engellenir.
+- Proje `.mcp.json`'ındaki kayıtsız bir sunucunun araçları engellenir.
+- Skill dizinlerine veya `.mcp.json`'a doğrudan yazma engellenir. `claude mcp add`, `claude plugin install`, `codex mcp add`, `npx skills add` gibi komutlar da engellenir ve kullanıcı `anafor ext`'e yönlendirilir.
+- `--accept-risk` onayını ajan veremez. Bulgular kullanıcıya gösterilir; kullanıcı onaylarsa komutu kendi terminalinde çalıştırır.
+- SessionStart'ta engelli eklentiler listelenir. `anafor doctor`, SkillSpector'ın kurulu olup olmadığını gösterir.
+
+**Kurulum** (Python 3.12 veya 3.13):
+
+```bash
+py -3.13 -m venv ~/.anafor/tools/skillspector            # Linux/macOS: python3.13 -m venv …
+~/.anafor/tools/skillspector/Scripts/python -m pip install git+https://github.com/NVIDIA/skillspector.git
+```
+
+Farklı bir konumdaki kurulumu kullanmak için `extensions.skillspector_bin` ayarlanır.
+
+**Sınırlar:**
+- SkillSpector bir sandbox değildir. Temiz sonuç, eklentinin güvenli olduğunu kanıtlamaz; bir savunma katmanıdır.
+- Anafor dışında elle kurulan eklentileri yalnızca tespit eder.
+- Plugin'lerle gelen skill/MCP'ler ve claude.ai bağlayıcıları bu kapsamın dışındadır.
 
 ## 8. Eski software-orchestrator'dan göç
 

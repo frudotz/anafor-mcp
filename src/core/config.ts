@@ -1,5 +1,6 @@
 import { DEFAULT_BALANCER, type BalancerConfig } from '../capacity/balancer.js';
 import { DEFAULT_CAPACITY, type CapacityConfig } from '../capacity/capacity.js';
+import { DEFAULT_EXTENSIONS, type ExtensionsConfig } from '../extensions/guard.js';
 import type { DepCacheConfig } from '../git/dep-cache.js';
 import type { EffortSetting, TokenProfile } from './token-profile.js';
 import { existsSync, readFileSync, statSync } from 'node:fs';
@@ -40,6 +41,8 @@ export interface AnaforConfig {
   subscriptions: string[];
   /** Kapasite modeli: rezervler ve tempo eşiği. */
   capacity: CapacityConfig;
+  /** Harici skill/MCP kapısı (SkillSpector). */
+  extensions: ExtensionsConfig;
   /** Yük dengeleyici: rol zincirini abonelik kapasitesine göre yeniden sıralar. */
   balancer: BalancerConfig;
   /** Rol başına akıl yürütme düzeyi profili (saver | balanced | quality | off). */
@@ -86,6 +89,7 @@ export const DEFAULT_CONFIG: AnaforConfig = {
   memory_context: true,
   subscriptions: [],
   capacity: DEFAULT_CAPACITY,
+  extensions: DEFAULT_EXTENSIONS,
   balancer: DEFAULT_BALANCER,
   token_profile: 'balanced',
   worktree_setup: null,
@@ -118,6 +122,7 @@ export function loadConfig(root: string): AnaforConfig {
     ...local,
     ...project,
     capacity: { ...DEFAULT_CAPACITY, ...local.capacity, ...project.capacity },
+    extensions: { ...DEFAULT_EXTENSIONS, ...local.extensions, ...project.extensions },
     balancer: { ...DEFAULT_BALANCER, ...local.balancer, ...project.balancer },
   };
 }

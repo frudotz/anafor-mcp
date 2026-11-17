@@ -5,6 +5,12 @@ Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme:
 ## [Yayımlanmamış]
 
 ### Eklenenler
+- **SkillSpector eklenti kapısı (F23):**
+  - `anafor ext add / add-mcp / adopt / check / list / remove`.
+  - HIGH/CRITICAL ve tarama hatası engellenir. CAUTION yalnızca kullanıcının `--accept-risk` onayıyla geçer.
+  - Kayıt içerik özetiyle tutulur.
+  - PreToolUse hook'u kayıtsız/değişmiş skill ve MCP çağrılarını, doğrudan yazmayı ve resmi kurulum komutlarını engeller (`extensions.enforce`).
+  - SessionStart ve `anafor doctor` durumu gösterir.
 - **Kapasite modeli ve ipuçları (F20):**
   - `anafor capacity` ve MCP `capacity_status` aracı.
   - Hesap başına boş KP (rezerv sonrası), tempo ve dolma süresi.

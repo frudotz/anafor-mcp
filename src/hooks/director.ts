@@ -1,5 +1,6 @@
 import { isAbsolute, matchesGlob, relative, resolve } from 'node:path';
 import { findAnaforRoot, loadConfig, type AnaforConfig } from '../core/config.js';
+import { extensionGuard } from '../extensions/guard.js';
 import { activeGrants, recordViolation, type Grant } from './grants.js';
 
 /** Claude Code PreToolUse hook girdisinin kullandığımız alanları (F0'da doğrulandı). */
@@ -109,7 +110,10 @@ export function runPreToolUse(
   const root = findAnaforRoot(input.cwd ?? process.cwd());
   if (!root) return ''; // Anafor projesi değil
   const config = loadConfig(root);
-  const d = decide(input, { root, config, grants: activeGrants(root) });
+  // Eklenti kapısı yönetici modundan bağımsız uygulanır (F23).
+  const g = extensionGuard(input, { root, config });
+  const d =
+    g && g.action !== 'allow' ? g : decide(input, { root, config, grants: activeGrants(root) });
   if (d.action === 'allow') return '';
   recordViolation(root, {
     tool: input.tool_name,

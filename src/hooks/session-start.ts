@@ -1,6 +1,7 @@
 import { findAnaforRoot, loadConfig } from '../core/config.js';
 import { ACTIVE_JOB_STATES } from '../core/states.js';
 import { Store } from '../store/store.js';
+import { checkExtensions } from '../extensions/registry.js';
 import { activeGrants } from './grants.js';
 
 /** SessionStart: yöneticiye kısa rol hatırlatması + proje panosu (token dostu). */
@@ -26,6 +27,22 @@ export function runSessionStart(
     for (const t of tasks.slice(0, 5)) lines.push(`- ${t.id} [${t.state}] ${t.title}`);
     for (const j of review.slice(0, 5))
       lines.push(`- inceleme bekliyor: ${j.id} (${j.worker}, ${j.role})`);
+    if (config.extensions.enforce !== 'off') {
+      try {
+        const bad = checkExtensions(root).filter((e) => e.status !== 'ok');
+        if (bad.length) {
+          const list = bad
+            .slice(0, 5)
+            .map((e) => `${e.name}:${e.status}`)
+            .join(', ');
+          lines.push(
+            `⚠ Eklenti kapısı: ${bad.length} skill/MCP taranmamış veya değişmiş (${list}); çağrıları engellenir. Kullanıcı: anafor ext check`,
+          );
+        }
+      } catch {
+        // kontrol oturumu durdurmaz
+      }
+    }
     return lines.join('\n');
   } finally {
     store.close();
