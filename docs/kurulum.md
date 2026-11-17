@@ -18,6 +18,15 @@
 | Yerel model | Ollama (https://ollama.com) veya LM Studio → `anafor.config.json` |
 | OpenCode / Gemini / Antigravity | deneysel; koşullar için [kullanim.md](kullanim.md#8b-işçiler-ve-kullanım-koşulları) |
 
+### İsteğe bağlı: gitleaks (önerilen)
+
+`evidence_generate`, gitleaks PATH'teyse yerleşik tarayıcıya ek olarak onu da çalıştırır. Gitleaks, yerleşik tarayıcının kaçırdığı tırnaksız ve yüksek entropili anahtarları da yakalar. Doğrulanmış sürüm **v8.30.1**; checksum ile kurun:
+
+```bash
+gh release download v8.30.1 --repo gitleaks/gitleaks --pattern "gitleaks_8.30.1_<os>_<arch>.*" --pattern "gitleaks_8.30.1_checksums.txt"
+sha256sum -c --ignore-missing gitleaks_8.30.1_checksums.txt   # eşleşmeli
+```
+
 ## 2. Anafor'u kur
 
 ```bash

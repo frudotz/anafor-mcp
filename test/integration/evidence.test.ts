@@ -170,3 +170,22 @@ describe('Anafor kanıtıyla doğrulanmış kabul', () => {
     }
   });
 });
+
+describe('gitleaks raporu', () => {
+  it('kural, dosya, satır alınır; gizli değer alınmaz', async () => {
+    const { parseGitleaksReport } = await import('../../src/governance/evidence.js');
+    const report = JSON.stringify([
+      {
+        RuleID: 'generic-api-key',
+        File: 'cfg\\creds.ini',
+        StartLine: 2,
+        Secret: 'REDACTED',
+        Match: 'x',
+      },
+    ]);
+    const f = parseGitleaksReport(report);
+    expect(f).toEqual([{ rule: 'gitleaks:generic-api-key', file: 'cfg/creds.ini', line: 2 }]);
+    expect(JSON.stringify(f)).not.toContain('REDACTED');
+    expect(parseGitleaksReport('bozuk')).toEqual([]);
+  });
+});
