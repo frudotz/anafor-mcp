@@ -12,6 +12,8 @@ import { runSessionStart } from '../hooks/session-start.js';
 import { startServer } from '../server/main.js';
 import { Store } from '../store/store.js';
 import { ANAFOR_VERSION } from '../version.js';
+import { findAnaforRoot, loadConfig } from '../core/config.js';
+import { jobsTable, runChat } from './chat.js';
 import {
   formatWindows,
   parseClaudeStatusline,
@@ -24,6 +26,24 @@ import {
 
 const [cmd = 'help', ...rest] = process.argv.slice(2);
 const root = resolve(rest.find((a) => !a.startsWith('-')) ?? process.cwd());
+
+/** `--ad değer` biçimindeki seçeneği okur. */
+function flag(name: string): string | undefined {
+  const i = rest.indexOf(`--${name}`);
+  return i >= 0 ? rest[i + 1] : undefined;
+}
+
+/** Anafor projesinin kökü (cwd'den yukarı); yoksa açıklayıcı hata. */
+function projectRoot(): string {
+  const r = findAnaforRoot(process.cwd());
+  if (!r) {
+    console.error('Bu dizin bir Anafor projesi değil. Önce `anafor init` (veya `anafor setup`).');
+    process.exit(1);
+  }
+  return r;
+}
+
+const ROLES = ['implementation', 'review', 'analysis', 'test'] as const;
 
 function serverEntry(): string {
   return fileURLToPath(new URL('../server/main.js', import.meta.url));
@@ -115,6 +135,81 @@ switch (cmd) {
     }
     break;
   }
+  case 'chat': {
+    const once = flag('once');
+    const model = flag('model');
+    const permissionMode = flag('permission-mode');
+    process.exitCode = await runChat({
+      ...(permissionMode ? { permissionMode } : {}),
+      root: projectRoot(),
+      ...(rest.includes('--new') ? { newSession: true } : {}),
+      ...(once ? { once } : {}),
+      ...(model ? { model } : {}),
+    });
+    break;
+  }
+  case 'jobs': {
+    const store = new Store(projectRoot());
+    try {
+      jobsTable(store, rest.includes('--all')).forEach((l) => console.log(l));
+    } finally {
+      store.close();
+    }
+    break;
+  }
+  case 'watch': {
+    // Canlı iş akışı: Ctrl+C ile çıkılır.
+    const store = new Store(projectRoot());
+    const seen = new Map<string, number>();
+    console.log('İşler izleniyor (Ctrl+C ile çık)…');
+    for (;;) {
+      for (const j of store.listJobs()) {
+        const evs = store.listEvents(j.id, seen.get(j.id) ?? 0, 50);
+        for (const e of evs) {
+          console.log(
+            `${e.ts.slice(11, 19)} ${j.id} ${j.worker.padEnd(11)} ${e.type.padEnd(11)} ${e.summary.replace(/\s+/g, ' ').slice(0, 120)}`,
+          );
+          seen.set(j.id, e.seq);
+        }
+      }
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  }
+  case 'roles': {
+    const r = projectRoot();
+    const file = join(r, 'anafor.config.json');
+    if (rest[0] === 'set') {
+      const role = rest[1] as (typeof ROLES)[number];
+      const workers = (rest[2] ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (!ROLES.includes(role) || !workers.length) {
+        console.error(`kullanım: anafor roles set <${ROLES.join('|')}> <işçi1,işçi2,…>`);
+        process.exit(2);
+      }
+      const known = [...defaultAdapters(loadConfig(r)).keys()];
+      const unknown = workers.filter((w) => !known.includes(w));
+      if (unknown.length)
+        console.warn(
+          `uyarı: kayıtlı olmayan işçi: ${unknown.join(', ')} (kayıtlı: ${known.join(', ')})`,
+        );
+      const cfg = existsSync(file)
+        ? (JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>)
+        : {};
+      cfg.routing = { ...((cfg.routing as object | undefined) ?? {}), [role]: workers };
+      writeFileSync(file, JSON.stringify(cfg, null, 2) + '\n');
+      console.log(`${role} → ${workers.join(' → ')} (anafor.config.json)`);
+      break;
+    }
+    const cfg = loadConfig(r);
+    console.log(`beyin       claude (Claude Code + Anafor plugin)`);
+    for (const role of ROLES)
+      console.log(`${role.padEnd(11)} ${(cfg.routing[role] ?? [cfg.default_worker]).join(' → ')}`);
+    console.log(`\nişçiler: ${[...defaultAdapters(cfg).keys()].join(', ')}`);
+    console.log('değiştirmek için: anafor roles set <rol> <işçi1,işçi2>');
+    break;
+  }
   case 'limits': {
     const stored = readStoredLimits();
     const rows: WorkerLimits[] = [];
@@ -173,6 +268,12 @@ kullanım:
   anafor doctor [dizin]   ortam ve işçi kontrolü
   anafor mcp [dizin]      MCP sunucusunu stdio üzerinde başlatır
   anafor migrate [dizin]  eski .orchestrator/ durumunu .anafor/'a kopyalar (kaynak değişmez)
+  anafor chat [--new] [--once "mesaj"] [--model m]
+                          beyin ajanla terminalden konuşma; işler canlı izlenir
+  anafor jobs [--all]     görev ve iş panosu
+  anafor watch            canlı iş olayları
+  anafor roles [set <rol> <işçi1,işçi2>]
+                          beyin ve işçi rolleri
   anafor limits           bağlı yapay zekâların oturum/kullanım limitleri
   anafor statusline       Claude Code statusLine komutu (limitleri kaydeder)
   anafor hook <olay>      Claude Code hook'u (pre-tool-use | session-start), girdi stdin'den

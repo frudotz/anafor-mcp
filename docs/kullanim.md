@@ -25,6 +25,26 @@ claude --plugin-dir /yol/anafor-mcp/plugin      # yönetici hook'ları + /anafor
 
 > `--plugin-dir` kullanıyorsan `.mcp.json`'a gerek yoktur; plugin kendi MCP sunucusunu getirir. Yalnızca MCP istiyorsan (hook olmadan) `claude` yeterlidir.
 
+## 2b. Terminal CLI modu (beyin ajanla konuşma)
+
+Claude Code'u açmadan, Anafor'un kendi terminalinden beyin ajanla konuşabilirsin:
+
+```bash
+cd /projen
+anafor chat                 # kalıcı oturum (.anafor/brain.json); --new ile sıfırdan
+anafor chat --once "Açık görevleri özetle"     # tek mesaj, etkileşimsiz
+anafor jobs [--all]         # görev ve iş panosu
+anafor watch                # canlı iş olayları
+anafor roles                # beyin ve işçi rolleri
+anafor roles set review codex,local,claude-lite
+anafor limits               # işçi oturum/kullanım limitleri
+```
+
+- **Beyin**, resmi `claude` ikilisi olarak Anafor plugin'iyle başlatılır (`claude -p --input-format stream-json`). Anafor CLI yalnızca mesajı iletir ve akışı gösterir. Kimlik bilgilerine dokunulmaz; bu, Anthropic belgelerine göre izinli kullanımdır.
+- Sohbette beyin mesajları, çağırdığı araçlar (`⚙`) ve işçi olayları (`↳`) **canlı** görünür. Sohbet içi komutlar: `/jobs`, `/limits`, `/izinler`, `/cikis`.
+- **İzinler:** önceden izinli olmayan bir araç gerektiğinde (ör. `npm test`) beyin, `permission_prompt` aracı üzerinden sana sorar: `[e]vet / [h]ayır / [d]aima`. Yanıt gelmezse istek reddedilir. `--once` modunda istekler otomatik reddedilir. Claude Code ayarlarındaki izin modun (ör. `auto`) geçerlidir; değiştirmek için `--permission-mode manual`.
+- Oturum devam eder: `anafor chat` her çalıştığında aynı beyin oturumunu sürdürür.
+
 ## 3. Günlük akış
 
 | Adım | Komut veya araç |
