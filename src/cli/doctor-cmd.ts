@@ -253,6 +253,7 @@ export async function runDoctor(dir: string, json = false): Promise<number> {
       title,
     );
   }
+  if (!s.ok || s.warnings.length) p.log.info(c('gray', m().doctor.shareFix));
   if (!s.ok) {
     p.outro(
       c('red', m().doctor.problems(s.problems.length, s.problems.map((x) => x.label).join(', '))),

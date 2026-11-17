@@ -108,6 +108,9 @@ switch (cmd) {
       lang: rest.includes('--lang')
         ? (parseLang(rest[rest.indexOf('--lang') + 1]) ?? undefined)
         : undefined,
+      subscriptions: rest.includes('--subscriptions')
+        ? (rest[rest.indexOf('--subscriptions') + 1] ?? '').split(',').filter(Boolean)
+        : undefined,
       plugin: !rest.includes('--no-plugin'),
       statusline: !rest.includes('--no-statusline'),
       project: !rest.includes('--no-project'),

@@ -5,7 +5,7 @@ const GUIDE =
 export const tr = {
   help: (v: string) => `anafor ${v}
 kullanım:
-  anafor setup [--yes] [--lang tr|en] [--no-plugin] [--no-statusline] [--no-project]
+  anafor setup [--yes] [--lang tr|en] [--subscriptions a,b] [--no-plugin] [--no-statusline] [--no-project]
                           ilk kurulum sihirbazı (dil, işçiler, kalıcı plugin, statusline, proje)
   anafor init [dizin]     projeyi bağlar: .anafor/, politika (.mcp.json plugin yoksa)
   anafor doctor [dizin] [--json]
@@ -46,16 +46,16 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
     workersTitle: (ready: number, total: number) =>
       `2 · İşçiler (${ready}/${total} hazır · beyin: Claude Code)`,
     unavailable: 'kullanılamıyor',
-    pluginStep: '3 · Claude Code plugin’i',
+    pluginStep: '4 · Claude Code plugin’i',
     pluginStepHint: 'yönetici hook’ları, Anafor MCP, /anafor:* komutları',
     pluginAsk: 'Plugin Claude Code’a kalıcı kurulsun mu?',
     pluginOk: 'Kuruldu: anafor@anafor-local',
     pluginFail: 'Kurulamadı',
     pluginSession: 'Kalıcı kurulmadı; oturumluk:',
-    statusStep: '4 · Statusline',
+    statusStep: '5 · Statusline',
     statusStepHint: 'sürüm, güncelleme, limitler ve sağlık durumu',
     statusAsk: 'Statusline kurulsun mu? (mevcut ayar korunur)',
-    projectStep: '5 · Proje',
+    projectStep: '6 · Proje',
     projectAlready: 'Bu dizin zaten Anafor projesi:',
     projectAsk: 'Bu git deposu Anafor’a bağlansın mı?',
     projectDone: 'Proje bağlandı.',
@@ -68,6 +68,14 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
     guide: 'Kılavuz:',
     ready: 'Hazır.',
     restart: 'Değişikliklerin geçerli olması için Claude Code’u yeniden başlatın.',
+    subsStep: '3 · Abonelikler',
+    subsStepHint: 'rol dağılımı önerisi için (dönemsel meta profili)',
+    subsAsk: 'Hangi yapay zekâ aboneliklerin var? (boşluk: seç, enter: onayla)',
+    subsSkipped: 'Abonelik seçilmedi; sonra: anafor capacity recommend <abonelikler>',
+    subsApplyAsk: 'Bu rol dağılımı bu projenin anafor.config.json dosyasına yazılsın mı?',
+    subsApplied: 'Rol dağılımı uygulandı (anafor.config.json → subscriptions + routing).',
+    subsLater: (ids: string) =>
+      `Bir projede uygulamak için: anafor capacity recommend ${ids} --apply`,
   },
 
   doctor: {
@@ -107,6 +115,8 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
     problems: (n: number, list: string) => `${n} sorun: ${list}`,
     warnings: (n: number, list: string) => `Çalışır durumda; ${n} öneri: ${list}`,
     allGood: 'Her şey yolunda.',
+    shareFix:
+      'Anafor’un kodunda bir sorunu düzelttiysen, herkese ulaşması için PR aç: docs/sharing-fixes.md',
   },
 
   status: {

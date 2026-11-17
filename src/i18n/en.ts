@@ -7,7 +7,7 @@ const GUIDE_EN =
 export const en: Messages = {
   help: (v: string) => `anafor ${v}
 usage:
-  anafor setup [--yes] [--lang tr|en] [--no-plugin] [--no-statusline] [--no-project]
+  anafor setup [--yes] [--lang tr|en] [--subscriptions a,b] [--no-plugin] [--no-statusline] [--no-project]
                           first-run wizard (language, workers, persistent plugin, statusline, project)
   anafor init [dir]       connect a project: .anafor/, policy (.mcp.json if no plugin)
   anafor doctor [dir] [--json]
@@ -48,16 +48,16 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
     workersTitle: (ready: number, total: number) =>
       `2 · Workers (${ready}/${total} ready · brain: Claude Code)`,
     unavailable: 'unavailable',
-    pluginStep: '3 · Claude Code plugin',
+    pluginStep: '4 · Claude Code plugin',
     pluginStepHint: 'manager hooks, Anafor MCP, /anafor:* commands',
     pluginAsk: 'Install the plugin into Claude Code permanently?',
     pluginOk: 'Installed: anafor@anafor-local',
     pluginFail: 'Installation failed',
     pluginSession: 'Not installed permanently; per session:',
-    statusStep: '4 · Statusline',
+    statusStep: '5 · Statusline',
     statusStepHint: 'version, updates, limits and health',
     statusAsk: 'Install the statusline? (an existing one is kept)',
-    projectStep: '5 · Project',
+    projectStep: '6 · Project',
     projectAlready: 'This directory is already an Anafor project:',
     projectAsk: 'Connect this git repository to Anafor?',
     projectDone: 'Project connected.',
@@ -70,6 +70,14 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
     guide: 'Guide:',
     ready: 'Ready.',
     restart: 'Restart Claude Code for the changes to take effect.',
+    subsStep: '3 · Subscriptions',
+    subsStepHint: 'for the recommended role split (periodic meta profile)',
+    subsAsk: 'Which AI subscriptions do you have? (space: select, enter: confirm)',
+    subsSkipped: 'No subscription selected; later: anafor capacity recommend <subscriptions>',
+    subsApplyAsk: "Write this role split to this project's anafor.config.json?",
+    subsApplied: 'Role split applied (anafor.config.json → subscriptions + routing).',
+    subsLater: (ids: string) =>
+      `To apply it in a project: anafor capacity recommend ${ids} --apply`,
   },
 
   doctor: {
@@ -109,6 +117,8 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
     problems: (n: number, list: string) => `${n} problem${n === 1 ? '' : 's'}: ${list}`,
     warnings: (n: number, list: string) => `Working; ${n} suggestion${n === 1 ? '' : 's'}: ${list}`,
     allGood: 'All good.',
+    shareFix:
+      "Fixed a problem in Anafor's code? Open a PR so every user gets it: docs/sharing-fixes.md",
   },
 
   status: {

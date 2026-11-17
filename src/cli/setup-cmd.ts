@@ -12,7 +12,9 @@ import {
   writeSetupState,
 } from '../setup/setup.js';
 import { lang, m, setLang, systemLang, type Lang } from '../i18n/index.js';
+import { recommend, SUBSCRIPTIONS } from '../capacity/meta.js';
 import { ANAFOR_VERSION } from '../version.js';
+import { formatRecommendation, runRecommend } from './capacity-cmd.js';
 import { ask, c, interactive, mark, p, rows, withSpinner } from './ui.js';
 
 export interface SetupOptions {
@@ -23,6 +25,8 @@ export interface SetupOptions {
   statusline: boolean;
   /** Proje bağlama adımı (ör. `anafor update` sonrası atlanır). */
   project?: boolean;
+  /** Abonelikler (--subscriptions a,b); verilmezse etkileşimliyse sorulur. */
+  subscriptions?: string[] | undefined;
   init: (dir: string) => void;
 }
 
@@ -124,7 +128,40 @@ export async function runSetup(opts: SetupOptions): Promise<number> {
     t.workersTitle(ready.length, WORKERS.length),
   );
 
-  // 3. Plugin
+  // 3. Abonelikler → önerilen rol dağılımı (F26)
+  p.log.step(`${c('bold', t.subsStep)}  ${c('gray', t.subsStepHint)}`);
+  const known = new Set(SUBSCRIPTIONS.map((x) => x.id));
+  let subs = (opts.subscriptions ?? []).filter((id) => known.has(id));
+  if (!opts.subscriptions && !opts.yes && interactive()) {
+    const prev = root ? loadConfig(root).subscriptions : (readSetupState()?.subscriptions ?? []);
+    const sel = await p.multiselect({
+      message: t.subsAsk,
+      required: false,
+      initialValues: prev.filter((id) => known.has(id)),
+      options: SUBSCRIPTIONS.map((x) => ({
+        value: x.id,
+        label: x.label,
+        ...(x.headless !== 'ok' ? { hint: x.headless } : {}),
+      })),
+    });
+    if (p.isCancel(sel)) {
+      p.cancel(m().ui.cancelled);
+      return 130;
+    }
+    subs = sel;
+  }
+  if (!subs.length) p.log.info(t.subsSkipped);
+  else {
+    p.note(formatRecommendation(recommend(subs)).join('\n'), subs.join(' + '));
+    if (root && (await ask(t.subsApplyAsk, true, opts.yes))) {
+      runRecommend(root, subs, true);
+      p.log.success(t.subsApplied);
+    } else if (!root) {
+      p.log.info(t.subsLater(subs.join(',')));
+    }
+  }
+
+  // 4. Plugin
   const { pluginDir, marketplaceDir } = buildUserPlugin();
   let pluginInstalled = readSetupState()?.plugin_installed ?? false;
   p.log.step(`${c('bold', t.pluginStep)}  ${c('gray', t.pluginStepHint)}`);
@@ -177,6 +214,7 @@ export async function runSetup(opts: SetupOptions): Promise<number> {
     statusline_installed: statusline,
     updated_at: new Date().toISOString(),
     language,
+    subscriptions: subs,
   });
 
   p.note(
