@@ -1,5 +1,6 @@
 import * as p from '@clack/prompts';
 import { styleText } from 'node:util';
+import { m } from '../i18n/index.js';
 
 /**
  * Terminal arayüzü (F28): @clack/prompts (adım çizgisi, kutu, spinner, onay) + Node'un yerleşik
@@ -21,9 +22,14 @@ export const interactive = () => !!process.stdin.isTTY && !!process.stdout.isTTY
 /** Evet/hayır sorusu; etkileşimsizse varsayılan. İptal (Ctrl+C) → çıkış 130. */
 export async function ask(message: string, def = true, yes = false): Promise<boolean> {
   if (yes || !interactive()) return def;
-  const a = await p.confirm({ message, initialValue: def, active: 'Evet', inactive: 'Hayır' });
+  const a = await p.confirm({
+    message,
+    initialValue: def,
+    active: m().ui.yes,
+    inactive: m().ui.no,
+  });
   if (p.isCancel(a)) {
-    p.cancel('İptal edildi.');
+    p.cancel(m().ui.cancelled);
     process.exit(130);
   }
   return a;

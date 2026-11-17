@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { findAnaforRoot } from '../core/config.js';
 import { anaforHome, formatWindows, type LimitWindow } from '../limits/limits.js';
+import { m } from '../i18n/index.js';
 import { readSetupState } from '../setup/setup.js';
 import { ANAFOR_VERSION } from '../version.js';
 import { c } from './ui.js';
@@ -64,13 +65,14 @@ export function healthSignals(cwd: string | undefined, env?: NodeJS.ProcessEnv):
   const out: Signal[] = [];
   const setup = readSetupState(env);
   if (setup?.plugin_installed && setup.version !== ANAFOR_VERSION)
-    out.push({ level: 'warn', text: `plugin v${setup.version}`, command: 'anafor setup' });
+    out.push({ level: 'warn', text: m().status.pluginOld(setup.version), command: 'anafor setup' });
   const h = readHealth(env);
-  if (h && !h.ok) out.push({ level: 'error', text: 'sorun var', command: 'anafor doctor' });
+  if (h && !h.ok) out.push({ level: 'error', text: m().status.problem, command: 'anafor doctor' });
   else if (cwd) {
     const root = findAnaforRoot(cwd);
     const n = root ? recentFailures(root) : 0;
-    if (n >= 2) out.push({ level: 'warn', text: `${n} iş başarısız`, command: 'anafor doctor' });
+    if (n >= 2)
+      out.push({ level: 'warn', text: m().status.jobsFailed(n), command: 'anafor doctor' });
   }
   return out;
 }
@@ -84,7 +86,7 @@ export function statusLine(i: {
   signals: Signal[];
 }): string {
   const parts = [`${c('cyan', 'anafor', true)} ${c('gray', `v${i.version}`, true)}`];
-  if (i.update) parts.push(c('yellow', `⬆ v${i.update}: anafor update`, true));
+  if (i.update) parts.push(c('yellow', m().status.update(i.update), true));
   for (const s of i.signals)
     parts.push(c(s.level === 'error' ? 'red' : 'yellow', `⚠ ${s.text}: ${s.command}`, true));
   if (i.model) parts.push(i.model);

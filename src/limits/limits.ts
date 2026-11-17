@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { m } from '../i18n/index.js';
 
 /**
  * İşçi oturum/kullanım limitleri. Yalnızca resmi araçların kendi yazdığı veya akış olarak
@@ -173,15 +174,17 @@ export function readCodexLimits(env: NodeJS.ProcessEnv = process.env): WorkerLim
   return null;
 }
 
-/** İnsan okunur kısa özet: "5s %44 (14:30'da sıfırlanır) · 7g %26". */
+/** İnsan okunur kısa özet: "5s %44 (14:30'da sıfırlanır) · 7g %26" (dil: F24). */
 export function formatWindows(windows: LimitWindow[], now = Date.now()): string {
-  const label = (n: string) => (n === 'five_hour' ? '5s' : n.startsWith('seven_day') ? '7g' : n);
+  const t = m().windows;
+  const label = (n: string) =>
+    n === 'five_hour' ? t.fiveHour : n.startsWith('seven_day') ? t.sevenDay : n;
   return windows
     .map((w) => {
       // Sıfırlanma zamanı geçmişse gözlem bayattır: pencere sıfırlanmıştır.
-      if (w.resets_at !== null && w.resets_at * 1000 <= now) return `${label(w.name)} sıfırlandı`;
+      if (w.resets_at !== null && w.resets_at * 1000 <= now) return `${label(w.name)} ${t.reset}`;
       const reset = w.resets_at
-        ? ` (${new Date(w.resets_at * 1000).toLocaleString('tr-TR', { weekday: 'short', hour: '2-digit', minute: '2-digit' })})`
+        ? ` (${new Date(w.resets_at * 1000).toLocaleString(t.locale, { weekday: 'short', hour: '2-digit', minute: '2-digit' })})`
         : '';
       return `${label(w.name)} %${w.used_percent}${reset}`;
     })

@@ -18,6 +18,12 @@ Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme:
   - `llms.txt`, README'de yapay zekâ ajanları için yönlendirme.
   - `anafor doctor --json`: kararlı kodlar (`CODEX_SANDBOX_UNELEVATED`, `PLUGIN_OUTDATED`, `EXTENSIONS_BLOCKED`, …) ve düzeltme komutları. Bir test, rehberin tüm kodları kapsadığını denetler.
 
+- **İngilizce dil desteği (F24a):**
+  - Mesaj kataloğu (`src/i18n`, tr/en; yapı eşitliği testle denetlenir).
+  - `anafor setup` ilk adımda dil sorar; `--lang tr|en` ve `ANAFOR_LANG` desteklenir.
+  - Kurulum, doctor, statusline, güncelleme, yardım ve limit etiketleri (5h/7d) çevrildi.
+  - Dil seçimi yoksa sistem dili kullanılır: tr* ise Türkçe, değilse İngilizce.
+
 ### Değişenler
 - `anafor setup` proje bağlama sorusunda varsayılan cevap artık "hayır". `--no-project` eklendi.
 

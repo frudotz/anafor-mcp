@@ -17,6 +17,7 @@ import { jobsTable, runChat } from './chat.js';
 import { buildGoalPrompt, type RunGoalOptions } from './run.js';
 import { runSetup } from './setup-cmd.js';
 import { runExt } from './ext-cmd.js';
+import { m, parseLang } from '../i18n/index.js';
 import { runDoctor } from './doctor-cmd.js';
 import { healthSignals, statusLine } from './health.js';
 import {
@@ -106,6 +107,9 @@ switch (cmd) {
   case 'setup':
     process.exitCode = await runSetup({
       yes: rest.includes('--yes'),
+      lang: rest.includes('--lang')
+        ? (parseLang(rest[rest.indexOf('--lang') + 1]) ?? undefined)
+        : undefined,
       plugin: !rest.includes('--no-plugin'),
       statusline: !rest.includes('--no-statusline'),
       project: !rest.includes('--no-project'),
@@ -119,7 +123,7 @@ switch (cmd) {
     try {
       process.exitCode = await runUpdate((l) => console.log(l), rest.includes('--check'));
     } catch (e) {
-      console.error(`Güncelleme başarısız: ${(e as Error).message}`);
+      console.error(m().update.failed((e as Error).message));
       process.exitCode = 1;
     }
     break;
@@ -349,33 +353,7 @@ switch (cmd) {
     console.log(ANAFOR_VERSION);
     break;
   default:
-    console.log(`anafor ${ANAFOR_VERSION}
-kullanım:
-  anafor setup [--yes] [--no-plugin] [--no-statusline] [--no-project]
-                          ilk kurulum sihirbazı (işçiler, kalıcı plugin, statusline, proje)
-  anafor init [dizin]     projeyi bağlar: .anafor/, politika (.mcp.json plugin yoksa)
-  anafor doctor [dizin] [--json]
-                          ortam, proje ve işçi kontrolü (--json: yapay zekâ ajanları için)
-  anafor mcp [dizin]      MCP sunucusunu stdio üzerinde başlatır
-  anafor migrate [dizin]  eski .orchestrator/ durumunu .anafor/'a kopyalar (kaynak değişmez)
-  anafor chat [--new] [--once "mesaj"] [--model m]
-                          beyin ajanla terminalden konuşma; işler canlı izlenir
-  anafor run "<hedef>" [--accept] [--merge] [--worker w] [--review seviye]
-                          headless: beyin hedefi kullanıcısız yürütür (izin istekleri reddedilir)
-  anafor jobs [--all]     görev ve iş panosu
-  anafor watch            canlı iş olayları
-  anafor roles [set <rol> <işçi1,işçi2>]
-                          beyin ve işçi rolleri
-  anafor limits           bağlı yapay zekâların oturum/kullanım limitleri
-  anafor capacity [--json] kapasite (KP), rol başına kalan iş tahmini ve yük ipuçları
-  anafor capacity recommend <abonelik1,abonelik2> [--apply]
-                          aboneliklere göre önerilen rol dağılımı (meta profili)
-  anafor ext <check|list|add|add-mcp|adopt|remove>
-                          harici skill/MCP için SkillSpector kapısı (anafor ext yardım)
-  anafor statusline       Claude Code statusLine komutu (limitleri kaydeder)
-  anafor hook <olay>      Claude Code hook'u (pre-tool-use | session-start), girdi stdin'den
-  anafor update [--check]  son sürümü indirir, SHA256 doğrular, kurar ve plugin'i yeniler
-  anafor version`);
+    console.log(m().help(ANAFOR_VERSION));
 }
 
 /** Claude Code hook'ları. Hata durumunda iş akışını kilitlememek için sessizce izin verir. */

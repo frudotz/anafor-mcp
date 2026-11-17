@@ -17,6 +17,8 @@ export interface SetupState {
   plugin_installed: boolean;
   statusline_installed: boolean;
   updated_at: string;
+  /** Kurulumda seçilen arayüz dili (F24). */
+  language?: 'tr' | 'en';
 }
 
 const stateFile = (env?: NodeJS.ProcessEnv) => join(anaforHome(env), 'setup.json');
