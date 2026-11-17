@@ -21,6 +21,8 @@ export interface Grant {
 }
 
 export const MAX_GRANT_MINUTES = 30;
+/** Görev devralma (takeover) izinleri için üst sınır. */
+export const MAX_TAKEOVER_MINUTES = 240;
 
 const grantsDir = (root: string) => join(root, '.anafor', 'grants');
 const auditFile = (root: string) => join(root, '.anafor', 'audit', 'interventions.jsonl');
@@ -32,11 +34,18 @@ function audit(root: string, record: object): void {
 
 export function createGrant(
   root: string,
-  input: { reason: string; paths: string[]; ttlMin: number; taskId?: string | null },
+  input: {
+    reason: string;
+    paths: string[];
+    ttlMin: number;
+    taskId?: string | null;
+    kind?: 'intervene' | 'takeover';
+  },
 ): Grant {
   if (!input.reason.trim()) throw new Error('Müdahale gerekçesi zorunlu');
   if (input.paths.length === 0) throw new Error('En az bir yol (glob) gerekli');
-  const ttl = Math.min(Math.max(input.ttlMin, 1), MAX_GRANT_MINUTES);
+  const max = input.kind === 'takeover' ? MAX_TAKEOVER_MINUTES : MAX_GRANT_MINUTES;
+  const ttl = Math.min(Math.max(input.ttlMin, 1), max);
   const now = Date.now();
   const grant: Grant = {
     grant_id: newId('G'),

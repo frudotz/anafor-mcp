@@ -188,11 +188,22 @@ export class ClaudeLiteAdapter implements WorkerAdapter {
       command: this.bin,
       args,
       cwd: job.workdir,
-      env: ctx.env,
+      env: subscriptionEnv(ctx.env),
       stdin: job.prompt,
       artifactsDir: ctx.artifactsDir,
       parseLine: parseClaudeLine,
       finalize: ({ lastMessage, sessionRef }) => ({ finalMessage: lastMessage, sessionRef }),
     });
   }
+}
+
+/**
+ * `-p` modunda ANTHROPIC_API_KEY varsa abonelik yerine API faturalanır (Claude Code
+ * kimlik doğrulama belgesi). İşçi, kullanıcının kendi abonelik oturumuyla çalışsın diye
+ * anahtar çıkarılır; bilinçli API kullanımı için ANAFOR_CLAUDE_USE_API_KEY=1.
+ */
+export function subscriptionEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  if (env.ANAFOR_CLAUDE_USE_API_KEY === '1') return env;
+  const { ANTHROPIC_API_KEY: _drop, ...rest } = env;
+  return rest;
 }

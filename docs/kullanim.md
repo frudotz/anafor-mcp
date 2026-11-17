@@ -50,6 +50,8 @@ Sunucu yeniden başlarsa ölü işler `failed (orphaned)` olur. **Hiçbir iş ot
 - Claude'un Anafor projesindeki kod dosyalarını `Edit`/`Write` ile düzenlemesi ve dosya değiştiren shell komutları **engellenir**. Gerekçe Claude'a iletilir ve `.anafor/audit/interventions.jsonl`'e yazılır.
 - Serbest olanlar: okuma, test, build, git/gh yönetim komutları, `*.md`, `docs/`, `lat.md/`.
 - **Pürüz istisnası:** `intervene` (gerekçe + yollar + en fazla 30 dk) → düzenle → `intervene_end` (özet). Tümü audit'lenir.
+- **Görev devralma (takeover):** işçiler tekrar tekrar başarısız olursa (varsayılan: 3 başarısız veya reddedilen iş), görev `blocked` olursa ya da bir iş 60 dakikadan uzun sürerse Claude `task_takeover` ile görevi devralır. Aktif işler iptal edilir; Claude yalnızca o görevin worktree'sinde, süreli izinle çalışır. Bitince `takeover_complete` → `task_accept`. Eşikler: `anafor.config.json` → `"escalation": { "failure_threshold": 3, "stall_minutes": 60, "takeover_minutes": 120 }`.
+- İşçi worktree'leri (`.anafor/worktrees/`) hiçbir `allow_paths` kuralıyla açılamaz; yalnızca izinle düzenlenebilir.
 - Mod: `anafor.config.json` → `"director_mode": "enforce" | "warn" | "off"`.
 
 ## 5. Yapılandırma (`anafor.config.json`)

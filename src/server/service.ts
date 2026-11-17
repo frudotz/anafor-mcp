@@ -1,5 +1,6 @@
 import type { AdapterRegistry } from '../adapters/registry.js';
-import type { Finding, ReviewLevel, Role } from '../contracts/worker-result.js';
+import type { Finding, ReviewLevel, Role, WorkerResultV1 } from '../contracts/worker-result.js';
+import { loadConfig } from '../core/config.js';
 import { newId, nowIso } from '../core/ids.js';
 import { isAlive, killPidTree } from '../core/process-util.js';
 import {
@@ -260,6 +261,7 @@ export class AnaforService {
       acceptance_criteria: t.acceptanceCriteria,
       note: t.note,
       jobs: this.store.listJobs({ taskId }).map(jobBrief),
+      takeover: (({ eligible, reasons }) => ({ eligible, reasons }))(this.takeoverStatus(taskId)),
     };
   }
 
@@ -795,6 +797,7 @@ export class AnaforService {
   reconcile(): string[] {
     const notes: string[] = [];
     for (const j of this.store.listJobs({ states: ['starting', 'running', 'validating'] })) {
+      if (j.worker === 'director') continue; // devralma işi süreç değil, yöneticinin kendisi
       const age = Date.now() - Date.parse(j.updatedAt);
       const alive = j.pid ? isAlive(j.pid) : age < STALE_START_MS;
       if (!alive) {
@@ -915,6 +918,177 @@ export class AnaforService {
     } catch (e) {
       throw new ServiceError('VALIDATION_FAILED', (e as Error).message);
     }
+  }
+
+  // ---- görev devralma (işçiler tekrar tekrar başarısız olursa) ----
+
+  /** Devralma koşulları: başarısız iş sayısı eşiği, görev blocked veya takılı kalmış iş. */
+  takeoverStatus(taskId: string) {
+    const task = this.mustTask(taskId);
+    const esc = loadConfig(this.store.paths.root).escalation;
+    const jobs = this.store.listJobs({ taskId }).filter((j) => j.worker !== 'director');
+    const failed = jobs.filter((j) =>
+      ['failed', 'timed_out', 'invalid_output', 'changes_requested'].includes(j.state),
+    );
+    const stalled = jobs.filter(
+      (j) =>
+        ACTIVE_JOB_STATES.includes(j.state) &&
+        j.startedAt !== null &&
+        Date.now() - Date.parse(j.startedAt) > esc.stall_minutes * 60_000,
+    );
+    const reasons: string[] = [];
+    if (failed.length >= esc.failure_threshold)
+      reasons.push(`${failed.length} başarısız/reddedilen iş (eşik ${esc.failure_threshold})`);
+    if (task.state === 'blocked') reasons.push('görev blocked');
+    if (stalled.length)
+      reasons.push(`${stalled.length} iş ${esc.stall_minutes} dakikadan uzun süredir bitmedi`);
+    return {
+      task_id: taskId,
+      eligible: reasons.length > 0,
+      reasons,
+      failed_jobs: failed.map((j) => `${j.id}:${j.state}`),
+      thresholds: esc,
+    };
+  }
+
+  /**
+   * Yönetici görevi devralır: aktif işler iptal edilir, son worktree'de (yoksa yeni) bir
+   * `director` işi açılır ve yalnızca o worktree için süreli düzenleme izni verilir.
+   */
+  taskTakeover(taskId: string, reason: string) {
+    const st = this.takeoverStatus(taskId);
+    if (!st.eligible) {
+      throw new ServiceError(
+        'INVALID_STATE',
+        `Devralma koşulları oluşmadı: ${st.failed_jobs.length} başarısız iş, eşik ${st.thresholds.failure_threshold}`,
+        'Önce job_request_changes ile işçiye düzeltme verin; tekrarlayan başarısızlıkta devralın',
+      );
+    }
+    if (!reason.trim()) throw new ServiceError('VALIDATION_FAILED', 'Devralma gerekçesi zorunlu');
+    const task = this.mustTask(taskId);
+    const root = this.store.paths.root;
+    for (const j of this.store.listJobs({ taskId, states: ACTIVE_JOB_STATES })) {
+      if (j.worker !== 'director') this.jobCancel(j.id, `yönetici devraldı: ${reason}`);
+    }
+    const prev = this.store
+      .listJobs({ taskId })
+      .filter(
+        (j) =>
+          j.workspaceMode === 'worktree' &&
+          j.branch &&
+          existsSync(j.workdir) &&
+          j.state !== 'merged',
+      )
+      .pop();
+    const jobId = newId('J');
+    let workdir = root;
+    let branch: string | null = null;
+    let baseSha = headSha(root);
+    let mode: WorkspaceMode = 'shared';
+    if (prev) {
+      ({ workdir, branch, baseSha } = prev);
+      mode = 'worktree';
+    } else if (isGitRepo(root) && headSha(root)) {
+      const wt = createJobWorktree(root, this.store.paths.worktreesDir, task.id, jobId);
+      ({ path: workdir, branch, base: baseSha } = wt);
+      mode = 'worktree';
+    }
+    const job = this.store.createJob({
+      id: jobId,
+      taskId,
+      role: 'implementation',
+      worker: 'director',
+      workspaceMode: mode,
+      workdir,
+      branch,
+      baseSha,
+      parentJobId: prev?.id ?? null,
+      instructions: `Yönetici devraldı: ${reason}`,
+      timeoutS: loadConfig(root).escalation.takeover_minutes * 60,
+    });
+    this.store.transitionJob(jobId, 'starting');
+    this.store.transitionJob(jobId, 'running', { startedAt: nowIso() });
+    this.store.updateTask(taskId, { state: 'in_progress', note: `devralındı: ${reason}` });
+    const relDir = relative(root, workdir).replace(/\\/g, '/');
+    const grant = createGrant(root, {
+      reason: `TAKEOVER ${taskId}: ${reason}`,
+      paths: mode === 'worktree' ? [`${relDir}/**`] : ['**'],
+      ttlMin: loadConfig(root).escalation.takeover_minutes,
+      taskId,
+      kind: 'takeover',
+    });
+    appendTaskAudit(this.store.paths.auditDir, {
+      event: 'task_takeover',
+      task_id: taskId,
+      job_id: jobId,
+      reason,
+      eligibility: st.reasons,
+      grant_id: grant.grant_id,
+    });
+    return {
+      job_id: jobId,
+      workdir,
+      branch,
+      grant_id: grant.grant_id,
+      expires_at: grant.expires_at,
+      instructions:
+        mode === 'worktree'
+          ? `Yalnızca ${workdir} içinde çalış (dal ${branch}). Bitince testleri çalıştır ve takeover_complete çağır; ardından task_accept.`
+          : 'Paylaşılan çalışma alanında çalış. Bitince takeover_complete, ardından task_accept.',
+    };
+  }
+
+  /** Devralınan işi kapatır: gerçek diff'ten sonuç üretilir, iş incelemeye alınır, izin kapanır. */
+  takeoverComplete(
+    jobId: string,
+    input: {
+      summary: string;
+      testsExecuted: string[];
+      testsPassed: number;
+      testsFailed: number;
+      exitCodes: number[];
+      requirementsCompleted: string[];
+      requirementsMissing: string[];
+    },
+  ) {
+    const job = this.mustJob(jobId);
+    if (job.worker !== 'director' || job.state !== 'running') {
+      throw new ServiceError('INVALID_STATE', `İş ${jobId} aktif bir devralma işi değil`);
+    }
+    const changed = isGitRepo(job.workdir) ? workDiff(job.workdir, job.baseSha).changedFiles : [];
+    const result: WorkerResultV1 = {
+      schema_version: '1',
+      task_id: job.taskId,
+      job_id: job.id,
+      agent_role: 'implementation',
+      status: input.requirementsMissing.length ? 'partial' : 'completed',
+      summary: input.summary,
+      changed_files: changed,
+      requirements_completed: input.requirementsCompleted,
+      requirements_missing: input.requirementsMissing,
+      tests: {
+        executed: input.testsExecuted,
+        passed: input.testsPassed,
+        failed: input.testsFailed,
+        exit_codes: input.exitCodes,
+      },
+      review: { level: 'none', critical_count: 0, findings: [] },
+      evidence_locations: [],
+      blockers: [],
+      recommended_next_action: 'task_accept',
+    };
+    this.store.transitionJob(jobId, 'validating', { exitCode: 0 });
+    this.store.transitionJob(jobId, 'needs_review', { result, warnings: [], endedAt: nowIso() });
+    for (const g of activeGrants(this.store.paths.root).filter((x) => x.task_id === job.taskId)) {
+      if (g.reason.startsWith('TAKEOVER'))
+        endGrant(this.store.paths.root, g.grant_id, input.summary);
+    }
+    this.settleTask(job.taskId);
+    return {
+      ...jobBrief(this.store.mustGetJob(jobId)),
+      changed_files: changed,
+      next: 'task_accept',
+    };
   }
 
   // ---- müdahale (pürüz istisnası) ----
