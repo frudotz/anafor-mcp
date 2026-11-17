@@ -113,7 +113,7 @@ switch (cmd) {
     });
     break;
   case 'doctor':
-    process.exitCode = await runDoctor(root);
+    process.exitCode = await runDoctor(root, rest.includes('--json'));
     break;
   case 'update':
     try {
@@ -354,7 +354,8 @@ kullanım:
   anafor setup [--yes] [--no-plugin] [--no-statusline] [--no-project]
                           ilk kurulum sihirbazı (işçiler, kalıcı plugin, statusline, proje)
   anafor init [dizin]     projeyi bağlar: .anafor/, politika (.mcp.json plugin yoksa)
-  anafor doctor [dizin]   ortam ve işçi kontrolü
+  anafor doctor [dizin] [--json]
+                          ortam, proje ve işçi kontrolü (--json: yapay zekâ ajanları için)
   anafor mcp [dizin]      MCP sunucusunu stdio üzerinde başlatır
   anafor migrate [dizin]  eski .orchestrator/ durumunu .anafor/'a kopyalar (kaynak değişmez)
   anafor chat [--new] [--once "mesaj"] [--model m]
