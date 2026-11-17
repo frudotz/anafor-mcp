@@ -28,6 +28,14 @@ export interface WorkerSettings {
   max_concurrency?: number;
   allowed_tools?: string[];
   enabled?: boolean;
+  /** OpenAI uyumlu uç nokta (local). */
+  base_url?: string;
+  /** API anahtarının okunacağı ortam değişkeni adı. */
+  api_key_env?: string;
+  /** Gri alandaki işçiler (antigravity) için koşulların okunduğu onayı. */
+  acknowledge_terms?: boolean;
+  /** OpenCode'da anthropic/* modellerine (yalnızca API anahtarıyla) izin. */
+  allow_anthropic_api?: boolean;
 }
 
 export const DEFAULT_CONFIG: AnaforConfig = {

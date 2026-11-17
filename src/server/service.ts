@@ -263,6 +263,7 @@ export class AnaforService {
           roles: c.roles,
           cost_tier: c.costTier,
           max_concurrency: c.maxConcurrency,
+          experimental: c.experimental ?? false,
           running,
         };
       }),
