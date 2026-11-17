@@ -2,6 +2,20 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/) (0.x döneminde küçük sürüm kırıcı olabilir).
 
+## [Yayımlanmamış]
+
+### Eklenenler
+- **Terminal arayüzü (F28):**
+  - `anafor setup` ve `anafor doctor` yeniden tasarlandı: bölümler, kutular, spinner, evet/hayır soruları ([@clack/prompts](https://github.com/bombshell-dev/clack) 1.8.1, MIT, kurulum betiği yok; renkler Node `util.styleText`).
+  - `doctor` sonucu `~/.anafor/health.json` dosyasına yazılır.
+- **Statusline:**
+  - Anafor sürümü ve yeni sürüm uyarısı (`anafor update`). Denetim 6 saatte bir arka planda yapılır; `ANAFOR_NO_UPDATE_CHECK=1` ile kapatılır.
+  - Kararlılık önerileri: eski plugin → `anafor setup`; doctor sorunu veya art arda başarısız işler → `anafor doctor`.
+- **`anafor update [--check]`:** son sürümü indirir, SHA256SUMS ile doğrular, kurar ve plugin'i yeniler.
+
+### Değişenler
+- `anafor setup` proje bağlama sorusunda varsayılan cevap artık "hayır". `--no-project` eklendi.
+
 ## [0.4.0] - 2026-11-17
 
 ### Eklenenler

@@ -7,3 +7,5 @@ import { join } from 'node:path';
 if (!process.env.ANAFOR_TEST_KEEP_HOME) {
   process.env.ANAFOR_HOME = mkdtempSync(join(tmpdir(), 'anafor-test-home-'));
 }
+// Statusline/CLI testleri arka planda ağa çıkan sürüm denetimi başlatmasın.
+process.env.ANAFOR_NO_UPDATE_CHECK = '1';
