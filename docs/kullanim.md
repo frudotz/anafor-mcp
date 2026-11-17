@@ -124,6 +124,8 @@ Yıkıcı otomatik kurtarma (`reset --hard`, force push, toplu silme) yapılmaz.
 
 ## 7. Proje hafızası (Lat.md, isteğe bağlı)
 
+- **Otomatik bağlam:** projede `lat.md/` varsa her yeni işin emrine görevle ilgili bölümler eklenir ("Proje hafızası"). Seçim `lat search` ile yapılır (çevrimdışı hibrit arama, en fazla 4 bölüm, ~4000 karakter). `lat` kurulu değilse yerleşik anahtar kelime araması kullanılır. Düzeltme ve devam işlerinde eklenmez, çünkü o oturumda bağlam zaten var. Kapatmak için: `"memory_context": false`. Olay günlüğünde `memory` olayı ve `memory_metrics` kaydı oluşur.
+
 - `memory_lock acquire` → `lat.md/` güncelle → `lat check` → `memory_lock release` (token ile). Kira kendiliğinden düşmez.
 - `memory_metrics`: kısa maskelenmiş etiket. Token sayıları yalnızca işçi veya CLI gerçek değer raporladığında yazılır.
 

@@ -11,7 +11,9 @@ import {
 import { loadConfig } from '../core/config.js';
 import { formatWindows, limitAccount, recordLimits, statusFrom } from '../limits/limits.js';
 import { nowIso } from '../core/ids.js';
+import { memoryContext } from '../core/memory-context.js';
 import { compilePrompt } from '../core/prompt.js';
+import { recordMemoryMetric } from '../governance/memory.js';
 import { ACTIVE_JOB_STATES } from '../core/states.js';
 import { StoreError, type Job, type Store, type TokenUsage } from '../store/store.js';
 
@@ -88,7 +90,8 @@ export async function runJob(
   if (!adapter) return fail(`Bilinmeyen işçi: ${job.worker}`);
 
   // Yeni worktree'de bağımlılık kurulumu (config: worktree_setup).
-  const setup = loadConfig(store.paths.root).worktree_setup;
+  const config = loadConfig(store.paths.root);
+  const setup = config.worktree_setup;
   if (setup && job.workspaceMode === 'worktree' && !job.isCorrection && !job.sessionRef) {
     store.appendEvent(job.id, 'setup', setup);
     const r = spawnSync(setup, {
@@ -108,7 +111,30 @@ ${r.stderr ?? ''}`,
 
   // Yerel şema zorlaması olmayan işçilere şema prompt'ta verilir; çıktı extractJson ile ayıklanır.
   const prompted = adapter.capabilities().structuredOutput === 'prompted';
+  // Lat.md hafızası: yalnızca yeni oturumlarda (düzeltme/devam oturumunda bağlam zaten var).
+  const memory =
+    config.memory_context && !job.isCorrection && !job.sessionRef
+      ? memoryContext(store.paths.root, `${task.title} ${task.objective} ${job.instructions}`)
+      : null;
+  if (memory) {
+    store.appendEvent(job.id, 'memory', `${memory.method}: ${memory.sections} bölüm`);
+    try {
+      recordMemoryMetric(join(store.paths.anaforDir, 'memory'), store.paths.projectId, {
+        task_id: task.id,
+        query_label: `job/${job.id}`,
+        method: memory.method === 'lat-cli' ? 'lat-cli' : 'manual',
+        index_status: 'unknown',
+        query_count: 1,
+        sections_retrieved: memory.sections,
+        content_characters: memory.text.length,
+        outcome: memory.method === 'lat-cli' ? 'completed' : 'manual-fallback',
+      });
+    } catch {
+      // ölçüm işi durdurmaz
+    }
+  }
   const prompt = compilePrompt(task, job, {
+    ...(memory ? { memory } : {}),
     ...(job.inputs.findings ? { findings: job.inputs.findings } : {}),
     ...(prompted ? { schemaText: readFileSync(WORKER_RESULT_SCHEMA_PATH, 'utf8') } : {}),
   });

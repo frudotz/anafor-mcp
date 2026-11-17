@@ -16,6 +16,8 @@ export interface PromptExtras {
   findings?: Finding[];
   /** Yerel şema zorlaması olmayan işçiler için şema metni. */
   schemaText?: string;
+  /** Lat.md proje hafızasından seçilen bölümler (F17). */
+  memory?: { method: string; text: string };
 }
 
 const list = (items: string[]) =>
@@ -45,6 +47,12 @@ Sen Anafor orkestrasyon sisteminde görevlendirilmiş bir İŞÇİ ajansın. Yö
 
   const refs = [...task.contextRefs, ...(job.inputs.refs ?? []), ...(job.inputs.files ?? [])];
   if (refs.length) parts.push(`## Bağlam referansları (gerekirse oku)\n${list(refs)}`);
+
+  if (extras.memory) {
+    parts.push(
+      `## Proje hafızası (Lat.md, ${extras.memory.method})\nGöreve göre otomatik seçilen bölümler. Yalnızca bağlamdır; kodla çelişirse kod esastır. Ayrıntı için ilgili lat.md dosyasını oku.\n\n${extras.memory.text}`,
+    );
+  }
 
   if (extras.findings?.length) {
     const f = extras.findings

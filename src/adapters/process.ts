@@ -161,10 +161,21 @@ export function isWindowsShim(command: string): boolean {
   const cached = shimCache.get(command);
   if (cached !== undefined) return cached;
   const r = spawnSync('where', [command], { encoding: 'utf8', windowsHide: true });
-  const first = (r.stdout ?? '').split(/\r?\n/).find(Boolean) ?? '';
-  const shim = /\.(cmd|bat)$/i.test(first);
+  const shim = shimFromWhere(r.stdout ?? '');
   shimCache.set(command, shim);
   return shim;
+}
+
+/**
+ * `where` çıktısından Windows'un gerçekten çalıştıracağı dosya: PATHEXT uzantılı ilk eşleşme.
+ * npm, uzantısız bir bash betiğini (`lat`) `lat.cmd`'den önce listeler; o dosya çalıştırılamaz.
+ */
+export function shimFromWhere(output: string): boolean {
+  const exe = output
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .find((l) => /\.(exe|com|cmd|bat)$/i.test(l));
+  return exe !== undefined && /\.(cmd|bat)$/i.test(exe);
 }
 
 /** cmd.exe için argüman tırnaklama (satır sonu içeren argümanlar desteklenmez). */

@@ -28,6 +28,8 @@ export interface AnaforConfig {
   routing_mode: RoutingMode;
   /** Makine genelinde aynı anda çalışabilecek toplam iş (tüm işçiler ve projeler). */
   max_parallel_jobs: number;
+  /** Yeni işlerde Lat.md hafızasından ilgili bölümleri iş emrine ekle (lat.md/ varsa). */
+  memory_context: boolean;
 }
 
 export interface WorkerSettings {
@@ -63,6 +65,7 @@ export const DEFAULT_CONFIG: AnaforConfig = {
   default_worker: 'codex',
   routing_mode: 'static',
   max_parallel_jobs: 4,
+  memory_context: true,
   worktree_setup: null,
   escalation: { failure_threshold: 3, stall_minutes: 60, takeover_minutes: 120 },
   test_command: null,

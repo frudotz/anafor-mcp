@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeAdapter } from '../../src/adapters/fake.js';
@@ -39,6 +39,25 @@ describe('runJob (sahte işçi)', () => {
     });
   };
 
+  it('lat.md varsa iş emrine proje hafızası eklenir (F17); kapatılabilir', async () => {
+    mkdirSync(join(t.dir, 'lat.md'));
+    writeFileSync(
+      join(t.dir, 'lat.md', 'a.md'),
+      '# Proje\n\n## Dosya oluşturma\n\nKural: UTF-8.\n',
+    );
+    const job = dispatch('[fake:ok] dosya oluştur');
+    await runJob(store, job.id, adapters);
+    const prompt = readFileSync(join(store.paths.jobDir(job.id), 'prompt.md'), 'utf8');
+    expect(prompt).toMatch(/## Proje hafızası \(Lat\.md, (lat-cli|builtin)\)/);
+    expect(store.listEvents(job.id).some((e) => e.type === 'memory')).toBe(true);
+
+    writeFileSync(join(t.dir, 'anafor.config.json'), JSON.stringify({ memory_context: false }));
+    const job2 = dispatch('[fake:ok] dosya oluştur');
+    await runJob(store, job2.id, adapters);
+    expect(readFileSync(join(store.paths.jobDir(job2.id), 'prompt.md'), 'utf8')).not.toMatch(
+      /Proje hafızası/,
+    );
+  });
   it('başarılı iş: needs_review, sonuç, oturum, olaylar, artefaktlar', async () => {
     const job = dispatch('[fake:ok] dosyayı oluştur');
     const done = await runJob(store, job.id, adapters);
