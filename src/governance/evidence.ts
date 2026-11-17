@@ -126,14 +126,31 @@ export function generateScanEvidence(
   let gitleaksNote = '';
   if (!gl.error && gl.status === 0) {
     scanner = 'anafor-builtin + gitleaks';
+    // Hedef dal yoksa (çalışma ağacı) taban..HEAD aralığındaki commit'ler taranır.
+    const logRange = target ? range : `${base}..HEAD`;
+    const report = join(evidenceDir, `${taskId}-gitleaks.json`);
     const g = spawnSync(
       'gitleaks',
-      ['git', '--no-banner', '--redact', `--log-opts=${range}`, '.'],
+      [
+        'git',
+        '--no-banner',
+        '--redact',
+        '--report-format',
+        'json',
+        '--report-path',
+        report,
+        `--log-opts=${logRange}`,
+        '.',
+      ],
       { cwd: root, encoding: 'utf8', windowsHide: true },
     );
     gitleaksNote = `gitleaks çıkış kodu: ${g.status}`;
-    if (g.status === 1)
-      findings.push({ rule: 'gitleaks', file: '(bkz. gitleaks çıktısı)', line: 0 });
+    if (g.status === 1) {
+      const parsed = existsSync(report) ? parseGitleaksReport(readFileSync(report, 'utf8')) : [];
+      findings.push(
+        ...(parsed.length ? parsed : [{ rule: 'gitleaks', file: '(rapor okunamadı)', line: 0 }]),
+      );
+    }
   }
   const file = join(evidenceDir, `${taskId}-scan.txt`);
   const passed = findings.length === 0;
@@ -169,5 +186,23 @@ export function detectTestCommand(cwd: string): string | null {
     return j.scripts?.test ? 'npm test' : null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * gitleaks JSON raporu → bulgular (kural, dosya, satır). Gizli değer (Secret/Match)
+ * kanıta ALINMAZ; rapor zaten --redact ile üretilir.
+ */
+export function parseGitleaksReport(json: string): SecretFinding[] {
+  try {
+    const arr = JSON.parse(json) as { RuleID?: string; File?: string; StartLine?: number }[];
+    if (!Array.isArray(arr)) return [];
+    return arr.map((f) => ({
+      rule: `gitleaks:${f.RuleID ?? '?'}`,
+      file: String(f.File ?? '?').replace(/\\/g, '/'),
+      line: typeof f.StartLine === 'number' ? f.StartLine : 0,
+    }));
+  } catch {
+    return [];
   }
 }

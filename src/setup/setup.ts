@@ -159,6 +159,8 @@ export function installStatusline(
 
 /** Eksik işçiler için kurulum ipuçları (resmi kaynaklar). */
 export const INSTALL_HINTS: Record<string, string> = {
+  gitleaks:
+    'İsteğe bağlı gizli bilgi tarayıcısı: gitleaks v8.30.1 (gh release download + checksum; docs/kurulum.md)',
   codex: 'npm install -g @openai/codex  →  codex login',
   'claude-lite': 'Claude Code kurulu olmalı: https://claude.com/claude-code  →  claude auth login',
   gemini: 'Yalnızca API anahtarıyla: npm install -g @google/gemini-cli + GEMINI_API_KEY',
