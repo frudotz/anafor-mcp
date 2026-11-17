@@ -14,6 +14,7 @@ import { Store } from '../store/store.js';
 import { ANAFOR_VERSION } from '../version.js';
 import { findAnaforRoot, loadConfig } from '../core/config.js';
 import { jobsTable, runChat } from './chat.js';
+import { buildGoalPrompt, type RunGoalOptions } from './run.js';
 import { runSetup, setupStateSummary } from './setup-cmd.js';
 import { readSetupState } from '../setup/setup.js';
 import {
@@ -168,6 +169,31 @@ switch (cmd) {
     });
     break;
   }
+  case 'run': {
+    const goal = rest.find(
+      (a) => !a.startsWith('-') && a !== flag('worker') && a !== flag('review'),
+    );
+    if (!goal) {
+      console.error(
+        'kullanım: anafor run "<hedef>" [--accept] [--merge] [--worker w] [--review lightweight|standard|deep] [--model m]',
+      );
+      process.exit(2);
+    }
+    const model = flag('model');
+    process.exitCode = await runChat({
+      root: projectRoot(),
+      newSession: true,
+      once: buildGoalPrompt({
+        goal,
+        accept: rest.includes('--accept'),
+        merge: rest.includes('--merge'),
+        worker: flag('worker'),
+        reviewLevel: flag('review') as RunGoalOptions['reviewLevel'],
+      }),
+      ...(model ? { model } : {}),
+    });
+    break;
+  }
   case 'jobs': {
     const store = new Store(projectRoot());
     try {
@@ -292,6 +318,8 @@ kullanım:
   anafor migrate [dizin]  eski .orchestrator/ durumunu .anafor/'a kopyalar (kaynak değişmez)
   anafor chat [--new] [--once "mesaj"] [--model m]
                           beyin ajanla terminalden konuşma; işler canlı izlenir
+  anafor run "<hedef>" [--accept] [--merge] [--worker w] [--review seviye]
+                          headless: beyin hedefi kullanıcısız yürütür (izin istekleri reddedilir)
   anafor jobs [--all]     görev ve iş panosu
   anafor watch            canlı iş olayları
   anafor roles [set <rol> <işçi1,işçi2>]

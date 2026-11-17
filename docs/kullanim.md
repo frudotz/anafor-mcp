@@ -45,6 +45,14 @@ anafor limits               # işçi oturum/kullanım limitleri
 - **İzinler:** önceden izinli olmayan bir araç gerektiğinde (ör. `npm test`) beyin, `permission_prompt` aracı üzerinden sana sorar: `[e]vet / [h]ayır / [d]aima`. Yanıt gelmezse istek reddedilir. `--once` modunda istekler otomatik reddedilir. Claude Code ayarlarındaki izin modun (ör. `auto`) geçerlidir; değiştirmek için `--permission-mode manual`.
 - Oturum devam eder: `anafor chat` her çalıştığında aynı beyin oturumunu sürdürür.
 
+### Headless mod
+
+```bash
+anafor run "Stack sınıfına clear() ekle ve testini yaz" --accept --merge --worker codex
+```
+
+Beyin hedefi kullanıcı olmadan baştan sona yürütür: plan → dağıt → incele → (isteğe bağlı) kabul → kanıt → yetki → birleştirme → audit → temizlik. İzin isteyen her şey reddedilir. `--accept` olmadan kabul edilmez, `--merge` olmadan birleştirilmez. Agent SDK gerekmez; resmi `claude` ikilisi kullanılır.
+
 ## 3. Günlük akış
 
 | Adım | Komut veya araç |
