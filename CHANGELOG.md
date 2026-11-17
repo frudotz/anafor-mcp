@@ -2,37 +2,33 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/) (0.x döneminde küçük sürüm kırıcı olabilir).
 
-## [Yayımlanmamış]
+## [0.5.0] - 2026-11-18
 
 ### Eklenenler
 - **Terminal arayüzü (F28):**
-  - `anafor setup` ve `anafor doctor` yeniden tasarlandı: bölümler, kutular, spinner, evet/hayır soruları ([@clack/prompts](https://github.com/bombshell-dev/clack) 1.8.1, MIT, kurulum betiği yok; renkler Node `util.styleText`).
-  - `doctor` sonucu `~/.anafor/health.json` dosyasına yazılır.
-- **Statusline:**
-  - Anafor sürümü ve yeni sürüm uyarısı (`anafor update`). Denetim 6 saatte bir arka planda yapılır; `ANAFOR_NO_UPDATE_CHECK=1` ile kapatılır.
-  - Kararlılık önerileri: eski plugin → `anafor setup`; doctor sorunu veya art arda başarısız işler → `anafor doctor`.
-- **`anafor update [--check]`:** son sürümü indirir, SHA256SUMS ile doğrular, kurar ve plugin'i yeniler.
-
+  - `anafor setup` ve `anafor doctor` yeniden tasarlandı: bölümler, kutular, spinner ve evet/hayır soruları. Kullanılan kütüphane: [@clack/prompts](https://github.com/bombshell-dev/clack) 1.8.1 (MIT, kurulum betiği yok).
+  - Statusline'da Anafor sürümü, yeni sürüm uyarısı (`⬆ … anafor update`) ve kararlılık önerileri (`⚠ … anafor doctor/setup`) gösterilir.
+  - `anafor update [--check]`: son sürümü indirir, SHA256SUMS ile doğrular, kurar ve plugin'i yeniler (#44).
 - **Yapay zekâ kurulum rehberi (F25):**
-  - `docs/agent-install.md` (İngilizce): temel kurallar, adım adım kurulum, tanılama kodu → eylem tablosu, yaygın kurulum hataları.
-  - `llms.txt`, README'de yapay zekâ ajanları için yönlendirme.
-  - `anafor doctor --json`: kararlı kodlar (`CODEX_SANDBOX_UNELEVATED`, `PLUGIN_OUTDATED`, `EXTENSIONS_BLOCKED`, …) ve düzeltme komutları. Bir test, rehberin tüm kodları kapsadığını denetler.
-
-- **İngilizce dil desteği (F24a):**
-  - Mesaj kataloğu (`src/i18n`, tr/en; yapı eşitliği testle denetlenir).
-  - `anafor setup` ilk adımda dil sorar; `--lang tr|en` ve `ANAFOR_LANG` desteklenir.
-  - Kurulum, doctor, statusline, güncelleme, yardım ve limit etiketleri (5h/7d) çevrildi.
-  - Dil seçimi yoksa sistem dili kullanılır: tr* ise Türkçe, değilse İngilizce.
-
-- **Kurulumda abonelik seçimi (F26):** `anafor setup` 3. adımda yapay zekâ aboneliklerini sorar (çoklu seçim; `--subscriptions a,b`). Meta profiline göre önerilen rol dağılımını gösterir; projedeyse `anafor.config.json` dosyasına uygular.
-- **İngilizce CLI, hook ve işçi metinleri (F24b)** ile **İngilizce dokümanlar (F24c)**.
-- **Katkı koruması (F29):** PR'lar için G01–G19 kuralları (`docs/contribution-guard.md`), doctor ile bulunan düzeltmeleri paylaşma rehberi (`docs/sharing-fixes.md`), `SECURITY.md`. `anafor doctor`, sorun veya öneri olduğunda düzeltmeyi paylaşmayı hatırlatır.
-
-- **İş emri dili:** arayüz dili İngilizceyse işçiye giden iş emri de İngilizcedir (kimlik satırları aynı kalır); işçi raporu aynı dilde gelir.
-- **Yönetişim:** iki bakımcılı onay kuralı (frudotz, RedRiveRR), `NOTICE` (AGPL-3.0 §7(b) atıf), `anafor version` kaynak/lisans satırı, iki dilli issue şablonları (#51).
+  - `docs/agent-install.md` (İngilizce) ve `llms.txt`.
+  - `anafor doctor --json`: kararlı tanılama kodları ve düzeltme komutları (#45).
+- **İngilizce dil desteği (F24):**
+  - `anafor setup` ilk adımda Türkçe/English sorar; `--lang` ve `ANAFOR_LANG` desteklenir.
+  - Çevrilen alanlar: CLI, hook'lar, işçi uyarıları, kapasite ve eklenti mesajları, MCP sunucusu ve araç açıklamaları, işçiye giden iş emri.
+  - İngilizce README ile kurulum ve kullanım dokümanları eklendi (#46, #47, #48, #52, #53).
+- **Kurulumda abonelik seçimi (F26):** `anafor setup` yapay zekâ aboneliklerini sorar (`--subscriptions`), meta profiline göre rol dağılımını önerir ve projeye uygular (#50).
+- **Katkı koruması (F29):**
+  - PR diff'ini veri olarak inceleyen kurallar (G01–G19). İş akışı `pull_request_target` ile tetiklenir ve taban daldaki betiği çalıştırır; `guard` artık zorunlu kontrol.
+  - `docs/sharing-fixes.md` (doctor ile bulunan düzeltmeleri paylaşma) ve `SECURITY.md` eklendi (#49).
+- **Yönetişim:**
+  - İki bakımcılı onay ruleset'i (frudotz, RedRiveRR) ve `NOTICE` (AGPL-3.0 §7(b) atıf şartı).
+  - `anafor version` çıktısına kaynak ve lisans satırı eklendi.
+  - Issue şablonları iki dilli oldu (#51).
 
 ### Değişenler
-- `anafor setup` proje bağlama sorusunda varsayılan cevap artık "hayır". `--no-project` eklendi.
+- `anafor setup` proje bağlama sorusunda varsayılan cevap artık "hayır"; `--no-project` eklendi.
+- Kurulum adımları: 0 dil · 1 ortam · 2 işçiler · 3 abonelikler · 4 plugin · 5 statusline · 6 proje.
+- `anafor version` iki satır yazar (sürüm + kaynak/lisans); yalnızca sürüm için `anafor --version`.
 
 ## [0.4.0] - 2026-11-17
 

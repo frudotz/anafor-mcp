@@ -9,7 +9,7 @@
 - Communication happens through typed **MCP tools**. The rules (edit ban, acceptance gates, permission policy) are enforced in code, not in the prompt.
 - Adding a new AI is as easy as writing a `WorkerAdapter`.
 
-> **Status:** v0.3. Claude Code as manager; Codex, Claude Haiku, OpenCode, Gemini, Antigravity and local-model workers; worktree parallelism, acceptance and governance gates, terminal CLI (`anafor chat/run`), limit tracking, automatic Lat.md context and a worktree dependency cache.
+> **Status:** v0.5. Claude Code as manager; Codex, Claude Haiku, OpenCode, Gemini, Antigravity and local-model workers; worktree parallelism, acceptance and governance gates, capacity model and load balancer, token optimisation, SkillSpector extension gate, Turkish/English UI, `anafor update`.
 
 ## Architecture (overview)
 

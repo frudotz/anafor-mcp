@@ -1,4 +1,4 @@
-export const ANAFOR_VERSION = '0.4.0';
+export const ANAFOR_VERSION = '0.5.0';
 
 /**
  * Kaynak ve lisans atfı (NOTICE, AGPL-3.0 §7(b)). Çatallar/değiştirilmiş sürümler bu satırı
