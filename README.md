@@ -69,7 +69,7 @@ main (senin çalışma ağacın: dokunulmaz)
 - Düzeltme ve devam işleri aynı worktree'de, aynı işçi oturumunda sürer.
 - `review` işi `target_job_id` ile hedef işin worktree'sini salt okunur inceler.
 - `task_accept` değişiklikleri iş dalına commit edip görev dalına birleştirir; `task_merge` görev dalını senin dalına alır.
-- Yeni worktree'de bağımlılık kurulumu için: `anafor.config.json` → `"worktree_setup": "npm ci"`.
+- Yeni worktree'de bağımlılık kurulumu için: `anafor.config.json` → `"worktree_setup": "npm ci"`. Daha hızlısı: `"worktree_cache": { "paths": ["node_modules"], "key_files": ["package-lock.json"] }` (kilit dosyası aynıysa hardlink kopya, kurulum atlanır).
 
 ### İşçiler ve yönlendirme
 

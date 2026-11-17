@@ -1,3 +1,4 @@
+import type { DepCacheConfig } from '../git/dep-cache.js';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -16,6 +17,8 @@ export interface AnaforConfig {
   default_worker: string;
   /** Yeni worktree'de işçiden önce çalışacak kurulum komutu (ör. "npm ci"). */
   worktree_setup: string | null;
+  /** Worktree bağımlılık önbelleği (hardlink); null = kapalı. */
+  worktree_cache: DepCacheConfig | null;
   /** İşçiler başarısız olunca yöneticinin görevi devralma eşikleri. */
   escalation: { failure_threshold: number; stall_minutes: number; takeover_minutes: number };
   /** Kanıt üretiminde kullanılacak test komutu (yoksa package.json'dan tahmin). */
@@ -69,6 +72,7 @@ export const DEFAULT_CONFIG: AnaforConfig = {
   max_parallel_jobs: 4,
   memory_context: true,
   worktree_setup: null,
+  worktree_cache: null,
   escalation: { failure_threshold: 3, stall_minutes: 60, takeover_minutes: 120 },
   test_command: null,
   workers: {},
