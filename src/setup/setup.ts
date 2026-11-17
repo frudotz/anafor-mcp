@@ -74,7 +74,7 @@ export function buildUserPlugin(env?: NodeJS.ProcessEnv): {
         hooks: {
           PreToolUse: [
             {
-              matcher: 'Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell',
+              matcher: 'Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|Skill|mcp__.*',
               hooks: [hook('pre-tool-use')],
             },
           ],

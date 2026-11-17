@@ -16,6 +16,8 @@ import { findAnaforRoot, loadConfig } from '../core/config.js';
 import { jobsTable, runChat } from './chat.js';
 import { buildGoalPrompt, type RunGoalOptions } from './run.js';
 import { runSetup, setupStateSummary } from './setup-cmd.js';
+import { runExt } from './ext-cmd.js';
+import { findSkillspector, skillspectorVersion } from '../extensions/skillspector.js';
 import { formatCapacity, runRecommend } from './capacity-cmd.js';
 import { AnaforService } from '../server/service.js';
 import { readSetupState } from '../setup/setup.js';
@@ -114,6 +116,15 @@ async function doctor(): Promise<void> {
     rows.push(['anafor projesi', true, 'bu dizin bağlı değil (anafor init)']);
   }
   rows.push(['kurulum', readSetupState() !== null, setupStateSummary()]);
+  {
+    const bin = findSkillspector(proj ? loadConfig(proj).extensions.skillspector_bin : null);
+    const v = bin ? skillspectorVersion(bin) : null;
+    rows.push([
+      'SkillSpector (eklenti kapısı)',
+      true,
+      v ?? 'yok — harici skill/MCP eklenemez (kurulum: anafor ext add yardımı)',
+    ]);
+  }
   for (const a of defaultAdapters(proj ? loadConfig(proj) : undefined).values()) {
     const d = await a.detect();
     rows.push([
@@ -307,6 +318,12 @@ switch (cmd) {
     }
     break;
   }
+  case 'ext': {
+    const res = runExt(projectRoot(), rest);
+    res.lines.forEach((l) => console.log(l));
+    process.exitCode = res.code;
+    break;
+  }
   case 'statusline': {
     // Claude Code statusLine komutu: stdin JSON'daki rate_limits kaydedilir, kısa satır yazılır.
     const chunks: Buffer[] = [];
@@ -363,6 +380,8 @@ kullanım:
   anafor capacity [--json] kapasite (KP), rol başına kalan iş tahmini ve yük ipuçları
   anafor capacity recommend <abonelik1,abonelik2> [--apply]
                           aboneliklere göre önerilen rol dağılımı (meta profili)
+  anafor ext <check|list|add|add-mcp|adopt|remove>
+                          harici skill/MCP için SkillSpector kapısı (anafor ext yardım)
   anafor statusline       Claude Code statusLine komutu (limitleri kaydeder)
   anafor hook <olay>      Claude Code hook'u (pre-tool-use | session-start), girdi stdin'den
   anafor version`);
