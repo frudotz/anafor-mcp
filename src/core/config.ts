@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
 export type DirectorMode = 'enforce' | 'warn' | 'off';
+export type RoutingMode = 'static' | 'adaptive';
 
 export interface AnaforConfig {
   /** Yönetici modunda Claude'un doğrudan düzenleme yapması: engelle / uyar / serbest. */
@@ -23,6 +24,8 @@ export interface AnaforConfig {
   workers: Record<string, WorkerSettings>;
   /** Rol → tercih edilen işçi sırası (ilk uygun olan seçilir). */
   routing: Partial<Record<'implementation' | 'review' | 'analysis' | 'test', string[]>>;
+  /** Uyarlamalı yönlendirme: yeterli geçmişi olan işçileri kabul oranıyla sırala. */
+  routing_mode: RoutingMode;
 }
 
 export interface WorkerSettings {
@@ -54,6 +57,7 @@ export const DEFAULT_CONFIG: AnaforConfig = {
   ],
   allow_verify_commands: true,
   default_worker: 'codex',
+  routing_mode: 'static',
   worktree_setup: null,
   escalation: { failure_threshold: 3, stall_minutes: 60, takeover_minutes: 120 },
   test_command: null,

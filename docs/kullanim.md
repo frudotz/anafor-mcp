@@ -89,6 +89,7 @@ Sunucu yeniden başlarsa ölü işler `failed (orphaned)` olur. **Hiçbir iş ot
   "director_mode": "enforce",
   "allow_paths": ["lat.md/**", "docs/**", "**/*.md"],
   "default_worker": "codex",
+  "routing_mode": "static",
   "worktree_setup": "npm ci",
   "routing": {
     "implementation": ["codex", "claude-lite"],
@@ -105,6 +106,8 @@ Sunucu yeniden başlarsa ölü işler `failed (orphaned)` olur. **Hiçbir iş ot
 ```
 
 `.anafor/config.json` yerel ezmeler içindir (commit edilmez). Proje dosyası önceliklidir.
+
+`routing_mode` varsayılan olarak `static` kalır ve `routing` listesini aynen kullanır. `adaptive` seçildiğinde, aynı rolde en az üç bitmiş işi olan işçiler kabul oranına göre öne alınır; daha az geçmişi olanlar listede bulundukları konumu korur. `worker_stats` MCP aracı (isteğe bağlı `role` filtresiyle) kabul, hata, değişiklik isteği, süre ve token ortalamalarını gösterir.
 
 ## 6. Yönetişim (commit, push, merge, deploy)
 

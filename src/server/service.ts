@@ -170,6 +170,7 @@ export class AnaforService {
     private readonly launch: Launcher = detachedLauncher,
     private readonly defaultWorker = 'codex',
     private readonly routing: Partial<Record<Role, string[]>> = {},
+    private readonly routingMode: 'static' | 'adaptive' = 'static',
   ) {}
 
   /**
@@ -220,6 +221,19 @@ export class AnaforService {
     let order = [...new Set([...(this.routing[role] ?? []), this.defaultWorker])].filter((id) =>
       this.adapters.has(id),
     );
+    if (this.routingMode === 'adaptive') {
+      const stats = this.workerStats(role);
+      const byWorker = new Map(stats.map((s) => [s.worker, s]));
+      const eligiblePositions = order
+        .map((worker, index) => ({ worker, index, stats: byWorker.get(worker) }))
+        .filter((entry) => (entry.stats?.finished ?? 0) >= 3);
+      const ranked = [...eligiblePositions].sort(
+        (a, b) => b.stats!.acceptance_rate - a.stats!.acceptance_rate,
+      );
+      for (let i = 0; i < eligiblePositions.length; i++) {
+        order[eligiblePositions[i]!.index] = ranked[i]!.worker;
+      }
+    }
     if (role === 'review' && target) {
       order = [
         ...order.filter((w) => w !== target.worker),
@@ -280,6 +294,58 @@ export class AnaforService {
         };
       }),
     );
+  }
+
+  /** Tamamlanmış işlerin işçi/rol bazındaki kabul, hata, süre ve token istatistikleri. */
+  workerStats(role?: Role) {
+    const finishedStates = new Set([
+      'approved',
+      'merged',
+      'changes_requested',
+      'failed',
+      'timed_out',
+      'invalid_output',
+    ]);
+    const groups = new Map<string, Job[]>();
+    for (const job of this.store.listJobs()) {
+      if (
+        job.worker === 'director' ||
+        (role && job.role !== role) ||
+        !finishedStates.has(job.state)
+      )
+        continue;
+      const key = `${job.worker}\0${job.role}`;
+      groups.set(key, [...(groups.get(key) ?? []), job]);
+    }
+    return [...groups.values()].map((jobs) => {
+      const accepted = jobs.filter((j) => j.state === 'approved' || j.state === 'merged').length;
+      const seconds = jobs.flatMap((j) => {
+        if (!j.startedAt || !j.endedAt) return [];
+        const duration = (Date.parse(j.endedAt) - Date.parse(j.startedAt)) / 1000;
+        return Number.isFinite(duration) && duration >= 0 ? [duration] : [];
+      });
+      const inputs = jobs.flatMap((j) =>
+        j.usage?.inputTokens === undefined ? [] : [j.usage.inputTokens],
+      );
+      const outputs = jobs.flatMap((j) =>
+        j.usage?.outputTokens === undefined ? [] : [j.usage.outputTokens],
+      );
+      const mean = (values: number[]) =>
+        values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
+      return {
+        worker: jobs[0]!.worker,
+        role: jobs[0]!.role,
+        finished: jobs.length,
+        accepted,
+        failed: jobs.filter((j) => ['failed', 'timed_out', 'invalid_output'].includes(j.state))
+          .length,
+        changes_requested: jobs.filter((j) => j.state === 'changes_requested').length,
+        acceptance_rate: jobs.length ? accepted / jobs.length : 0,
+        avg_duration_s: mean(seconds),
+        avg_input_tokens: mean(inputs),
+        avg_output_tokens: mean(outputs),
+      };
+    });
   }
 
   projectStatus() {
