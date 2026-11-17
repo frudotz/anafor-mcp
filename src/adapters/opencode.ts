@@ -134,7 +134,6 @@ export class OpenCodeAdapter implements WorkerAdapter {
       writesFiles: true,
       costTier: 'low',
       maxConcurrency: this.maxConcurrency,
-      experimental: true,
     };
   }
 
@@ -158,9 +157,10 @@ export class OpenCodeAdapter implements WorkerAdapter {
       '-m',
       job.model ?? this.model!,
       ...extra,
-      '-f',
-      promptFile,
+      // Mesaj önce: `-f/--file` dizi seçeneği olduğundan ardından gelen konumsal argümanı da
+      // dosya sanar (opencode 1.19.5 ile gerçek testte bulundu).
       'Ekli iş emri dosyasını oku ve uygula. Son mesajın iş emrindeki şemaya uyan tek JSON olmalı.',
+      `--file=${promptFile}`,
     ];
     return runLineProcess({
       command: this.bin,
