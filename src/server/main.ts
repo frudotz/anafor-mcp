@@ -7,6 +7,7 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { defaultAdapters } from '../adapters/registry.js';
 import { findAnaforRoot, loadConfig } from '../core/config.js';
+import { m } from '../i18n/index.js';
 import { Store } from '../store/store.js';
 import { AnaforService, ServiceError } from './service.js';
 import { createMcpServer } from './tools.js';
@@ -26,8 +27,8 @@ export async function startServer(projectRoot?: string): Promise<void> {
     if (!resolved.initialized && !findAnaforRoot(resolved.root)) {
       throw new ServiceError(
         'NOT_INITIALIZED',
-        `Bu proje Anafor için başlatılmamış: ${resolved.root}`,
-        'Proje kökünde `anafor init` çalıştırın (veya kullanıcıdan isteyin)',
+        m().server.notInitialized(resolved.root),
+        m().server.notInitializedHint,
       );
     }
     const store = new Store(resolved.root);
