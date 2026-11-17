@@ -136,25 +136,48 @@ export function installPluginToClaude(
  */
 export function installStatusline(
   claudeSettingsPath = join(homedir(), '.claude', 'settings.json'),
-): { changed: boolean; reason: string } {
+): { changed: boolean; ok: boolean; reason: string } {
+  const command = `${q(process.execPath)} ${q(dist('cli/main.js'))} statusline`;
   let settings: Record<string, unknown> = {};
+  let updating = false;
   if (existsSync(claudeSettingsPath)) {
     try {
       settings = JSON.parse(readFileSync(claudeSettingsPath, 'utf8')) as Record<string, unknown>;
     } catch {
-      return { changed: false, reason: 'settings.json okunamadı (geçersiz JSON); elle ekleyin' };
+      return {
+        changed: false,
+        ok: false,
+        reason: 'settings.json okunamadı (geçersiz JSON); elle ekleyin',
+      };
     }
-    if (settings.statusLine) return { changed: false, reason: 'mevcut statusLine korunuyor' };
+    const cur = (settings.statusLine as { command?: unknown } | undefined)?.command;
+    if (cur === command)
+      return { changed: false, ok: true, reason: 'Anafor statusLine zaten kurulu' };
+    if (settings.statusLine && !isAnaforStatusline(cur)) {
+      return { changed: false, ok: false, reason: 'başka bir statusLine var; korunuyor' };
+    }
+    // Yok veya Anafor'un eski yolu (kurulum yeri değişmiş): yedekle ve yaz.
+    updating = settings.statusLine !== undefined;
     copyFileSync(claudeSettingsPath, `${claudeSettingsPath}.anafor-backup`);
   } else {
     mkdirSync(join(claudeSettingsPath, '..'), { recursive: true });
   }
-  settings.statusLine = {
-    type: 'command',
-    command: `${q(process.execPath)} ${q(dist('cli/main.js'))} statusline`,
-  };
+  settings.statusLine = { type: 'command', command };
   writeFileSync(claudeSettingsPath, JSON.stringify(settings, null, 2) + '\n');
-  return { changed: true, reason: 'statusLine eklendi (yedek: settings.json.anafor-backup)' };
+  return {
+    changed: true,
+    ok: true,
+    reason: `statusLine ${updating ? 'güncellendi' : 'eklendi'} (yedek: settings.json.anafor-backup)`,
+  };
+}
+
+/** Komut Anafor'un statusline'ı mı? (`…anafor…/dist/cli/main.js" statusline`) */
+export function isAnaforStatusline(command: unknown): boolean {
+  return (
+    typeof command === 'string' &&
+    /anafor/i.test(command) &&
+    /dist[\\/]+cli[\\/]+main\.js"?\s+statusline\s*$/.test(command)
+  );
 }
 
 /** Eksik işçiler için kurulum ipuçları (resmi kaynaklar). */
