@@ -38,6 +38,7 @@ export async function startServer(projectRoot?: string): Promise<void> {
       undefined,
       config.default_worker,
       config.routing,
+      config.routing_mode,
     );
     for (const n of service.reconcile()) process.stderr.write(`[anafor] reconcile: ${n}\n`);
     return service;

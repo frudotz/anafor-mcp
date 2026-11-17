@@ -63,6 +63,15 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
   );
 
   server.registerTool(
+    'worker_stats',
+    {
+      description: 'İşçi ve rol bazında biten iş sayısı, kabul oranı, süre ve token ortalamaları.',
+      inputSchema: { role: role.optional() },
+    },
+    (a) => wrap(() => svc().workerStats(a.role)),
+  );
+
+  server.registerTool(
     'project_status',
     { description: 'Açık görevler, çalışan işler ve inceleme bekleyen işler (kısa özet).' },
     () => wrap(() => svc().projectStatus()),
