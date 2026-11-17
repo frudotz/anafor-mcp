@@ -14,6 +14,8 @@ export interface AnaforConfig {
   default_worker: string;
   /** Yeni worktree'de işçiden önce çalışacak kurulum komutu (ör. "npm ci"). */
   worktree_setup: string | null;
+  /** İşçiler başarısız olunca yöneticinin görevi devralma eşikleri. */
+  escalation: { failure_threshold: number; stall_minutes: number; takeover_minutes: number };
   /** İşçi başına ayarlar. */
   workers: Record<string, WorkerSettings>;
   /** Rol → tercih edilen işçi sırası (ilk uygun olan seçilir). */
@@ -30,10 +32,19 @@ export interface WorkerSettings {
 
 export const DEFAULT_CONFIG: AnaforConfig = {
   director_mode: 'enforce',
-  allow_paths: ['lat.md/**', '.anafor/**', 'CLAUDE.md', 'AGENTS.md', 'docs/**', '**/*.md'],
+  allow_paths: [
+    'lat.md/**',
+    '.anafor/evidence/**',
+    'anafor.config.json',
+    'CLAUDE.md',
+    'AGENTS.md',
+    'docs/**',
+    '**/*.md',
+  ],
   allow_verify_commands: true,
   default_worker: 'codex',
   worktree_setup: null,
+  escalation: { failure_threshold: 3, stall_minutes: 60, takeover_minutes: 120 },
   workers: {},
   routing: {
     implementation: ['codex', 'claude-lite'],

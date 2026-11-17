@@ -60,3 +60,13 @@ describe('parseClaudeLine', () => {
     expect(parseClaudeLine('{"type":"user","message":{"content":[]}}')).toEqual([]);
   });
 });
+
+describe('subscriptionEnv', () => {
+  it('ANTHROPIC_API_KEY çıkarılır, açık tercihle korunur', async () => {
+    const { subscriptionEnv } = await import('../../src/adapters/claude-lite.js');
+    expect(subscriptionEnv({ ANTHROPIC_API_KEY: 'x', A: '1' })).toEqual({ A: '1' });
+    expect(
+      subscriptionEnv({ ANTHROPIC_API_KEY: 'x', ANAFOR_CLAUDE_USE_API_KEY: '1' }).ANTHROPIC_API_KEY,
+    ).toBe('x');
+  });
+});

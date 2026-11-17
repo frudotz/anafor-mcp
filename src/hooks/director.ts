@@ -81,7 +81,9 @@ export function decide(
     if (!p) return { action: 'allow' };
     const rel = toRel(ctx.root, cwd, p);
     if (rel === null) return { action: 'allow', reason: 'proje dışı' };
-    if (matchAny(rel, ctx.config.allow_paths)) return { action: 'allow', reason: 'izinli yol' };
+    const inWorktree = rel.startsWith('.anafor/worktrees/') && !rel.endsWith('.md');
+    if (!inWorktree && matchAny(rel, ctx.config.allow_paths))
+      return { action: 'allow', reason: 'izinli yol' };
     const g = ctx.grants.find((x) => matchAny(rel, x.paths));
     if (g) return { action: 'allow', reason: `müdahale izni ${g.grant_id}` };
     return verdict(DENY_MESSAGE(`'${rel}' dosyasını doğrudan düzenleme yasak`));
