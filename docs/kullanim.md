@@ -1,3 +1,5 @@
+🇬🇧 English: [usage.md](en/usage.md)
+
 # Anafor kullanım kılavuzu
 
 Anafor, Claude Code'u **yönetici** yapar: Claude planlar, işi parçalar, işçilere (Codex, Claude Haiku…) dağıtır, sonucu inceler ve kabul eder. Kod dosyalarını kendisi düzenlemez; bu kural bir hook ile uygulanır.

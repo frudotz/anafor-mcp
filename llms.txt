@@ -8,6 +8,12 @@
 - Install: `npm install -g https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz` (never `github:` installs)
 - Diagnose: `anafor doctor --json`
 
+## Docs (English)
+
+- [Installation](docs/en/installation.md)
+- [Usage](docs/en/usage.md)
+- [README (English)](README.en.md)
+
 ## Docs (Turkish)
 
 - [Kurulum](docs/kurulum.md)

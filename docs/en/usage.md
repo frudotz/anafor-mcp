@@ -1,0 +1,354 @@
+🇹🇷 Türkçe: [kullanim.md](../kullanim.md)
+
+# Anafor user guide
+
+Anafor makes Claude Code the **manager**: Claude plans, splits the work, dispatches it to workers (Codex, Claude Haiku…), reviews the result and accepts it. It does not edit code files itself; this rule is enforced by a hook.
+
+## 1. Installation
+
+```bash
+git clone https://github.com/frudotz/anafor-mcp
+cd anafor-mcp && npm install && npm run build
+```
+
+Requirements: Node 24+, git, Claude Code and at least one worker:
+
+- Codex CLI (`codex login`)
+- Claude Code itself (no extra setup needed for the `claude-lite` worker)
+
+## 2. Connecting a project to Anafor
+
+```bash
+cd /your-project                   # a git repository with at least one commit
+node /path/anafor-mcp/dist/cli/main.js init      # .anafor/, policy.json, .gitignore, .mcp.json
+node /path/anafor-mcp/dist/cli/main.js doctor    # node, git, sqlite, workers
+claude --plugin-dir /path/anafor-mcp/plugin      # manager hooks + /anafor:* commands
+```
+
+> If you use `--plugin-dir`, `.mcp.json` is not needed; the plugin brings its own MCP server. If you only want MCP (without hooks), plain `claude` is enough.
+
+## 2b. Terminal CLI mode (talking to the brain agent)
+
+Without opening Claude Code, you can talk to the brain agent from Anafor's own terminal:
+
+```bash
+cd /your-project
+anafor chat                 # persistent session (.anafor/brain.json); --new to start fresh
+anafor chat --once "Summarize open tasks"     # single message, non-interactive
+anafor jobs [--all]         # task and job board
+anafor watch                # live job events
+anafor roles                # brain and worker roles
+anafor roles set review codex,local,claude-lite
+anafor limits               # worker session/usage limits
+```
+
+- The **brain** is launched as the official `claude` binary with the Anafor plugin (`claude -p --input-format stream-json`). The Anafor CLI only relays messages and displays the stream. Credentials are never touched; per Anthropic's documentation this is permitted use.
+- In chat, brain messages, the tools it calls (`⚙`) and worker events (`↳`) appear **live**. In-chat commands: `/jobs`, `/limits`, `/izinler`, `/cikis`.
+- **Permissions:** when a tool that is not pre-approved is needed (e.g. `npm test`), the brain asks you through the `permission_prompt` tool: `[e]vet / [h]ayır / [d]aima` (yes / no / always). If no answer arrives, the request is denied. In `--once` mode requests are denied automatically. The permission mode from your Claude Code settings (e.g. `auto`) applies; to change it use `--permission-mode manual`.
+- The session persists: each run of `anafor chat` continues the same brain session.
+
+### Headless mode
+
+```bash
+anafor run "Add clear() to the Stack class and write a test for it" --accept --merge --worker codex
+```
+
+The brain carries out the goal end to end without a user: plan → dispatch → review → (optional) accept → evidence → authorization → merge → audit → cleanup. Anything that requests permission is denied. Without `--accept` nothing is accepted; without `--merge` nothing is merged. No Agent SDK is required; the official `claude` binary is used.
+
+## 3. Daily flow
+
+| Step | Command or tool |
+|---|---|
+| Plan | `/anafor:plan <goal>`: analysis → tasks + acceptance criteria → approval |
+| Dispatch | `/anafor:run`: `job_dispatch` → `job_wait` → `job_result` / `job_diff` |
+| Fix | `job_request_changes` (same worker session, at most 5 per task) |
+| Accept | `/anafor:accept <task> <job>`: `task_accept` gates; the worktree job is merged into the task branch. If the worker could not run tests (e.g. sandbox): `evidence_generate` → `task_accept` + `verified_by_evidence_reason` |
+| Bring into your branch | `task_merge`: task branch → branch of the working tree (clean tree required) |
+| Clean up | `workspace_cleanup` |
+| Status | `/anafor:status` |
+
+### Job states
+
+`queued → starting → running → validating → needs_review → approved → merged`
+
+Error states: `failed`, `timed_out`, `cancelled`, `invalid_output` (the worker produced output that does not match the schema).
+
+If the server restarts, dead jobs become `failed (orphaned)`. **No job is ever re-run automatically.**
+
+## 4. Manager discipline
+
+- Claude editing code files in an Anafor project with `Edit`/`Write`, and file-modifying shell commands, are **blocked**. The reason is passed to Claude and written to `.anafor/audit/interventions.jsonl`.
+- Allowed: reading, tests, builds, git/gh management commands, `*.md`, `docs/`, `lat.md/`.
+- **Snag exception (intervention):** `intervene` (reason + paths + at most 30 min) → edit → `intervene_end` (summary). Everything is audited.
+- **Task takeover:** if workers fail repeatedly (default: 3 failed or rejected jobs), the task becomes `blocked`, or a job runs longer than 60 minutes, Claude takes over the task with `task_takeover`. Active jobs are cancelled; Claude works only in that task's worktree, with time-limited permission. When done: `takeover_complete` → `task_accept`. Thresholds: `anafor.config.json` → `"escalation": { "failure_threshold": 3, "stall_minutes": 60, "takeover_minutes": 120 }`.
+- Worker worktrees (`.anafor/worktrees/`) cannot be opened by any `allow_paths` rule; they can only be edited with permission.
+- Mode: `anafor.config.json` → `"director_mode": "enforce" | "warn" | "off"`.
+
+## 5. Configuration (`anafor.config.json`)
+
+```json
+{
+  "director_mode": "enforce",
+  "allow_paths": ["lat.md/**", "docs/**", "**/*.md"],
+  "default_worker": "codex",
+  "routing_mode": "static",
+  "worktree_setup": "npm ci",
+  "worktree_cache": { "paths": ["node_modules"], "key_files": ["package-lock.json"] },
+  "routing": {
+    "implementation": ["codex", "claude-lite"],
+    "test": ["claude-lite", "codex"],
+    "analysis": ["claude-lite", "codex"],
+    "review": ["codex", "claude-lite"]
+  },
+  "workers": {
+    "codex": { "max_concurrency": 2, "windows_sandbox": "elevated" },
+    "claude-lite": { "model": "haiku", "max_concurrency": 3 },
+    "fake": { "enabled": false }
+  }
+}
+```
+
+In a new worktree, `worktree_cache` replicates the dependency directory from the main working tree via **hardlinks** instead of running `worktree_setup`. Conditions: the `key_files` (e.g. `package-lock.json`) must be byte-identical in both trees, the directory must be gitignored, and the source must contain no symlinks/junctions. If a condition is not met, the reason is written to the event log and the normal `worktree_setup` runs. Junctions are not used, because `git worktree remove` deletes a junction's target (the main project's `node_modules`).
+
+`max_parallel_jobs` (default 4) is the total number of jobs that may run at the same time **machine-wide**: all workers and all projects count. Each running runner leaves a lease with its process ID under `~/.anafor/running/`; leases of dead processes are not counted. When the limit is full, `job_dispatch` returns `LIMIT_REACHED`. Current usage is shown in the `project_status.parallel` field. A per-worker limit is set separately with `workers.<id>.max_concurrency`.
+
+`.anafor/config.json` is for local overrides (not committed). The project file takes precedence.
+
+`routing_mode` stays `static` by default and uses the `routing` list as is. With `adaptive`, workers that have at least three finished jobs in the same role are moved ahead by acceptance rate; those with less history keep their position in the list. The `worker_stats` MCP tool (with an optional `role` filter) shows acceptance, failure, change requests, duration and token averages.
+
+## 6. Governance (commit, push, merge, deploy)
+
+1. `checkpoint`: records the git state. Does not modify the working tree.
+2. `operation_authorize`: `.anafor/policy.json` + evidence files + checkpoint freshness. Write evidence under **`.anafor/evidence/`** (inside the project, not in git, allowed by the hook).
+   - Default policy: autonomous commit enabled; push, PR, merge and deploy allowlists are **empty** (denied); production disabled.
+   - Protected risks (production data loss, irreversible change, security/access policy, unplanned cost) **always** require explicit user approval and evidence.
+3. Perform the operation with the project's normal tools.
+4. `operation_record`: every successful, failed and blocked attempt is written to the append-only `.anafor/audit/operations.jsonl`.
+
+No destructive automatic recovery (`reset --hard`, force push, mass deletion) is performed. Rollback is done with `git revert`.
+
+## 7. Project memory (Lat.md, optional)
+
+- **Automatic context:** if the project has `lat.md/`, task-relevant sections are added to each new job's brief ("Project memory"). Selection is done with `lat search` (offline hybrid search, at most 4 sections, ~4000 characters). If `lat` is not installed, a built-in keyword search is used. Not added for fix-up and follow-up jobs, because that session already has the context. To disable: `"memory_context": false`. A `memory` event and a `memory_metrics` record appear in the event log.
+
+- `memory_lock acquire` → update `lat.md/` → `lat check` → `memory_lock release` (with the token). The lease does not expire on its own.
+- `memory_metrics`: short masked label. Token counts are written only when the worker or CLI reports real values.
+
+## 7b. Session and usage limits
+
+```bash
+node /path/anafor-mcp/dist/cli/main.js limits
+# codex        ok       5s %10 (Sal 01:55) · 7g %38 (Cmt 19:49)
+# claude       warning  5s %84 · 7g %26
+```
+
+MCP tool: `workers_limits`. Sources (only information the official tools provide themselves; credentials are never touched):
+
+| Worker | Source |
+|---|---|
+| Codex | the last `token_count.rate_limits` in `~/.codex/sessions/**/rollout-*.jsonl` |
+| Claude (brain and claude-lite) | `rate_limit_event` from `claude-lite` jobs + Claude Code statusline input |
+| Antigravity, OpenCode, local | The tool does not report limits → `unknown` |
+
+To also see the brain session's limits, add this to your Claude Code settings (`~/.claude/settings.json`):
+
+```json
+{ "statusLine": { "type": "command", "command": "node /path/anafor-mcp/dist/cli/main.js statusline" } }
+```
+
+The router skips a worker whose window is 100% full (and not yet reset).
+
+## 7c. Capacity model and role assignment recommendation
+
+`anafor capacity` shows each account (claude, codex …) with its limit windows.
+
+**CP (capacity points)** is 1% of a window. Free space is computed as `100 − usage − reserve`. The reserve is the share kept for your own interactive use; by default it is 10% of the 5-hour window and 15% of the weekly window.
+
+**Pace** is the usage ratio divided by the ratio of elapsed time in the window. A pace above 1 means the window will fill up before it ends.
+
+**How is per-job cost learned?** When a job finishes while no other job is running on the same account, the runner compares the window's usage before and after the job. The difference is recorded in `~/.anafor/capacity-costs.json` for that account, role and window. Planning uses the p80 of these measurements. From this, a per-role "~N jobs left" estimate is derived.
+
+Note: the brain and `claude-lite` share the Claude account. Therefore the costs computed for Claude are an upper bound.
+
+**Hints:** `anafor capacity` warns when a window reaches its reserve, is depleting fast, or a role has capacity for 2 or fewer jobs left. If a role's first worker is constrained, it suggests a healthy fallback and gives the `anafor roles set …` command to apply it. The same information is available via the `capacity_status` MCP tool.
+
+**The recommended role assignment** is generated from a periodic meta profile (2026-Q4, the F19 research in the vault). Example:
+
+```bash
+anafor capacity recommend claude-max,chatgpt-plus          # show the recommendation
+anafor capacity recommend claude-max,chatgpt-plus --apply  # anafor.config.json → subscriptions + routing
+anafor capacity recommend                                  # list of subscription IDs
+```
+
+Principles behind the recommendation:
+- The brain runs on the frontier tier (Opus).
+- At equal tier, a worker that does not share the brain's account is preferred.
+- Review is given to a different model family than the implementer.
+- Local models are used only as a fallback for tests and analysis.
+- Subscriptions whose terms are a gray area are shown with a warning.
+
+Settings (`anafor.config.json`):
+
+```json
+{
+  "subscriptions": ["claude-max", "chatgpt-plus"],
+  "capacity": { "reserve_five_hour": 10, "reserve_weekly": 15, "pace_threshold": 1.2 }
+}
+```
+
+### Load balancer
+
+The router reorders the role's preference chain (`routing`) **according to subscription capacity**. The order in the chain expresses quality preference. The balancer changes this order only to push constrained accounts back.
+
+| Strategy | Behavior |
+|---|---|
+| `balanced` (default) | Accounts that have reached their reserve or whose estimated job cost does not fit in free space go to the end; fast-depleting ones go to the middle. Accounts not yet observed are treated as neutral. |
+| `protect-brain` | `balanced` + within an equal group, workers using the brain's Claude account are moved back. |
+| `cheap-first` | `balanced` + within an equal group, the cheap tier (`cost_tier`) comes first. |
+| `off` | The chain is used as is; only 100%-full limits are skipped. |
+
+When the balancer changes the order, the reason appears in the `job_dispatch` warnings and in the job's `route` event. Example (actual output): `yük dengeleyici (balanced): codex yerine claude-lite — codex: five_hour rezerve ulaştı` ("load balancer (balanced): claude-lite instead of codex — codex: five_hour reached reserve").
+
+```json
+{ "balancer": { "strategy": "protect-brain" } }
+```
+
+## 7d. Token optimization
+
+These work without any extra configuration:
+
+- **Cache-friendly job brief:** the part that is identical across every job of the same role (rules, role, output contract, schema) is placed at the start of the brief. The job-specific part (IDs, task, instructions, memory) comes last. This way the provider's prompt cache lowers the input cost of the repeated prefix to about 0.1×.
+- **Short brief in fix-up rounds:** when the worker session is resumed, the task and rules are not resent. Only the new IDs, instructions and findings are added.
+- **Summary limit:** the worker's `summary` field may be at most 2000 characters; if longer it is truncated with a warning. This keeps the manager's context small.
+- **Codex telemetry off:** `analytics.enabled=false` is passed to Codex jobs.
+
+**Token profile.** Sets the reasoning level (effort) per role. Passed to Codex as `model_reasoning_effort` and to claude-lite as `--effort`.
+
+| Profile | implementation | review | analysis | test |
+|---|---|---|---|---|
+| `saver` | medium | medium | low | low |
+| `balanced` (default) | medium | high | medium | low |
+| `quality` | high | high | high | medium |
+| `off` | worker's own default | | | |
+
+```json
+{
+  "token_profile": "saver",
+  "workers": { "codex": { "effort": { "review": "high" } } }
+}
+```
+
+`workers.<id>.effort` can be either a single value or a per-role map, and overrides the profile.
+
+## 7e. Extension gate (SkillSpector)
+
+External skills and MCP servers can be installed and run in Anafor projects only if they pass a [NVIDIA SkillSpector](https://github.com/NVIDIA/skillspector) scan.
+
+The scan always runs with `--no-llm`, so file contents are never sent to any LLM provider. The only external call is a lookup of dependency names on OSV.dev.
+
+| SkillSpector result | Decision |
+|---|---|
+| Scan error | Blocked (fail-closed) |
+| HIGH / CRITICAL (score > 50, `DO_NOT_INSTALL`) | Blocked |
+| CAUTION (score 21–50) | Installed only with `--accept-risk`; the approval is recorded |
+| SAFE (score 0–20) | Installed |
+
+```bash
+anafor ext add ./my-skill                                     # local directory
+anafor ext add https://github.com/org/skills --path pdf       # a skill from a git repository
+anafor ext add-mcp search --source https://github.com/org/search-mcp -- npx -y search-mcp@1.2.3
+anafor ext adopt codex-gpt --user                             # scan an already-installed skill in place
+anafor ext check                                              # status of installed ones
+anafor ext list
+```
+
+**Registry.** Extensions that pass the scan are recorded with a content digest (sha256):
+- project scope: `.anafor/extensions.json`
+- user scope: `~/.anafor/extensions.json`
+
+If the files change later, the extension will not run until it is rescanned. For MCP servers, if the command in `.mcp.json` differs from the recorded one, the server is still blocked.
+
+**Enforcement** is done by the PreToolUse hook and is independent of the manager mode. Setting: `extensions.enforce`; values `block` (default), `warn` and `off`.
+- The `Skill` tool invoking an unregistered or modified local skill (`.claude/skills`, `~/.claude/skills`) is blocked.
+- Tools of an unregistered server in the project's `.mcp.json` are blocked.
+- Direct writes to skill directories or `.mcp.json` are blocked. Commands like `claude mcp add`, `claude plugin install`, `codex mcp add`, `npx skills add` are also blocked and the user is redirected to `anafor ext`.
+- The agent cannot give `--accept-risk` approval. Findings are shown to the user; if the user approves, they run the command in their own terminal.
+- Blocked extensions are listed at SessionStart. `anafor doctor` shows whether SkillSpector is installed.
+
+**Installation** (Python 3.12 or 3.13):
+
+```bash
+py -3.13 -m venv ~/.anafor/tools/skillspector            # Linux/macOS: python3.13 -m venv …
+~/.anafor/tools/skillspector/Scripts/python -m pip install git+https://github.com/NVIDIA/skillspector.git
+```
+
+To use an installation in a different location, set `extensions.skillspector_bin`.
+
+**Limits:**
+- SkillSpector is not a sandbox. A clean result does not prove an extension is safe; it is one layer of defense.
+- Extensions installed manually outside Anafor are only detected.
+- Skills/MCPs bundled with plugins and claude.ai connectors are out of scope.
+
+## 8. Migrating from the old software-orchestrator
+
+```bash
+node /path/anafor-mcp/dist/cli/main.js migrate /your-project
+```
+
+`.orchestrator/` is copied **read-only**: policy (bound to the new project ID), task history, audit, checkpoints and metrics. Worker sessions are not migrated. If run again, it refuses.
+
+## 8b. Workers and terms of use
+
+| Worker | How | Status | Terms note |
+|---|---|---|---|
+| `codex` | `codex exec` (your own ChatGPT login or API key) | ✅ verified | Official CLI, run locally: permitted |
+| `claude-lite` | `claude -p --model haiku` | ✅ verified | Official `claude` binary with your own subscription: permitted. `ANTHROPIC_API_KEY` is removed from the worker environment |
+| `local` | OpenAI-compatible API (Ollama, LM Studio) | ✅ tested with a fake server | Only `analysis`/`review` (does not edit files) |
+| `opencode` | `opencode run --format json` | ✅ verified (real opencode 1.19.5 + OpenAI-compatible provider) | API key, local model or ChatGPT plan. **A Claude subscription cannot be used with OpenCode**; `anthropic/*` models only with `allow_anthropic_api` |
+| `gemini` | `gemini -p --output-format stream-json --approval-mode auto_edit\|plan` | ✅ verified (real gemini-cli 0.68 + Gemini-API-compatible fake server) | Personal Google logins were shut down on 2026-06-18: **`GEMINI_API_KEY` only**. `~/.gemini/settings.json` → `security.auth.selectedType: "gemini-api-key"` required |
+| `antigravity` | `agy -p --output-format stream-json --json-schema <file> --mode accept-edits\|plan` | ✅ verified (real agy 1.5.9 + real account, conformance test), **disabled by default** | Terms are a gray area (third-party access may count as a violation). To enable: `enabled` + `acknowledge_terms`; an API key is recommended |
+
+Example configuration:
+
+```json
+{
+  "workers": {
+    "local": { "model": "qwen3-coder", "base_url": "http://127.0.0.1:11434/v1" },
+    "opencode": { "model": "ollama/qwen3-coder" },
+    "antigravity": { "enabled": true, "acknowledge_terms": true }
+  },
+  "routing": { "review": ["codex", "local", "claude-lite"] }
+}
+```
+
+**Antigravity and terminal commands:** headless `agy` automatically denies commands because it cannot ask for permission. Anafor does not use a permission-bypass flag; instead it uses a session-specific `--settings` to allow only these commands: the project's `test_command` value and `workers.antigravity.allowed_commands`. agy 1.5.9 does not support wildcards; commands must match **exactly**. The allowlist is also written into the job brief. Denied commands appear as `error` in the job events.
+
+```json
+{ "test_command": "npm test", "workers": { "antigravity": { "enabled": true, "acknowledge_terms": true, "allowed_commands": ["npm run lint"] } } }
+```
+
+Real conformance tests (Antigravity: after logging in once with `agy`, `ANAFOR_AGY_BIN=<path to agy.exe> ANAFOR_E2E_AGY=1`):
+- OpenCode, with a fake provider, no account needed: `ANAFOR_E2E_OPENCODE_BIN=<path to opencode> npx vitest run test/integration/opencode-real.test.ts`
+- Gemini, with a fake API, no account needed: `ANAFOR_E2E_GEMINI_BIN=<path to gemini> npx vitest run test/integration/gemini-real.test.ts`
+- With real models: `npx vitest run test/integration/conformance.test.ts` with `ANAFOR_E2E_OPENCODE_MODEL=ollama/qwen3-coder`, `ANAFOR_E2E_GEMINI=1`, `ANAFOR_E2E_AGY=1`
+
+## 9. Adding a new worker
+
+1. `src/adapters/<worker>.ts`: `WorkerAdapter` (`detect`, `capabilities`, `start`, optional `resume`). Convert events to `WorkerEvent`; the last message must be `WorkerResult v1` JSON.
+2. Add one line to `src/adapters/registry.ts`.
+3. `anafor.config.json` → `routing`.
+4. Add one line to `test/integration/conformance.test.ts` and run it with the real worker.
+
+## 10. Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `NOT_INITIALIZED` | `anafor init` in the project root |
+| `WORKER_UNAVAILABLE` | `anafor doctor`; `codex login`; reasons in `workers_list` |
+| `invalid_output` | `job_events` / `.anafor/jobs/<job>/stdout.log`; the worker did not follow the schema, dispatch again |
+| `CONFLICT` (shared) | Only one writing job in the shared workspace; use a worktree |
+| `task_merge` CONFLICT | Uncommitted changes in tracked files; commit or stash. Untracked files do not block |
+| `task_merge` merge conflict | The merge was rolled back; dispatch a fix job for the conflicting files or use `intervene` |
+| Codex job `partial`, tests fail with `spawn EPERM` (Windows) | The Codex sandbox prevents the test runner from spawning child processes. `evidence_generate` → review the diff → `task_accept` + `verified_by_evidence_reason` |
+| Gemini: `Invalid auth method selected` | `security.auth.selectedType` must be set in `~/.gemini/settings.json` (`anafor doctor` shows it) |
+| The hook blocks everything | `anafor.config.json` → `director_mode: "warn"` (temporarily) |
