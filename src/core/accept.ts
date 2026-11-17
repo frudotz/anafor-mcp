@@ -15,6 +15,11 @@ export interface AcceptInput {
   taskJobs: Job[];
   reviewJob: Job | null;
   projectRoot: string;
+  /**
+   * Anafor'un kendi kanıtı (evidence_generate) testlerin geçtiğini gösteriyorsa ve yönetici
+   * açıkça istediyse, işçi beyanına dayanan status/gereksinim/test kapıları bu kanıtla geçer.
+   */
+  verifiedByEvidence?: { ok: boolean; detail: string } | null;
 }
 
 /**
@@ -52,19 +57,28 @@ export function evaluateAcceptance(input: AcceptInput): Gate[] {
   );
 
   add('result_present', r !== null, r ? 'doğrulanmış sonuç var' : 'sonuç yok');
+  const v = input.verifiedByEvidence;
+  if (v) add('verified_by_evidence', v.ok, v.detail);
+  const viaEvidence = v?.ok === true;
   if (r) {
-    add('status_completed', r.status === 'completed', `status: ${r.status}`);
+    add(
+      'status_completed',
+      r.status === 'completed' || viaEvidence,
+      viaEvidence && r.status !== 'completed'
+        ? `işçi: ${r.status}; Anafor kanıtıyla doğrulandı`
+        : `status: ${r.status}`,
+    );
     add(
       'requirements_complete',
-      r.requirements_missing.length === 0,
+      r.requirements_missing.length === 0 || viaEvidence,
       r.requirements_missing.length
-        ? `eksik: ${r.requirements_missing.join('; ')}`
+        ? `eksik (işçi beyanı): ${r.requirements_missing.join('; ')}${viaEvidence ? ' → yönetici + Anafor kanıtıyla doğrulandı' : ''}`
         : 'eksik gereksinim yok',
     );
     const badExit = r.tests.exit_codes.filter((c) => c !== 0);
     add(
       'tests_pass',
-      r.tests.failed === 0 && badExit.length === 0,
+      (r.tests.failed === 0 && badExit.length === 0) || viaEvidence,
       `geçen ${r.tests.passed}, kalan ${r.tests.failed}, başarısız çıkış kodları: ${badExit.join(',') || 'yok'}`,
     );
     add(

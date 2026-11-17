@@ -130,3 +130,43 @@ describe('evidence_generate', () => {
     expect(svc.projectStatus().recently_closed.map((x) => x.task_id)).toContain(task.task_id);
   });
 });
+
+describe('Anafor kanıtıyla doğrulanmış kabul', () => {
+  it('işçi testleri çalıştıramadı (partial): kanıtsız red, taze kanıt + gerekçe ile kabul', async () => {
+    const t = tempDir();
+    initRepo(t.dir);
+    const store = new Store(t.dir);
+    const adapters: AdapterRegistry = new Map([['fake', new FakeAdapter()]]);
+    const svc = new AnaforService(store, adapters, inProcessLauncher(adapters), 'fake');
+    try {
+      const task = svc.taskCreate({ title: 'p', objective: 'x' });
+      const d = await svc.jobDispatch({
+        taskId: task.task_id,
+        role: 'implementation',
+        instructions: '[fake:partial] [fake-file:p.txt]',
+      });
+      await svc.jobWait([d.job_id], 30);
+      const plain = svc.taskAccept(task.task_id, d.job_id);
+      expect(plain.failed_gates.map((g) => g.gate)).toEqual(
+        expect.arrayContaining(['status_completed', 'requirements_complete', 'tests_pass']),
+      );
+      // kanıt yokken gerekçe yetmez
+      const noEv = svc.taskAccept(task.task_id, d.job_id, undefined, { reason: 'diff incelendi' });
+      expect(noEv.failed_gates.map((g) => g.gate)).toContain('verified_by_evidence');
+      // Anafor kendi kanıtını üretir (görev dalı yok, çalışma ağacı taranır)
+      const ev = svc.evidenceGenerate(task.task_id);
+      expect(ev.tests?.passed).toBe(true);
+      const ok = svc.taskAccept(task.task_id, d.job_id, undefined, {
+        reason: 'diff incelendi; işçi sandbox’ı test çalıştıramadı',
+      });
+      expect(ok.failed_gates).toEqual([]);
+      expect(ok.accepted).toBe(true);
+      expect(readFileSync(join(store.paths.auditDir, 'tasks.jsonl'), 'utf8')).toContain(
+        'accept_verified_by_evidence',
+      );
+    } finally {
+      store.close();
+      t.cleanup();
+    }
+  });
+});
