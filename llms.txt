@@ -1,0 +1,15 @@
+# Anafor
+
+> Anafor turns Claude Code into a manager ("brain") that dispatches coding jobs to worker AIs (Codex CLI, Claude Haiku, OpenCode, local models) through an MCP server and a Claude Code plugin, with git-worktree isolation, review gates, capacity-aware load balancing and a SkillSpector-gated extension policy.
+
+## For AI agents installing or repairing Anafor
+
+- [Agent install guide](docs/agent-install.md): step-by-step procedure, ground rules, `anafor doctor --json` diagnostic codes and fixes
+- Install: `npm install -g https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz` (never `github:` installs)
+- Diagnose: `anafor doctor --json`
+
+## Docs (Turkish)
+
+- [Kurulum](docs/kurulum.md)
+- [Kullanım](docs/kullanim.md)
+- [Changelog](CHANGELOG.md)

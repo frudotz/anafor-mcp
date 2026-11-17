@@ -23,6 +23,8 @@ Claude Code (yönetici) ──MCP──▶ anafor-mcp sunucusu ──▶ runner 
 - Claude Code
 - En az bir işçi: [Codex CLI](https://github.com/openai/codex)
 
+> **AI agents:** to install or repair Anafor for a user, follow [docs/agent-install.md](docs/agent-install.md) (English, step by step, with `anafor doctor --json` codes).
+
 ## Hızlı başlangıç (yeni bilgisayar)
 
 ```bash

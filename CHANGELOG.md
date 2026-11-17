@@ -13,6 +13,11 @@ Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme:
   - Kararlılık önerileri: eski plugin → `anafor setup`; doctor sorunu veya art arda başarısız işler → `anafor doctor`.
 - **`anafor update [--check]`:** son sürümü indirir, SHA256SUMS ile doğrular, kurar ve plugin'i yeniler.
 
+- **Yapay zekâ kurulum rehberi (F25):**
+  - `docs/agent-install.md` (İngilizce): temel kurallar, adım adım kurulum, tanılama kodu → eylem tablosu, yaygın kurulum hataları.
+  - `llms.txt`, README'de yapay zekâ ajanları için yönlendirme.
+  - `anafor doctor --json`: kararlı kodlar (`CODEX_SANDBOX_UNELEVATED`, `PLUGIN_OUTDATED`, `EXTENSIONS_BLOCKED`, …) ve düzeltme komutları. Bir test, rehberin tüm kodları kapsadığını denetler.
+
 ### Değişenler
 - `anafor setup` proje bağlama sorusunda varsayılan cevap artık "hayır". `--no-project` eklendi.
 

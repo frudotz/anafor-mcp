@@ -18,6 +18,8 @@
   },
   "files": [
     "dist",
+    "docs/agent-install.md",
+    "llms.txt",
     "schemas",
     "scripts",
     "plugin"
