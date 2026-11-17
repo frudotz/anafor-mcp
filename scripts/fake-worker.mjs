@@ -47,12 +47,15 @@ const result = {
   task_id: pick('task_id'),
   job_id: scenario === 'wrong-id' ? 'J-uydurma' : pick('job_id'),
   agent_role: pick('agent_role'),
-  status: 'completed',
+  status: scenario === 'partial' ? 'partial' : 'completed',
   summary: `Sahte işçi ${outName} dosyasını oluşturdu.`,
   changed_files: [outName],
   requirements_completed: ['sahte gereksinim'],
-  requirements_missing: [],
-  tests: { executed: ['echo test'], passed: 1, failed: 0, exit_codes: [0] },
+  requirements_missing: scenario === 'partial' ? ['testler sandbox nedeniyle çalıştırılamadı'] : [],
+  tests:
+    scenario === 'partial'
+      ? { executed: ['npm test'], passed: 0, failed: 1, exit_codes: [1] }
+      : { executed: ['echo test'], passed: 1, failed: 0, exit_codes: [0] },
   review: { level: 'none', critical_count: 0, findings: [] },
   evidence_locations: [],
   blockers: [],

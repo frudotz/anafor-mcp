@@ -60,7 +60,7 @@ Beyin hedefi kullanıcı olmadan baştan sona yürütür: plan → dağıt → i
 | Plan | `/anafor:plan <hedef>`: analiz → görevler + kabul kriterleri → onay |
 | Dağıt | `/anafor:run`: `job_dispatch` → `job_wait` → `job_result` / `job_diff` |
 | Düzelt | `job_request_changes` (aynı işçi oturumu, görev başına en fazla 5) |
-| Kabul | `/anafor:accept <görev> <iş>`: `task_accept` kapıları; worktree işi görev dalına birleşir |
+| Kabul | `/anafor:accept <görev> <iş>`: `task_accept` kapıları; worktree işi görev dalına birleşir. İşçi testleri çalıştıramadıysa (ör. sandbox): `evidence_generate` → `task_accept` + `verified_by_evidence_reason` |
 | Dalına al | `task_merge`: görev dalı → çalışma ağacındaki dal (temiz ağaç şartı) |
 | Temizle | `workspace_cleanup` |
 | Durum | `/anafor:status` |

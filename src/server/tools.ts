@@ -235,9 +235,23 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
         task_id: z.string(),
         job_id: z.string(),
         review_job_id: z.string().optional(),
+        verified_by_evidence_reason: z
+          .string()
+          .optional()
+          .describe(
+            'İşçi testleri çalıştıramadıysa: diff’i incelediğini ve evidence_generate kanıtının geçtiğini gerekçeyle bildir',
+          ),
       },
     },
-    (a) => wrap(() => svc().taskAccept(a.task_id, a.job_id, a.review_job_id)),
+    (a) =>
+      wrap(() =>
+        svc().taskAccept(
+          a.task_id,
+          a.job_id,
+          a.review_job_id,
+          a.verified_by_evidence_reason ? { reason: a.verified_by_evidence_reason } : undefined,
+        ),
+      ),
   );
 
   server.registerTool(

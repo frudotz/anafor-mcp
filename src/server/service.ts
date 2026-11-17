@@ -10,7 +10,14 @@ import {
   MAX_CORRECTIONS,
   type JobState,
 } from '../core/states.js';
-import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { isAbsolute, join, relative } from 'node:path';
 import { evaluateAcceptance } from '../core/accept.js';
 import { git, headSha, isGitRepo, workDiff } from '../git/git.js';
@@ -514,7 +521,7 @@ export class AnaforService {
   }
 
   /** Kabul kapıları; geçerse iş approved, görev accepted. Kapı hatası araç hatası değildir. */
-  taskAccept(taskId: string, jobId: string, reviewJobId?: string) {
+  taskAccept(taskId: string, jobId: string, reviewJobId?: string, verify?: { reason: string }) {
     const task = this.mustTask(taskId);
     const job = this.mustJob(jobId);
     const reviewJob = reviewJobId ? this.mustJob(reviewJobId) : null;
@@ -524,6 +531,7 @@ export class AnaforService {
       taskJobs: this.store.listJobs({ taskId }),
       reviewJob,
       projectRoot: this.store.paths.root,
+      verifiedByEvidence: verify ? this.evidenceVerdict(taskId, job, verify.reason) : null,
     });
     // Worktree işi: değişiklikleri iş dalına commit et ve görev dalına birleştir.
     let integration: { task_branch: string; commit: string | null } | null = null;
@@ -580,6 +588,44 @@ export class AnaforService {
         : integration
           ? `Kabul edildi; değişiklikler ${integration.task_branch} dalında. Kullanıcı dalına almak için task_merge.`
           : 'Kabul edildi. Kalıcı bilgi varsa proje hafızasını güncelleyin.',
+    };
+  }
+
+  /**
+   * Anafor'un kendi kanıtı: işin bitişinden SONRA üretilmiş, testleri geçen ve taraması temiz
+   * kanıt dosyaları. İşçi beyanı yerine nesnel doğrulama (ör. işçi sandbox'ı test çalıştıramadığında).
+   */
+  private evidenceVerdict(
+    taskId: string,
+    job: Job,
+    reason: string,
+  ): { ok: boolean; detail: string } {
+    if (!reason.trim()) return { ok: false, detail: 'doğrulama gerekçesi zorunlu' };
+    const dir = join(this.store.paths.anaforDir, 'evidence');
+    const testsF = join(dir, `${taskId}-tests.txt`);
+    const scanF = join(dir, `${taskId}-scan.txt`);
+    if (!existsSync(testsF) || !existsSync(scanF)) {
+      return { ok: false, detail: 'kanıt yok: önce evidence_generate' };
+    }
+    const after = job.endedAt ? Date.parse(job.endedAt) : 0;
+    const fresh = [testsF, scanF].every((f) => statSync(f).mtimeMs >= after);
+    const testsOk = /^çıkış kodu: 0\b/m.test(readFileSync(testsF, 'utf8'));
+    const scanOk = /^sonuç: temiz$/m.test(readFileSync(scanF, 'utf8'));
+    const ok = fresh && testsOk && scanOk;
+    appendTaskAudit(this.store.paths.auditDir, {
+      event: 'accept_verified_by_evidence',
+      task_id: taskId,
+      job_id: job.id,
+      reason,
+      fresh,
+      tests_ok: testsOk,
+      scan_ok: scanOk,
+    });
+    return {
+      ok,
+      detail: ok
+        ? `Anafor kanıtı: testler geçti, tarama temiz, işten sonra üretildi (gerekçe: ${reason})`
+        : `kanıt yetersiz: taze=${fresh}, test=${testsOk}, tarama=${scanOk}`,
     };
   }
 
