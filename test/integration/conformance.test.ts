@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { ClaudeLiteAdapter } from '../../src/adapters/claude-lite.js';
 import { CodexAdapter } from '../../src/adapters/codex.js';
 import { FakeAdapter } from '../../src/adapters/fake.js';
+import { AntigravityAdapter, GeminiAdapter } from '../../src/adapters/google.js';
+import { OpenCodeAdapter } from '../../src/adapters/opencode.js';
 import type { WorkerAdapter } from '../../src/adapters/types.js';
 import { git } from '../../src/git/git.js';
 import { AnaforService, inProcessLauncher } from '../../src/server/service.js';
@@ -21,6 +23,22 @@ const cases: { adapter: () => WorkerAdapter; enabled: boolean; marker: string }[
   {
     adapter: () => new ClaudeLiteAdapter(),
     enabled: process.env.ANAFOR_E2E_CLAUDE === '1',
+    marker: '',
+  },
+  // Deneysel işçiler: kurulu ve yapılandırılmışsa gerçek uyum testi.
+  {
+    adapter: () => new OpenCodeAdapter({ model: process.env.ANAFOR_E2E_OPENCODE_MODEL! }),
+    enabled: !!process.env.ANAFOR_E2E_OPENCODE_MODEL,
+    marker: '',
+  },
+  {
+    adapter: () => new GeminiAdapter(),
+    enabled: process.env.ANAFOR_E2E_GEMINI === '1',
+    marker: '',
+  },
+  {
+    adapter: () => new AntigravityAdapter({ acknowledged: true }),
+    enabled: process.env.ANAFOR_E2E_AGY === '1',
     marker: '',
   },
 ];

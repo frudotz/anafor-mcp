@@ -2,13 +2,18 @@ import type { AnaforConfig } from '../core/config.js';
 import { ClaudeLiteAdapter } from './claude-lite.js';
 import { CodexAdapter } from './codex.js';
 import { FakeAdapter } from './fake.js';
+import { AntigravityAdapter, GeminiAdapter } from './google.js';
+import { LocalApiAdapter } from './local-api.js';
+import { OpenCodeAdapter } from './opencode.js';
 import type { WorkerAdapter } from './types.js';
 
 export type AdapterRegistry = ReadonlyMap<string, WorkerAdapter>;
 
 /**
- * Varsayılan adaptör kümesi. Yeni bir işçi eklemek = WorkerAdapter uygulayan bir sınıf
- * ve buraya bir satır; ayarlar config `workers.<id>` altından gelir.
+ * Adaptör kümesi. Yeni bir işçi = WorkerAdapter uygulayan bir sınıf + buraya bir satır.
+ * Ayarlar config `workers.<id>` altından gelir; `enabled: false` işçiyi kapatır.
+ * Yapılandırma gerektiren işçiler (opencode, local) ve gri alandaki işçiler (antigravity)
+ * yalnızca açıkça yapılandırılınca kaydedilir.
  */
 export function defaultAdapters(config?: Pick<AnaforConfig, 'workers'>): AdapterRegistry {
   const w = config?.workers ?? {};
@@ -24,7 +29,50 @@ export function defaultAdapters(config?: Pick<AnaforConfig, 'workers'>): Adapter
         allowedTools: w['claude-lite']?.allowed_tools,
       }),
     ),
+    new GeminiAdapter(
+      opt({
+        bin: w.gemini?.bin,
+        model: w.gemini?.model,
+        maxConcurrency: w.gemini?.max_concurrency,
+      }),
+    ),
     new FakeAdapter(),
   ];
+  if (w.opencode?.model) {
+    list.push(
+      new OpenCodeAdapter(
+        opt({
+          bin: w.opencode.bin,
+          model: w.opencode.model,
+          maxConcurrency: w.opencode.max_concurrency,
+          allowAnthropicApi: w.opencode.allow_anthropic_api,
+        }),
+      ),
+    );
+  }
+  if (w.local?.model) {
+    list.push(
+      new LocalApiAdapter(
+        opt({
+          model: w.local.model,
+          baseUrl: w.local.base_url,
+          apiKeyEnv: w.local.api_key_env,
+          maxConcurrency: w.local.max_concurrency,
+        }),
+      ),
+    );
+  }
+  if (w.antigravity?.enabled === true) {
+    list.push(
+      new AntigravityAdapter(
+        opt({
+          bin: w.antigravity.bin,
+          model: w.antigravity.model,
+          maxConcurrency: w.antigravity.max_concurrency,
+          acknowledged: w.antigravity.acknowledge_terms === true,
+        }),
+      ),
+    );
+  }
   return new Map(list.filter((a) => w[a.id]?.enabled !== false).map((a) => [a.id, a]));
 }

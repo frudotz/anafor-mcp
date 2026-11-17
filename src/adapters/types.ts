@@ -19,6 +19,8 @@ export interface WorkerCapabilities {
   writesFiles: boolean;
   costTier: 'low' | 'medium' | 'high';
   maxConcurrency: number;
+  /** Gerçek araçla uyum testi henüz yapılmadıysa true. */
+  experimental?: boolean;
 }
 
 export interface JobSpec {

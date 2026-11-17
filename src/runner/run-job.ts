@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AdapterRegistry } from '../adapters/registry.js';
 import type { RunHandle, WorkerEvent } from '../adapters/types.js';
@@ -106,8 +106,11 @@ ${r.stderr ?? ''}`,
     if (r.status !== 0) return fail(`worktree_setup başarısız (${r.status}): ${setup}`);
   }
 
+  // Yerel şema zorlaması olmayan işçilere şema prompt'ta verilir; çıktı extractJson ile ayıklanır.
+  const prompted = adapter.capabilities().structuredOutput === 'prompted';
   const prompt = compilePrompt(task, job, {
     ...(job.inputs.findings ? { findings: job.inputs.findings } : {}),
+    ...(prompted ? { schemaText: readFileSync(WORKER_RESULT_SCHEMA_PATH, 'utf8') } : {}),
   });
   writeFileSync(join(artifactsDir, 'prompt.md'), prompt);
 

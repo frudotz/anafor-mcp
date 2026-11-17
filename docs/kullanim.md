@@ -126,6 +126,32 @@ node /yol/anafor-mcp/dist/cli/main.js migrate /projen
 
 `.orchestrator/` **salt okunur** kopyalanır: politika (yeni proje kimliğine bağlanır), görev tarihçesi, audit, checkpoint'ler ve metrikler. İşçi oturumları taşınmaz. Tekrar çalıştırılırsa reddeder.
 
+## 8b. İşçiler ve kullanım koşulları
+
+| İşçi | Nasıl | Durum | Koşul notu |
+|---|---|---|---|
+| `codex` | `codex exec` (kendi ChatGPT girişin veya API anahtarı) | ✅ doğrulandı | Resmi CLI yerelde: izinli |
+| `claude-lite` | `claude -p --model haiku` | ✅ doğrulandı | Resmi `claude` ikilisi kendi aboneliğinle: izinli. `ANTHROPIC_API_KEY` işçi ortamından çıkarılır |
+| `local` | OpenAI uyumlu API (Ollama, LM Studio) | ✅ sahte sunucuyla test | Yalnızca `analysis`/`review` (dosya düzenlemez) |
+| `opencode` | `opencode run --format json` | 🧪 deneysel | API anahtarı, yerel model veya ChatGPT planı. **Claude aboneliği OpenCode ile kullanılamaz**; `anthropic/*` modelleri yalnızca `allow_anthropic_api` ile |
+| `gemini` | `gemini -p --output-format stream-json` | 🧪 deneysel | Kişisel Google girişleri 2026-06-18'de kapandı: **yalnızca `GEMINI_API_KEY`** |
+| `antigravity` | `agy -p --output-format stream-json --json-schema` | 🧪 deneysel, **varsayılan kapalı** | Koşullar gri alan (üçüncü taraf erişimi ihlal sayılabiliyor). Açmak için `enabled` + `acknowledge_terms`; API anahtarı önerilir |
+
+Örnek yapılandırma:
+
+```json
+{
+  "workers": {
+    "local": { "model": "qwen3-coder", "base_url": "http://127.0.0.1:11434/v1" },
+    "opencode": { "model": "ollama/qwen3-coder" },
+    "antigravity": { "enabled": true, "acknowledge_terms": true }
+  },
+  "routing": { "review": ["codex", "local", "claude-lite"] }
+}
+```
+
+Deneysel işçileri kurduğunda gerçek uyum testi: `ANAFOR_E2E_OPENCODE_MODEL=ollama/qwen3-coder`, `ANAFOR_E2E_GEMINI=1`, `ANAFOR_E2E_AGY=1` ile `npx vitest run test/integration/conformance.test.ts`.
+
 ## 9. Yeni bir işçi eklemek
 
 1. `src/adapters/<işçi>.ts`: `WorkerAdapter` (`detect`, `capabilities`, `start`, isteğe bağlı `resume`). Olayları `WorkerEvent`'e çevir; son mesaj `WorkerResult v1` JSON'u olmalı.

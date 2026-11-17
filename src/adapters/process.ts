@@ -70,12 +70,14 @@ export interface LineProcessOptions {
  */
 export function runLineProcess(opts: LineProcessOptions): RunHandle {
   const queue = new EventQueue<WorkerEvent>();
-  const child = spawn(opts.command, opts.args, {
+  const shim = isWindowsShim(opts.command);
+  const child = spawn(opts.command, shim ? opts.args.map(quoteCmdArg) : opts.args, {
     cwd: opts.cwd,
     env: opts.env,
     stdio: ['pipe', 'pipe', 'pipe'],
     detached: process.platform !== 'win32',
     windowsHide: true,
+    shell: shim,
   });
   const stdoutLog = createWriteStream(join(opts.artifactsDir, 'stdout.log')).on(
     'error',
@@ -142,4 +144,31 @@ export function runLineProcess(opts: LineProcessOptions): RunHandle {
       await done.catch(() => undefined);
     },
   };
+}
+
+const shimCache = new Map<string, boolean>();
+
+/**
+ * Windows'ta npm ile kurulan CLI'lar .cmd/.bat sarmalayıcısıdır ve kabuk olmadan
+ * başlatılamaz. Bu durumda argümanlar tek satırlık ve basit tutulmalıdır
+ * (uzun prompt dosya veya stdin ile verilir).
+ */
+export function isWindowsShim(command: string): boolean {
+  if (process.platform !== 'win32') return false;
+  if (/\.(cmd|bat)$/i.test(command)) return true;
+  if (/\.exe$/i.test(command) || command === process.execPath) return false;
+  const cached = shimCache.get(command);
+  if (cached !== undefined) return cached;
+  const r = spawnSync('where', [command], { encoding: 'utf8', windowsHide: true });
+  const first = (r.stdout ?? '').split(/\r?\n/).find(Boolean) ?? '';
+  const shim = /\.(cmd|bat)$/i.test(first);
+  shimCache.set(command, shim);
+  return shim;
+}
+
+/** cmd.exe için argüman tırnaklama (satır sonu içeren argümanlar desteklenmez). */
+export function quoteCmdArg(a: string): string {
+  if (/[\r\n]/.test(a))
+    throw new Error('Çok satırlı argüman .cmd sarmalayıcısına geçirilemez; dosya/stdin kullanın');
+  return /[\s"&|<>^%()]/.test(a) ? `"${a.replace(/"/g, '""')}"` : a;
 }
