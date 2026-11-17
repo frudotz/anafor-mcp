@@ -100,3 +100,20 @@ describe('limitler', () => {
     }
   });
 });
+
+describe('bayat limit gözlemi', () => {
+  it('sıfırlanma zamanı geçmiş pencere "sıfırlandı" gösterilir', () => {
+    const now = Date.UTC(2026, 10, 17, 12);
+    const past = now / 1000 - 60;
+    const future = now / 1000 + 3600;
+    expect(
+      formatWindows(
+        [
+          { name: 'five_hour', used_percent: 90, resets_at: past, window_minutes: 300 },
+          { name: 'seven_day', used_percent: 38, resets_at: future, window_minutes: 10080 },
+        ],
+        now,
+      ),
+    ).toMatch(/^5s sıfırlandı · 7g %38 \(/);
+  });
+});

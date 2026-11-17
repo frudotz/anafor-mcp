@@ -23,9 +23,8 @@
     "plugin"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "prepare": "npm run build",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.build.json",
+    "typecheck": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "prettier --write .",

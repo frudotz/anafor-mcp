@@ -26,7 +26,7 @@ Claude Code (yönetici) ──MCP──▶ anafor-mcp sunucusu ──▶ runner 
 ## Hızlı başlangıç (yeni bilgisayar)
 
 ```bash
-npm install -g github:frudotz/anafor-mcp   # Node 24+, git, Claude Code ve en az bir işçi (ör. Codex) gerekir
+npm install -g https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz   # Node 24+, git, Claude Code ve en az bir işçi gerekir
 cd /projen && anafor setup                   # sihirbaz: işçiler, kalıcı plugin, statusline, proje
 anafor chat                                  # beyin ajanla terminalden konuş
 ```
