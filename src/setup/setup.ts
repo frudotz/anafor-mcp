@@ -20,6 +20,8 @@ export interface SetupState {
   updated_at: string;
   /** Kurulumda seçilen arayüz dili (F24). */
   language?: 'tr' | 'en';
+  /** Kurulumda seçilen abonelikler (F26). */
+  subscriptions?: string[];
 }
 
 const stateFile = (env?: NodeJS.ProcessEnv) => join(anaforHome(env), 'setup.json');

@@ -24,6 +24,10 @@ Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme:
   - Kurulum, doctor, statusline, güncelleme, yardım ve limit etiketleri (5h/7d) çevrildi.
   - Dil seçimi yoksa sistem dili kullanılır: tr* ise Türkçe, değilse İngilizce.
 
+- **Kurulumda abonelik seçimi (F26):** `anafor setup` 3. adımda yapay zekâ aboneliklerini sorar (çoklu seçim; `--subscriptions a,b`). Meta profiline göre önerilen rol dağılımını gösterir; projedeyse `anafor.config.json` dosyasına uygular.
+- **İngilizce CLI, hook ve işçi metinleri (F24b)** ile **İngilizce dokümanlar (F24c)**.
+- **Katkı koruması (F29):** PR'lar için G01–G19 kuralları (`docs/contribution-guard.md`), doctor ile bulunan düzeltmeleri paylaşma rehberi (`docs/sharing-fixes.md`), `SECURITY.md`. `anafor doctor`, sorun veya öneri olduğunda düzeltmeyi paylaşmayı hatırlatır.
+
 ### Değişenler
 - `anafor setup` proje bağlama sorusunda varsayılan cevap artık "hayır". `--no-project` eklendi.
 
