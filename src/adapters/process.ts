@@ -73,7 +73,8 @@ export function runLineProcess(opts: LineProcessOptions): RunHandle {
   const shim = isWindowsShim(opts.command);
   const child = spawn(opts.command, shim ? opts.args.map(quoteCmdArg) : opts.args, {
     cwd: opts.cwd,
-    env: opts.env,
+    // PWD çalışma dizinine eşitlenir: bazı CLI'lar (ör. bun tabanlı opencode) cwd yerine PWD'yi kullanır.
+    env: { ...opts.env, PWD: opts.cwd },
     stdio: ['pipe', 'pipe', 'pipe'],
     detached: process.platform !== 'win32',
     windowsHide: true,
