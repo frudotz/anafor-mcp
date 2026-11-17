@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Güvenlik açığı bildir / Report a security vulnerability
+    url: https://github.com/frudotz/anafor-mcp/security/advisories/new
+    about: Özel rapor; herkese açık issue açmayın. / Private report; do not open a public issue.
+  - name: Kurulum sorunu (yapay zekâ ajanları için rehber) / Install problems (agent guide)
+    url: https://github.com/frudotz/anafor-mcp/blob/main/docs/agent-install.md
+    about: Önce `anafor doctor` çalıştırın. / Run `anafor doctor` first.

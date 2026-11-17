@@ -1,28 +1,28 @@
-name: Görev / Özellik
-description: Yeni bir iş veya özellik. İşe başlamadan önce açın ve kendinize atayın.
+name: Görev / Özellik — Task / Feature
+description: Yeni bir iş veya özellik. İşe başlamadan önce açın ve kendinize atayın. / A new task or feature; open it before starting and assign yourself.
 labels: [enhancement]
 body:
   - type: textarea
     id: amac
     attributes:
-      label: Amaç
-      description: Ne yapılacak ve neden?
+      label: Amaç / Goal
+      description: Ne yapılacak ve neden? / What and why?
     validations:
       required: true
   - type: textarea
     id: kabul
     attributes:
-      label: Kabul kriterleri
+      label: Kabul kriterleri / Acceptance criteria
       placeholder: '- [ ] ...'
     validations:
       required: true
   - type: input
     id: kapsam
     attributes:
-      label: Etkilenecek modüller
+      label: Etkilenecek modüller / Affected modules
       placeholder: core, store, adapter-codex ...
   - type: input
     id: faz
     attributes:
-      label: Yol haritası fazı
-      placeholder: F1
+      label: Yol haritası fazı / Roadmap phase
+      placeholder: F30

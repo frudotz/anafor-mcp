@@ -1,7 +1,12 @@
-# Tüm değişiklikler repo sahibinin onayını gerektirir.
-* @frudotz
+# Ana katkıcılar / maintainers: frudotz ve RedRiveRR.
+# Bakımcı onayı ruleset'i gereği, bu ikisinin dışındaki herkesin değişikliği
+# ikisinden birinin onayını gerektirir (ikisi birbirine bağımlı değildir).
+* @frudotz @RedRiveRR
 
-# Ortak sözleşmeler: değişiklikleri ayrıca dikkatle incelenir.
-/schemas/ @frudotz
-/src/adapters/types.ts @frudotz
-/.github/ @frudotz
+# Ortak sözleşmeler ve güvenlik açısından hassas yollar
+/schemas/ @frudotz @RedRiveRR
+/src/adapters/types.ts @frudotz @RedRiveRR
+/.github/ @frudotz @RedRiveRR
+/scripts/contribution-guard.mjs @frudotz @RedRiveRR
+/LICENSE @frudotz @RedRiveRR
+/NOTICE @frudotz @RedRiveRR

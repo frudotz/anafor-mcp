@@ -11,7 +11,7 @@ import { runPreToolUse } from '../hooks/director.js';
 import { runSessionStart } from '../hooks/session-start.js';
 import { startServer } from '../server/main.js';
 import { Store } from '../store/store.js';
-import { ANAFOR_VERSION } from '../version.js';
+import { ANAFOR_VERSION, SOURCE_NOTICE } from '../version.js';
 import { findAnaforRoot, loadConfig } from '../core/config.js';
 import { jobsTable, runChat } from './chat.js';
 import { buildGoalPrompt, type RunGoalOptions } from './run.js';
@@ -342,9 +342,13 @@ switch (cmd) {
   case 'hook':
     await hook(rest[0] ?? '');
     break;
-  case 'version':
   case '--version':
     console.log(ANAFOR_VERSION);
+    break;
+  case 'version':
+    // AGPL-3.0 §7(b) atıf (NOTICE): kaynak ve lisans her sürümde görünür kalmalı.
+    console.log(`${ANAFOR_VERSION}
+${SOURCE_NOTICE}`);
     break;
   default:
     console.log(m().help(ANAFOR_VERSION));
