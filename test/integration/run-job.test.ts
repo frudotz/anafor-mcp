@@ -3,6 +3,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeAdapter } from '../../src/adapters/fake.js';
 import type { AdapterRegistry } from '../../src/adapters/registry.js';
+import { readCosts } from '../../src/capacity/capacity.js';
+import { recordLimits } from '../../src/limits/limits.js';
 import { runJob } from '../../src/runner/run-job.js';
 import { Store } from '../../src/store/store.js';
 import { tempDir } from '../helpers.js';
@@ -58,6 +60,38 @@ describe('runJob (sahte işçi)', () => {
       /Proje hafızası/,
     );
   });
+  it('kapasite (F20): tek başına çalışan işin pencere farkı maliyet olarak öğrenilir', async () => {
+    const resets = Math.floor(Date.now() / 1000) + 3600;
+    const w = (used: number) => [
+      { name: 'five_hour', used_percent: used, resets_at: resets, window_minutes: 300 },
+    ];
+    recordLimits({
+      worker: 'fake',
+      source: 'test',
+      observed_at: new Date(Date.now() - 1000).toISOString(),
+      status: 'ok',
+      windows: w(20),
+    });
+    class Metered extends FakeAdapter {
+      override start(...a: Parameters<FakeAdapter['start']>) {
+        recordLimits({
+          worker: 'fake',
+          source: 'test',
+          observed_at: new Date(Date.now() + 5).toISOString(),
+          status: 'ok',
+          windows: w(23.5),
+        });
+        return super.start(...a);
+      }
+    }
+    const job = dispatch('[fake:ok] dosya oluştur');
+    await runJob(store, job.id, new Map([['fake', new Metered()]]));
+    expect(readCosts().fake?.implementation?.five_hour?.samples).toEqual([3.5]);
+    expect(store.listEvents(job.id).find((e) => e.type === 'capacity')?.summary).toBe(
+      'five_hour +3.5 KP',
+    );
+  });
+
   it('başarılı iş: needs_review, sonuç, oturum, olaylar, artefaktlar', async () => {
     const job = dispatch('[fake:ok] dosyayı oluştur');
     const done = await runJob(store, job.id, adapters);

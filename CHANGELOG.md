@@ -2,6 +2,16 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/) (0.x döneminde küçük sürüm kırıcı olabilir).
 
+## [Yayımlanmamış]
+
+### Eklenenler
+- **Kapasite modeli ve ipuçları (F20):**
+  - `anafor capacity` ve MCP `capacity_status` aracı.
+  - Hesap başına boş KP (rezerv sonrası), tempo ve dolma süresi.
+  - İş başına maliyet, işten önceki ve sonraki pencere farkından öğrenilir (EMA + p80).
+  - Rol başına kalan iş tahmini ve yönlendirme ipuçları.
+- **Rol dağılımı önerisi:** `anafor capacity recommend <abonelikler> [--apply]` dönemsel meta profilinden (2026-Q4) çalışır. Öneri beynin hesabını korur ve incelemeyi farklı bir model ailesine verir.
+
 ## [0.3.0] - 2026-11-17
 
 ### Eklenenler

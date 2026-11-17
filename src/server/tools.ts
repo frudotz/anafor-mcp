@@ -63,6 +63,15 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
   );
 
   server.registerTool(
+    'capacity_status',
+    {
+      description:
+        'Kapasite modeli: hesap başına pencereler (boş KP, tempo, dolma süresi), rol başına iş maliyeti ve kalan iş tahmini, yük/yönlendirme ipuçları, aboneliklere göre önerilen rol dağılımı.',
+    },
+    () => wrap(() => svc().capacityStatus()),
+  );
+
+  server.registerTool(
     'worker_stats',
     {
       description: 'İşçi ve rol bazında biten iş sayısı, kabul oranı, süre ve token ortalamaları.',
