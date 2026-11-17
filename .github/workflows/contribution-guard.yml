@@ -1,0 +1,51 @@
+name: Contribution Guard
+
+# Katkı koruması (F29, docs/contribution-guard.md).
+# GÜVENLİK: pull_request_target taban dalın iş akışını ve betiğini çalıştırır; böylece bir PR
+# koruyucuyu değiştirerek kendini aklayamaz. PR kodu yalnızca `git fetch` ile VERİ olarak alınır;
+# PR'ın hiçbir dosyası çalıştırılmaz, bağımlılığı kurulmaz. Token salt okunur, gizli bilgi yok.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Taban dalı al (güvenilir betik)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: PR değişikliklerini veri olarak getir
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: git fetch --no-tags origin "pull/${PR_NUMBER}/head:refs/remotes/pr/head"
+      - name: Kuralları uygula
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          ASSOC: ${{ github.event.pull_request.author_association }}
+          APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'guard-approved') }}
+        run: |
+          flags=""
+          case "$ASSOC" in OWNER|MEMBER|COLLABORATOR) flags="$flags --trusted" ;; esac
+          [ "$APPROVED" = "true" ] && flags="$flags --approved"
+          set +e
+          node scripts/contribution-guard.mjs --base "$BASE_SHA" --head refs/remotes/pr/head $flags > guard.md
+          code=$?
+          set -e
+          cat guard.md
+          cat guard.md >> "$GITHUB_STEP_SUMMARY"
+          exit $code
