@@ -77,6 +77,9 @@ export function extractJson(text: string): unknown {
  * Şema doğrulaması + şemanın ötesindeki sunucu kontrolleri.
  * expected: dispatch edilen kimlikler; işçi bunları uyduramaz.
  */
+/** WorkerResult.summary üst sınırı (karakter). */
+export const SUMMARY_MAX = 2000;
+
 export function validateWorkerResult(
   input: unknown,
   expected: { taskId: string; jobId: string; role: Role },
@@ -102,6 +105,13 @@ export function validateWorkerResult(
       `critical_count (${value.review.critical_count}) bulgulardaki kritik sayısıyla (${criticals}) uyuşmuyor; ${Math.max(criticals, value.review.critical_count)} kabul edildi`,
     );
     value.review.critical_count = Math.max(criticals, value.review.critical_count);
+  }
+  // Yöneticinin bağlamı küçük kalsın (F22): uzun özet kırpılır, tam metin result.json'da kalmaz.
+  if (value.summary.length > SUMMARY_MAX) {
+    warnings.push(
+      `summary ${value.summary.length} karakter; ${SUMMARY_MAX} karaktere kırpıldı (ayrıntı dosyalarda olmalı)`,
+    );
+    value.summary = value.summary.slice(0, SUMMARY_MAX - 1) + '…';
   }
   if (errors.length > 0) return { ok: false, errors };
   return { ok: true, value, warnings };

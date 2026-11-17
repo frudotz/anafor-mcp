@@ -211,6 +211,33 @@ Dengeleyici sırayı değiştirdiğinde gerekçesi `job_dispatch` uyarılarında
 { "balancer": { "strategy": "protect-brain" } }
 ```
 
+## 7d. Token optimizasyonu
+
+Bunlar ek ayar gerektirmeden çalışır:
+
+- **Önbellek dostu iş emri:** Aynı roldeki her işte birebir aynı olan kısım (kurallar, rol, çıktı sözleşmesi, şema) iş emrinin başında yer alır. İşe özgü kısım (kimlik, görev, talimat, hafıza) sondadır. Böylece sağlayıcının prompt önbelleği, tekrar eden önek için girdi maliyetini yaklaşık 0,1× seviyesine düşürür.
+- **Düzeltme turunda kısa emir:** İşçi oturumu devam ettirildiğinde (resume) görev ve kurallar yeniden gönderilmez. Yalnızca yeni kimlik, talimat ve bulgular eklenir.
+- **Özet sınırı:** İşçinin `summary` alanı en fazla 2000 karakter olabilir; aşarsa kırpılır ve uyarı verilir. Böylece yöneticinin bağlamı küçük kalır.
+- **Codex telemetrisi kapalı:** Codex işlerine `analytics.enabled=false` geçirilir.
+
+**Token profili.** Her rol için akıl yürütme düzeyini (effort) belirler. Codex'e `model_reasoning_effort`, claude-lite'a `--effort` olarak geçirilir.
+
+| Profil | implementation | review | analysis | test |
+|---|---|---|---|---|
+| `saver` | medium | medium | low | low |
+| `balanced` (varsayılan) | medium | high | medium | low |
+| `quality` | high | high | high | medium |
+| `off` | işçinin kendi varsayılanı | | | |
+
+```json
+{
+  "token_profile": "saver",
+  "workers": { "codex": { "effort": { "review": "high" } } }
+}
+```
+
+`workers.<id>.effort` ya tek bir değer ya da rol başına bir harita olabilir ve profili ezer.
+
 ## 8. Eski software-orchestrator'dan göç
 
 ```bash

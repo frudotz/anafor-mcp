@@ -1,6 +1,7 @@
 import { DEFAULT_BALANCER, type BalancerConfig } from '../capacity/balancer.js';
 import { DEFAULT_CAPACITY, type CapacityConfig } from '../capacity/capacity.js';
 import type { DepCacheConfig } from '../git/dep-cache.js';
+import type { EffortSetting, TokenProfile } from './token-profile.js';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -41,6 +42,8 @@ export interface AnaforConfig {
   capacity: CapacityConfig;
   /** Yük dengeleyici: rol zincirini abonelik kapasitesine göre yeniden sıralar. */
   balancer: BalancerConfig;
+  /** Rol başına akıl yürütme düzeyi profili (saver | balanced | quality | off). */
+  token_profile: TokenProfile;
 }
 
 export interface WorkerSettings {
@@ -61,6 +64,8 @@ export interface WorkerSettings {
   windows_sandbox?: 'elevated' | 'unelevated';
   /** Antigravity: headless modda izin verilen BİREBİR komutlar (test_command otomatik eklenir). */
   allowed_commands?: string[];
+  /** Akıl yürütme düzeyi: tek değer veya rol başına (token_profile'ı ezer). */
+  effort?: EffortSetting;
 }
 
 export const DEFAULT_CONFIG: AnaforConfig = {
@@ -82,6 +87,7 @@ export const DEFAULT_CONFIG: AnaforConfig = {
   subscriptions: [],
   capacity: DEFAULT_CAPACITY,
   balancer: DEFAULT_BALANCER,
+  token_profile: 'balanced',
   worktree_setup: null,
   worktree_cache: null,
   escalation: { failure_threshold: 3, stall_minutes: 60, takeover_minutes: 120 },

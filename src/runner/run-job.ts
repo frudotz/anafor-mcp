@@ -21,6 +21,7 @@ import { nowIso } from '../core/ids.js';
 import { memoryContext } from '../core/memory-context.js';
 import { applyDepCache } from '../git/dep-cache.js';
 import { compilePrompt } from '../core/prompt.js';
+import { resolveEffort } from '../core/token-profile.js';
 import { recordMemoryMetric } from '../governance/memory.js';
 import { ACTIVE_JOB_STATES } from '../core/states.js';
 import { StoreError, type Job, type Store, type TokenUsage } from '../store/store.js';
@@ -155,7 +156,9 @@ ${r.stderr ?? ''}`,
       // ölçüm işi durdurmaz
     }
   }
+  const resumed = !!(job.sessionRef && adapter.resume);
   const prompt = compilePrompt(task, job, {
+    ...(resumed ? { resumed } : {}),
     ...(memory ? { memory } : {}),
     ...(job.inputs.findings ? { findings: job.inputs.findings } : {}),
     ...(prompted ? { schemaText: readFileSync(WORKER_RESULT_SCHEMA_PATH, 'utf8') } : {}),
@@ -174,6 +177,7 @@ ${r.stderr ?? ''}`,
       job.workspaceMode === 'readonly' ? ('read-only' as const) : ('workspace-write' as const),
     timeoutMs: job.timeoutS * 1000,
     resumeSessionRef: job.sessionRef ?? undefined,
+    effort: resolveEffort(config.token_profile, job.role, config.workers[job.worker]?.effort),
   };
   // ANAFOR_WORKER: işçi süreci (ör. claude-lite) yönetici hook'larına takılmasın.
   const ctx = { artifactsDir, env: { ...(opts.env ?? process.env), ANAFOR_WORKER: '1' } };
