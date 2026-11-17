@@ -200,4 +200,5 @@ Deneysel işçileri kurduğunda gerçek uyum testi: `ANAFOR_E2E_OPENCODE_MODEL=o
 | `CONFLICT` (shared) | Paylaşılan alanda tek yazan iş; worktree kullan |
 | `task_merge` CONFLICT | İzlenen dosyalarda commit edilmemiş değişiklik var; commit veya stash. İzlenmeyen dosyalar engellemez |
 | `task_merge` çakışma | Birleştirme geri alındı; çakışan dosyalar için düzeltme işi dağıt veya `intervene` |
+| Codex işi `partial`, testler `spawn EPERM` (Windows) | Codex sandbox'ı test çalıştırıcısının alt süreç açmasını engelliyor. `evidence_generate` → diff'i incele → `task_accept` + `verified_by_evidence_reason` |
 | Hook her şeyi engelliyor | `anafor.config.json` → `director_mode: "warn"` (geçici) |
