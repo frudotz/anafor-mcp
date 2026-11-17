@@ -2,7 +2,7 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/) (0.x döneminde küçük sürüm kırıcı olabilir).
 
-## [Unreleased]
+## [0.3.0] - 2026-11-17
 
 ### Eklenenler
 - **Lat.md otomatik bağlam:** projede `lat.md/` varsa yeni işlerin emrine `lat search` ile seçilen ilgili bölümler eklenir (lat yoksa yerleşik arama); `memory_context` (#33).
@@ -14,6 +14,9 @@ Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme:
 - **Codex Windows `spawn EPERM` kök çözümü:** unelevated sandbox isimli pipe'a izin vermediği için işçi test çalıştıramıyordu. `workers.codex.windows_sandbox: "elevated"` ayarı ve `anafor doctor` teşhisi eklendi; gerçek Codex işiyle doğrulandı (#30).
 - Windows'ta npm ile kurulan CLI'lar (uzantısız betik `.cmd`'den önce listelendiği için) kabuksuz başlatılıp ENOENT veriyordu (#33).
 - agy `read_file` aracı dosya değişikliği sayılıyordu (#32).
+
+### Değişenler
+- `anafor migrate` raporu, `.orchestrator/` içinde yerinde kalan (taşınmayan) eski artefaktları ve eski kilidi listeler (#35).
 
 ## [0.2.0] - 2026-11-17
 
