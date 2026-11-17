@@ -4,8 +4,16 @@ Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme:
 
 ## [Unreleased]
 
+### Eklenenler
+- **Lat.md otomatik bağlam:** projede `lat.md/` varsa yeni işlerin emrine `lat search` ile seçilen ilgili bölümler eklenir (lat yoksa yerleşik arama); `memory_context` (#33).
+- **Worktree bağımlılık önbelleği:** `worktree_cache`, kilit dosyası aynıysa `node_modules`'ü hardlink ile çoğaltır, `worktree_setup` atlanır (Anafor'da 5003 dosya 3,5 sn; `npm ci` ~9,4 sn) (#34).
+- **Makine geneli eşzamanlılık sınırı:** `max_parallel_jobs` (varsayılan 4), runner kiraları `~/.anafor/running/`, `project_status.parallel` (#31).
+- **Antigravity terminal komutları:** headless agy için oturumluk birebir komut izinleri (`test_command`, `workers.antigravity.allowed_commands`), reddedilen komut ve çıkış kodu olayları (#32).
+
 ### Düzeltilenler
-- **Codex Windows `spawn EPERM` kök çözümü:** unelevated sandbox isimli pipe'a izin vermediği için işçi test çalıştıramıyordu. `workers.codex.windows_sandbox: "elevated"` ayarı ve `anafor doctor` teşhisi eklendi; gerçek Codex işiyle doğrulandı.
+- **Codex Windows `spawn EPERM` kök çözümü:** unelevated sandbox isimli pipe'a izin vermediği için işçi test çalıştıramıyordu. `workers.codex.windows_sandbox: "elevated"` ayarı ve `anafor doctor` teşhisi eklendi; gerçek Codex işiyle doğrulandı (#30).
+- Windows'ta npm ile kurulan CLI'lar (uzantısız betik `.cmd`'den önce listelendiği için) kabuksuz başlatılıp ENOENT veriyordu (#33).
+- agy `read_file` aracı dosya değişikliği sayılıyordu (#32).
 
 ## [0.2.0] - 2026-11-17
 

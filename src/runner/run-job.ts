@@ -12,6 +12,7 @@ import { loadConfig } from '../core/config.js';
 import { formatWindows, limitAccount, recordLimits, statusFrom } from '../limits/limits.js';
 import { nowIso } from '../core/ids.js';
 import { memoryContext } from '../core/memory-context.js';
+import { applyDepCache } from '../git/dep-cache.js';
 import { compilePrompt } from '../core/prompt.js';
 import { recordMemoryMetric } from '../governance/memory.js';
 import { ACTIVE_JOB_STATES } from '../core/states.js';
@@ -92,7 +93,21 @@ export async function runJob(
   // Yeni worktree'de bağımlılık kurulumu (config: worktree_setup).
   const config = loadConfig(store.paths.root);
   const setup = config.worktree_setup;
-  if (setup && job.workspaceMode === 'worktree' && !job.isCorrection && !job.sessionRef) {
+  const freshWorktree = job.workspaceMode === 'worktree' && !job.isCorrection && !job.sessionRef;
+  // Bağımlılık önbelleği (config: worktree_cache): uygulanırsa worktree_setup atlanır.
+  let cached = false;
+  if (config.worktree_cache && freshWorktree) {
+    const c = await applyDepCache(store.paths.root, job.workdir, config.worktree_cache);
+    cached = c.applied;
+    store.appendEvent(
+      job.id,
+      'cache',
+      c.applied
+        ? `${config.worktree_cache.paths.join(', ')}: ${c.files} dosya hardlink, ${c.ms} ms`
+        : `önbellek kullanılmadı: ${c.reason}`,
+    );
+  }
+  if (setup && freshWorktree && !cached) {
     store.appendEvent(job.id, 'setup', setup);
     const r = spawnSync(setup, {
       cwd: job.workdir,

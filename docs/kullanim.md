@@ -91,6 +91,7 @@ Sunucu yeniden başlarsa ölü işler `failed (orphaned)` olur. **Hiçbir iş ot
   "default_worker": "codex",
   "routing_mode": "static",
   "worktree_setup": "npm ci",
+  "worktree_cache": { "paths": ["node_modules"], "key_files": ["package-lock.json"] },
   "routing": {
     "implementation": ["codex", "claude-lite"],
     "test": ["claude-lite", "codex"],
@@ -104,6 +105,8 @@ Sunucu yeniden başlarsa ölü işler `failed (orphaned)` olur. **Hiçbir iş ot
   }
 }
 ```
+
+`worktree_cache` yeni worktree'de `worktree_setup` yerine bağımlılık dizinini ana çalışma ağacından **hardlink** ile çoğaltır. Koşullar: `key_files` (ör. `package-lock.json`) iki ağaçta birebir aynı olmalı, dizin gitignore'da olmalı ve kaynakta symlink/junction bulunmamalı. Koşul sağlanmazsa olay günlüğüne nedeni yazılır ve normal `worktree_setup` çalışır. Junction kullanılmaz, çünkü `git worktree remove` junction'ın hedefini (ana projenin `node_modules`'ünü) siler.
 
 `max_parallel_jobs` (varsayılan 4) **makine genelinde** aynı anda çalışabilecek toplam iş sayısıdır: tüm işçiler ve tüm projeler sayılır. Her çalışan runner `~/.anafor/running/` altında süreç kimlikli bir kira bırakır; ölü süreçlerin kiraları sayılmaz. Sınır doluysa `job_dispatch` `LIMIT_REACHED` döner. Anlık kullanım `project_status.parallel` alanında görünür. İşçi başına sınır ayrıca `workers.<id>.max_concurrency` ile verilir.
 
