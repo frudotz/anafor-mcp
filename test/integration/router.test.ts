@@ -4,6 +4,9 @@ import type { AdapterRegistry } from '../../src/adapters/registry.js';
 import type { WorkerAdapter } from '../../src/adapters/types.js';
 import { DEFAULT_CONFIG } from '../../src/core/config.js';
 import { runPreToolUse } from '../../src/hooks/director.js';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { recordLimits } from '../../src/limits/limits.js';
 import { AnaforService, inProcessLauncher } from '../../src/server/service.js';
 import { Store } from '../../src/store/store.js';
 import { tempDir } from '../helpers.js';
@@ -96,6 +99,36 @@ describe('router', () => {
     expect(impl.worker).toBe('w1');
     expect(rev.worker).toBe('w2');
     await svc.jobWait([rev.job_id], 30);
+  });
+
+  it('yük dengeleyici (F21): rezerve ulaşmış hesap geri itilir, karar job_dispatch uyarısında', async () => {
+    const resets = Math.floor(Date.now() / 1000) + 3600;
+    recordLimits({
+      worker: 'w2',
+      source: 'test',
+      observed_at: new Date().toISOString(),
+      status: 'warning',
+      windows: [{ name: 'five_hour', used_percent: 95, resets_at: resets, window_minutes: 300 }],
+    });
+    const svc = svcWith([as('w1'), as('w2')], { implementation: ['w2', 'w1'] });
+    expect(await svc.route('implementation', null)).toBe('w1');
+    const task = svc.taskCreate({ title: 'x', objective: 'y' });
+    const d = await svc.jobDispatch({
+      taskId: task.task_id,
+      role: 'implementation',
+      instructions: '[fake:ok]',
+    });
+    expect(d.worker).toBe('w1');
+    expect(d.warnings.join()).toMatch(
+      /yük dengeleyici \(balanced\): w2 yerine w1 — w2: five_hour rezerve ulaştı/,
+    );
+    await svc.jobWait([d.job_id], 30);
+    // strateji kapalıysa zincir korunur (%95 tamamen dolu değil)
+    writeFileSync(
+      join(t.dir, 'anafor.config.json'),
+      JSON.stringify({ balancer: { strategy: 'off' } }),
+    );
+    expect(await svc.route('implementation', null)).toBe('w2');
   });
 
   it('açık işçi seçimi router’ı ezer; uygun işçi yoksa WORKER_UNAVAILABLE', async () => {

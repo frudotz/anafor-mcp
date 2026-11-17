@@ -194,6 +194,23 @@ Ayarlar (`anafor.config.json`):
 }
 ```
 
+### Yük dengeleyici
+
+Router, rolün tercih zincirini (`routing`) **abonelik kapasitesine göre** yeniden sıralar. Zincirdeki sıra kalite tercihini gösterir. Dengeleyici bu sırayı yalnızca kısıtlı hesapları geri itmek için değiştirir.
+
+| Strateji | Davranış |
+|---|---|
+| `balanced` (varsayılan) | Rezerve ulaşmış ya da tahmini iş maliyeti boş alana sığmayan hesaplar sona, hızlı tükenenler ortaya alınır. Henüz gözlenmemiş hesaplar nötr sayılır. |
+| `protect-brain` | `balanced` + eşit grupta beynin Claude hesabını kullanan işçiler geriye alınır. |
+| `cheap-first` | `balanced` + eşit grupta ucuz kademe (`cost_tier`) önce gelir. |
+| `off` | Zincir olduğu gibi kullanılır; yalnızca %100 dolu limitler atlanır. |
+
+Dengeleyici sırayı değiştirdiğinde gerekçesi `job_dispatch` uyarılarında ve işin `route` olayında görünür. Örnek: `yük dengeleyici (balanced): codex yerine claude-lite — codex: five_hour rezerve ulaştı`.
+
+```json
+{ "balancer": { "strategy": "protect-brain" } }
+```
+
 ## 8. Eski software-orchestrator'dan göç
 
 ```bash

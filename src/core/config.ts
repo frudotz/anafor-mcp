@@ -1,3 +1,4 @@
+import { DEFAULT_BALANCER, type BalancerConfig } from '../capacity/balancer.js';
 import { DEFAULT_CAPACITY, type CapacityConfig } from '../capacity/capacity.js';
 import type { DepCacheConfig } from '../git/dep-cache.js';
 import { existsSync, readFileSync, statSync } from 'node:fs';
@@ -38,6 +39,8 @@ export interface AnaforConfig {
   subscriptions: string[];
   /** Kapasite modeli: rezervler ve tempo eşiği. */
   capacity: CapacityConfig;
+  /** Yük dengeleyici: rol zincirini abonelik kapasitesine göre yeniden sıralar. */
+  balancer: BalancerConfig;
 }
 
 export interface WorkerSettings {
@@ -78,6 +81,7 @@ export const DEFAULT_CONFIG: AnaforConfig = {
   memory_context: true,
   subscriptions: [],
   capacity: DEFAULT_CAPACITY,
+  balancer: DEFAULT_BALANCER,
   worktree_setup: null,
   worktree_cache: null,
   escalation: { failure_threshold: 3, stall_minutes: 60, takeover_minutes: 120 },
@@ -108,6 +112,7 @@ export function loadConfig(root: string): AnaforConfig {
     ...local,
     ...project,
     capacity: { ...DEFAULT_CAPACITY, ...local.capacity, ...project.capacity },
+    balancer: { ...DEFAULT_BALANCER, ...local.balancer, ...project.balancer },
   };
 }
 
