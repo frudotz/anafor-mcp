@@ -246,4 +246,29 @@ describe('anafor migrate', () => {
       t.cleanup();
     }
   });
+
+  it('NetCheck biçimi: taşınmayan eski artefaktlar ve eski kilit raporlanır', () => {
+    const t = tempDir();
+    const src = join(t.dir, '.orchestrator');
+    mkdirSync(join(src, 'implementation'), { recursive: true });
+    mkdirSync(join(src, 'logs'), { recursive: true });
+    mkdirSync(join(src, 'reviews'), { recursive: true }); // boş: listelenmez
+    writeFileSync(join(src, 'implementation', 'TASK-1-intake.md'), '# intake');
+    writeFileSync(join(src, 'logs', 'a.stdout.json'), '{}');
+    writeFileSync(join(src, 'sessions.json'), '{"sessions":[]}');
+    writeFileSync(join(src, 'orchestrator.lock'), 'pid');
+    writeFileSync(join(src, 'TASK_QUEUE.json'), JSON.stringify({ tasks: [] }));
+    const store = new Store(t.dir);
+    try {
+      const r = migrateFromOrchestrator(store);
+      expect(r.notes).toContainEqual(expect.stringMatching(/orchestrator\.lock/));
+      expect(r.notes).toContainEqual(
+        'Taşınmayan eski artefaktlar .orchestrator/ içinde yerinde kalır (silinmez): implementation, logs, sessions.json',
+      );
+      expect(existsSync(join(src, 'implementation', 'TASK-1-intake.md'))).toBe(true);
+    } finally {
+      store.close();
+      t.cleanup();
+    }
+  });
 });
