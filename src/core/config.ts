@@ -44,6 +44,8 @@ export interface WorkerSettings {
   allow_anthropic_api?: boolean;
   /** Codex, yalnızca Windows: işler için `windows.sandbox` ("elevated" testlerin alt süreç başlatabilmesi için). */
   windows_sandbox?: 'elevated' | 'unelevated';
+  /** Antigravity: headless modda izin verilen BİREBİR komutlar (test_command otomatik eklenir). */
+  allowed_commands?: string[];
 }
 
 export const DEFAULT_CONFIG: AnaforConfig = {
