@@ -1,5 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { isWindowsShim, runLineProcess } from './process.js';
 import type {
   JobContext,
@@ -17,22 +19,69 @@ const num = (v: unknown) => (typeof v === 'number' ? v : undefined);
  * Gemini CLI ve Antigravity CLI stream-json olayları (toleranslı).
  * Antigravity (belgelenmiş): init (conversation_id), step_update, result (status, response,
  * structured_output, usage{input_tokens, output_tokens, cache_read_tokens}).
- * Gemini CLI: init (session_id), message, tool_use, result (stats).
- * ⚠️ Deneysel: gerçek araçlarla uyum testi henüz yapılmadı.
+ * Gemini CLI 0.68 (gerçek çıktıyla doğrulandı): init (session_id), message (role,
+ * delta: true parçalar halinde), tool_use, result (status, stats{input_tokens, output_tokens, cached}).
+ * Durumlu: `delta` mesaj parçaları birleştirilir (aksi halde yalnızca son parça alınır ve JSON bozulur).
  */
+export interface GoogleParser {
+  (line: string): WorkerEvent[];
+  /** Akışta başarılı bir `result` olayı görüldü mü? */
+  sawSuccess: () => boolean;
+}
+
+export function createGoogleParser(): GoogleParser {
+  let buffer = '';
+  let success = false;
+  const fn = ((line: string) => {
+    const evs = parseGoogleEvent(line, (text, delta) => {
+      buffer = delta ? buffer + text : text;
+      return buffer;
+    });
+    if (/"type"\s*:\s*"result"/.test(line) && /"status"\s*:\s*"(success|SUCCESS)"/.test(line)) {
+      success = true;
+    }
+    return evs;
+  }) as GoogleParser;
+  fn.sawSuccess = () => success;
+  return fn;
+}
+
+/**
+ * Gemini CLI 0.68 Windows'ta işi başarıyla bitirdikten sonra çıkışta libuv iddia hatasıyla
+ * çökebiliyor (0xC0000409, "Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)").
+ * Akışta başarılı `result` görüldüyse sonuç kabul edilir; zaman aşımı/iptal hariç.
+ */
+function runGoogle(
+  opts: Parameters<typeof runLineProcess>[0] & { parseLine: GoogleParser },
+): RunHandle {
+  const h = runLineProcess(opts);
+  return {
+    ...h,
+    done: h.done.then((o) =>
+      o.exitCode !== 0 && !o.timedOut && !o.cancelled && opts.parseLine.sawSuccess()
+        ? { ...o, exitCode: 0 }
+        : o,
+    ),
+  };
+}
+
+/** Durumsuz kullanım (her mesaj tam kabul edilir). */
 export function parseGoogleLine(line: string): WorkerEvent[] {
+  return parseGoogleEvent(line, (text) => text);
+}
+
+function parseGoogleEvent(
+  line: string,
+  accumulate: (text: string, delta: boolean) => string,
+): WorkerEvent[] {
   if (!line.trim().startsWith('{')) return [];
   const ev = JSON.parse(line) as Record<string, unknown>;
   const out: WorkerEvent[] = [];
   const sid = ev.conversation_id ?? ev.session_id ?? ev.sessionId;
   if (ev.type === 'init' && typeof sid === 'string') out.push({ type: 'session', sessionRef: sid });
-  if (
-    ev.type === 'message' &&
-    ev.role !== 'user' &&
-    typeof ev.content === 'string' &&
-    ev.content.trim()
-  ) {
-    out.push({ type: 'message', text: ev.content });
+  if (ev.type === 'message' && ev.role !== 'user' && typeof ev.content === 'string') {
+    const text = accumulate(ev.content, ev.delta === true);
+    if (text.trim()) out.push({ type: 'message', text });
   }
   if (ev.type === 'tool_use' || ev.type === 'step_update') {
     const name = String(
@@ -49,13 +98,12 @@ export function parseGoogleLine(line: string): WorkerEvent[] {
     }
   }
   if (ev.type === 'result') {
-    const usage = (ev.usage ??
-      (ev.stats as { usage?: unknown } | undefined)?.usage ??
-      {}) as Record<string, unknown>;
+    const stats = (ev.stats ?? {}) as Record<string, unknown>;
+    const usage = (ev.usage ?? stats.usage ?? stats) as Record<string, unknown>;
     out.push({
       type: 'usage',
       inputTokens: num(usage.input_tokens),
-      cachedInputTokens: num(usage.cache_read_tokens),
+      cachedInputTokens: num(usage.cache_read_tokens ?? usage.cached),
       outputTokens: num(usage.output_tokens),
     });
     const failed =
@@ -114,6 +162,16 @@ export class GeminiAdapter implements WorkerAdapter {
     }
     const v = version(this.bin);
     if (!v) return { available: false, reason: 'gemini CLI kurulu değil' };
+    // Etkileşimsiz modda kimlik yöntemi ayarlardan seçilmiş olmalı; yalnızca ortam değişkeni
+    // yetmiyor ("Invalid auth method selected", gerçek testte bulundu).
+    if (!geminiAuthSelected()) {
+      return {
+        available: false,
+        version: v,
+        reason:
+          'Gemini ayarlarında kimlik yöntemi seçili değil: ~/.gemini/settings.json → "security": { "auth": { "selectedType": "gemini-api-key" } }',
+      };
+    }
     return { available: true, version: v, authOk: true };
   }
 
@@ -126,7 +184,6 @@ export class GeminiAdapter implements WorkerAdapter {
       writesFiles: true,
       costTier: 'medium',
       maxConcurrency: this.opts.maxConcurrency ?? 2,
-      experimental: true,
     };
   }
 
@@ -139,15 +196,19 @@ export class GeminiAdapter implements WorkerAdapter {
       '--output-format',
       'stream-json',
       ...(model ? ['-m', model] : []),
+      // Etkileşimsiz varsayılan mod onay gerektiren araçları (write_file) hiç sunmuyor (gerçek testte
+      // bulundu). Yazma: auto_edit (yalnızca düzenleme onayı, yolo DEĞİL); salt okunur: plan.
+      '--approval-mode',
+      job.sandbox === 'read-only' ? 'plan' : 'auto_edit',
     ];
-    return runLineProcess({
+    return runGoogle({
       command: this.bin,
       args,
       cwd: job.workdir,
       env: ctx.env,
       stdin: job.prompt,
       artifactsDir: ctx.artifactsDir,
-      parseLine: parseGoogleLine,
+      parseLine: createGoogleParser(),
       finalize: ({ lastMessage, sessionRef }) => ({ finalMessage: lastMessage, sessionRef }),
     });
   }
@@ -226,15 +287,29 @@ export class AntigravityAdapter implements WorkerAdapter {
   }
 
   private run(args: string[], job: JobSpec, ctx: JobContext): RunHandle {
-    return runLineProcess({
+    return runGoogle({
       command: this.bin,
       args,
       cwd: job.workdir,
       env: ctx.env,
       stdin: '',
       artifactsDir: ctx.artifactsDir,
-      parseLine: parseGoogleLine,
+      parseLine: createGoogleParser(),
       finalize: ({ lastMessage, sessionRef }) => ({ finalMessage: lastMessage, sessionRef }),
     });
+  }
+}
+
+/** Gemini CLI ayarlarında (GEMINI_CLI_HOME veya ev dizini) kimlik yöntemi seçili mi? */
+export function geminiAuthSelected(env: NodeJS.ProcessEnv = process.env): boolean {
+  const home = env.GEMINI_CLI_HOME ?? homedir();
+  try {
+    const s = JSON.parse(readFileSync(join(home, '.gemini', 'settings.json'), 'utf8')) as {
+      selectedAuthType?: string;
+      security?: { auth?: { selectedType?: string } };
+    };
+    return Boolean(s.security?.auth?.selectedType ?? s.selectedAuthType);
+  } catch {
+    return false;
   }
 }

@@ -165,7 +165,7 @@ node /yol/anafor-mcp/dist/cli/main.js migrate /projen
 | `claude-lite` | `claude -p --model haiku` | ✅ doğrulandı | Resmi `claude` ikilisi kendi aboneliğinle: izinli. `ANTHROPIC_API_KEY` işçi ortamından çıkarılır |
 | `local` | OpenAI uyumlu API (Ollama, LM Studio) | ✅ sahte sunucuyla test | Yalnızca `analysis`/`review` (dosya düzenlemez) |
 | `opencode` | `opencode run --format json` | ✅ doğrulandı (gerçek opencode 1.19.5 + OpenAI uyumlu sağlayıcı) | API anahtarı, yerel model veya ChatGPT planı. **Claude aboneliği OpenCode ile kullanılamaz**; `anthropic/*` modelleri yalnızca `allow_anthropic_api` ile |
-| `gemini` | `gemini -p --output-format stream-json` | 🧪 deneysel | Kişisel Google girişleri 2026-06-18'de kapandı: **yalnızca `GEMINI_API_KEY`** |
+| `gemini` | `gemini -p --output-format stream-json --approval-mode auto_edit\|plan` | ✅ doğrulandı (gerçek gemini-cli 0.68 + Gemini API uyumlu sahte sunucu) | Kişisel Google girişleri 2026-06-18'de kapandı: **yalnızca `GEMINI_API_KEY`**. `~/.gemini/settings.json` → `security.auth.selectedType: "gemini-api-key"` gerekli |
 | `antigravity` | `agy -p --output-format stream-json --json-schema` | 🧪 deneysel, **varsayılan kapalı** | Koşullar gri alan (üçüncü taraf erişimi ihlal sayılabiliyor). Açmak için `enabled` + `acknowledge_terms`; API anahtarı önerilir |
 
 Örnek yapılandırma:
@@ -183,6 +183,7 @@ node /yol/anafor-mcp/dist/cli/main.js migrate /projen
 
 Gerçek uyum testleri:
 - OpenCode, hesap gerektirmeden sahte sağlayıcıyla: `ANAFOR_E2E_OPENCODE_BIN=<opencode yolu> npx vitest run test/integration/opencode-real.test.ts`
+- Gemini, hesap gerektirmeden sahte API ile: `ANAFOR_E2E_GEMINI_BIN=<gemini yolu> npx vitest run test/integration/gemini-real.test.ts`
 - Gerçek modellerle: `ANAFOR_E2E_OPENCODE_MODEL=ollama/qwen3-coder`, `ANAFOR_E2E_GEMINI=1`, `ANAFOR_E2E_AGY=1` ile `npx vitest run test/integration/conformance.test.ts`
 
 ## 9. Yeni bir işçi eklemek
@@ -203,4 +204,5 @@ Gerçek uyum testleri:
 | `task_merge` CONFLICT | İzlenen dosyalarda commit edilmemiş değişiklik var; commit veya stash. İzlenmeyen dosyalar engellemez |
 | `task_merge` çakışma | Birleştirme geri alındı; çakışan dosyalar için düzeltme işi dağıt veya `intervene` |
 | Codex işi `partial`, testler `spawn EPERM` (Windows) | Codex sandbox'ı test çalıştırıcısının alt süreç açmasını engelliyor. `evidence_generate` → diff'i incele → `task_accept` + `verified_by_evidence_reason` |
+| Gemini: `Invalid auth method selected` | `~/.gemini/settings.json` içinde `security.auth.selectedType` seçili olmalı (`anafor doctor` gösterir) |
 | Hook her şeyi engelliyor | `anafor.config.json` → `director_mode: "warn"` (geçici) |
