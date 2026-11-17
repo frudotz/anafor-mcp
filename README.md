@@ -23,17 +23,15 @@ Claude Code (yönetici) ──MCP──▶ anafor-mcp sunucusu ──▶ runner 
 - Claude Code
 - En az bir işçi: [Codex CLI](https://github.com/openai/codex)
 
-## Hızlı başlangıç
+## Hızlı başlangıç (yeni bilgisayar)
 
 ```bash
-git clone https://github.com/frudotz/anafor-mcp && cd anafor-mcp
-npm install && npm run build
-
-cd /path/to/projen            # bir git deposu olmalı
-node /path/to/anafor-mcp/dist/cli/main.js init     # .anafor/ ve .mcp.json oluşturur
-node /path/to/anafor-mcp/dist/cli/main.js doctor   # node, git, sqlite, işçiler
-claude                         # Claude Code, .mcp.json'daki "anafor" sunucusunu yükler
+npm install -g github:frudotz/anafor-mcp   # Node 24+, git, Claude Code ve en az bir işçi (ör. Codex) gerekir
+cd /projen && anafor setup                   # sihirbaz: işçiler, kalıcı plugin, statusline, proje
+anafor chat                                  # beyin ajanla terminalden konuş
 ```
+
+Ayrıntı: **[docs/kurulum.md](docs/kurulum.md)**.
 
 Claude Code içinde örnek istek: *"Anafor ile görev aç, Codex'e dağıt, bitince sonucu incele."*
 

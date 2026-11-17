@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
 import { subscriptionEnv } from '../adapters/claude-lite.js';
 import { parseClaudeRateLimitInfo, recordLimits, statusFrom } from '../limits/limits.js';
+import { readSetupState } from '../setup/setup.js';
 
 /** Beyin oturumundan gelen, ekranda gösterilecek olaylar. */
 export type BrainEvent =
@@ -152,8 +153,10 @@ export class BrainSession {
       '--output-format',
       'stream-json',
       '--verbose',
-      '--plugin-dir',
-      this.opts.pluginDir ?? defaultPluginDir(),
+      // Plugin kalıcı kuruluysa tekrar yüklenmez (araçlar iki kez görünmesin).
+      ...(this.opts.pluginDir || !readSetupState()?.plugin_installed
+        ? ['--plugin-dir', this.opts.pluginDir ?? defaultPluginDir()]
+        : []),
       '--permission-prompts',
       'host',
       '--permission-prompt-tool',

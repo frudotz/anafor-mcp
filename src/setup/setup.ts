@@ -1,0 +1,170 @@
+import { spawnSync } from 'node:child_process';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { anaforHome } from '../limits/limits.js';
+import { ANAFOR_VERSION } from '../version.js';
+
+const dist = (rel: string) => fileURLToPath(new URL(`../${rel}`, import.meta.url));
+const repoPlugin = () => fileURLToPath(new URL('../../plugin', import.meta.url));
+const q = (p: string) => `"${p}"`;
+
+export interface SetupState {
+  version: string;
+  plugin_dir: string;
+  marketplace_dir: string;
+  plugin_installed: boolean;
+  statusline_installed: boolean;
+  updated_at: string;
+}
+
+const stateFile = (env?: NodeJS.ProcessEnv) => join(anaforHome(env), 'setup.json');
+
+export function readSetupState(env?: NodeJS.ProcessEnv): SetupState | null {
+  try {
+    return JSON.parse(readFileSync(stateFile(env), 'utf8')) as SetupState;
+  } catch {
+    return null;
+  }
+}
+
+export function writeSetupState(s: SetupState, env?: NodeJS.ProcessEnv): void {
+  mkdirSync(anaforHome(env), { recursive: true });
+  writeFileSync(stateFile(env), JSON.stringify(s, null, 2));
+}
+
+/**
+ * Kullanıcı düzeyi plugin + yerel marketplace üretir. Komutlar bu kurulumun node ve dist
+ * yollarını MUTLAK olarak kullanır; böylece plugin Claude Code önbelleğine kopyalansa da çalışır.
+ */
+export function buildUserPlugin(env?: NodeJS.ProcessEnv): {
+  pluginDir: string;
+  marketplaceDir: string;
+} {
+  const marketplaceDir = join(anaforHome(env), 'marketplace');
+  const pluginDir = join(marketplaceDir, 'plugins', 'anafor');
+  const node = process.execPath;
+  const cli = dist('cli/main.js');
+  const server = dist('server/main.js');
+  mkdirSync(join(pluginDir, '.claude-plugin'), { recursive: true });
+  mkdirSync(join(pluginDir, 'hooks'), { recursive: true });
+  mkdirSync(join(marketplaceDir, '.claude-plugin'), { recursive: true });
+
+  const manifest = JSON.parse(
+    readFileSync(join(repoPlugin(), '.claude-plugin', 'plugin.json'), 'utf8'),
+  ) as Record<string, unknown>;
+  writeFileSync(
+    join(pluginDir, '.claude-plugin', 'plugin.json'),
+    JSON.stringify({ ...manifest, version: ANAFOR_VERSION }, null, 2),
+  );
+  writeFileSync(
+    join(pluginDir, '.mcp.json'),
+    JSON.stringify({ mcpServers: { anafor: { command: node, args: [server] } } }, null, 2),
+  );
+  const hook = (event: string) => ({
+    type: 'command',
+    command: `${q(node)} ${q(cli)} hook ${event}`,
+    timeout: 10,
+  });
+  writeFileSync(
+    join(pluginDir, 'hooks', 'hooks.json'),
+    JSON.stringify(
+      {
+        hooks: {
+          PreToolUse: [
+            {
+              matcher: 'Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell',
+              hooks: [hook('pre-tool-use')],
+            },
+          ],
+          SessionStart: [{ hooks: [hook('session-start')] }],
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  cpSync(join(repoPlugin(), 'commands'), join(pluginDir, 'commands'), { recursive: true });
+  writeFileSync(
+    join(marketplaceDir, '.claude-plugin', 'marketplace.json'),
+    JSON.stringify(
+      {
+        name: 'anafor-local',
+        owner: { name: 'anafor' },
+        plugins: [
+          {
+            name: 'anafor',
+            source: './plugins/anafor',
+            description:
+              'Claude Code yönetici, Codex/Haiku/yerel modeller işçi: Anafor orkestrasyonu',
+            version: ANAFOR_VERSION,
+          },
+        ],
+      },
+      null,
+      2,
+    ),
+  );
+  return { pluginDir, marketplaceDir };
+}
+
+/** Plugin'i Claude Code'a kalıcı kurar (resmi `claude plugin` komutlarıyla). */
+export function installPluginToClaude(
+  marketplaceDir: string,
+  bin = 'claude',
+): { ok: boolean; log: string } {
+  const run = (args: string[]) => spawnSync(bin, args, { encoding: 'utf8', windowsHide: true });
+  const log: string[] = [];
+  const add = run(['plugin', 'marketplace', 'add', marketplaceDir]);
+  log.push(
+    `marketplace add: ${add.status} ${(add.stdout + add.stderr).trim().split('\n').pop() ?? ''}`,
+  );
+  const up = run(['plugin', 'marketplace', 'update', 'anafor-local']);
+  log.push(`marketplace update: ${up.status}`);
+  const inst = run(['plugin', 'install', 'anafor@anafor-local']);
+  log.push(`install: ${inst.status} ${(inst.stdout + inst.stderr).trim().split('\n').pop() ?? ''}`);
+  return {
+    ok: inst.status === 0 || /already|zaten/i.test(inst.stdout + inst.stderr),
+    log: log.join('\n'),
+  };
+}
+
+/**
+ * Claude Code statusLine'ını `anafor statusline` olarak ayarlar (beyin limitleri için).
+ * Mevcut bir statusLine varsa DOKUNMAZ. Değiştirmeden önce yedek alır.
+ */
+export function installStatusline(
+  claudeSettingsPath = join(homedir(), '.claude', 'settings.json'),
+): { changed: boolean; reason: string } {
+  let settings: Record<string, unknown> = {};
+  if (existsSync(claudeSettingsPath)) {
+    try {
+      settings = JSON.parse(readFileSync(claudeSettingsPath, 'utf8')) as Record<string, unknown>;
+    } catch {
+      return { changed: false, reason: 'settings.json okunamadı (geçersiz JSON); elle ekleyin' };
+    }
+    if (settings.statusLine) return { changed: false, reason: 'mevcut statusLine korunuyor' };
+    copyFileSync(claudeSettingsPath, `${claudeSettingsPath}.anafor-backup`);
+  } else {
+    mkdirSync(join(claudeSettingsPath, '..'), { recursive: true });
+  }
+  settings.statusLine = {
+    type: 'command',
+    command: `${q(process.execPath)} ${q(dist('cli/main.js'))} statusline`,
+  };
+  writeFileSync(claudeSettingsPath, JSON.stringify(settings, null, 2) + '\n');
+  return { changed: true, reason: 'statusLine eklendi (yedek: settings.json.anafor-backup)' };
+}
+
+/** Eksik işçiler için kurulum ipuçları (resmi kaynaklar). */
+export const INSTALL_HINTS: Record<string, string> = {
+  codex: 'npm install -g @openai/codex  →  codex login',
+  'claude-lite': 'Claude Code kurulu olmalı: https://claude.com/claude-code  →  claude auth login',
+  gemini: 'Yalnızca API anahtarıyla: npm install -g @google/gemini-cli + GEMINI_API_KEY',
+  opencode:
+    'https://opencode.ai  →  anafor.config.json: workers.opencode.model (API anahtarı, yerel model veya ChatGPT planı)',
+  local: 'Ollama (https://ollama.com) veya LM Studio  →  anafor.config.json: workers.local.model',
+  antigravity:
+    'Koşullar gri alan: yalnızca workers.antigravity.enabled + acknowledge_terms ile; API anahtarı önerilir',
+};
