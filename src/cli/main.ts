@@ -254,7 +254,10 @@ switch (cmd) {
     console.log(`beyin       claude (Claude Code + Anafor plugin)`);
     for (const role of ROLES)
       console.log(`${role.padEnd(11)} ${(cfg.routing[role] ?? [cfg.default_worker]).join(' → ')}`);
-    console.log(`\nişçiler: ${[...defaultAdapters(cfg).keys()].join(', ')}`);
+    console.log(
+      `\nyük dengeleyici: ${cfg.balancer.strategy} (balancer.strategy: off | balanced | protect-brain | cheap-first)`,
+    );
+    console.log(`işçiler: ${[...defaultAdapters(cfg).keys()].join(', ')}`);
     console.log('değiştirmek için: anafor roles set <rol> <işçi1,işçi2>');
     break;
   }
