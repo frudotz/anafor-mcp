@@ -174,6 +174,7 @@ export class ClaudeLiteAdapter implements WorkerAdapter {
       '-p',
       '--model',
       job.model ?? this.model,
+      ...(job.effort ? ['--effort', job.effort] : []),
       '--output-format',
       'stream-json',
       '--verbose',

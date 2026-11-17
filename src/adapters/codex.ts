@@ -149,6 +149,15 @@ export class CodexAdapter implements WorkerAdapter {
       : [];
   }
 
+  /** Effort (token profili) ve telemetri kapatma; resmi config anahtarları. */
+  tuningArgs(job: JobSpec): string[] {
+    return [
+      '-c',
+      'analytics.enabled=false',
+      ...(job.effort ? ['-c', `model_reasoning_effort="${job.effort}"`] : []),
+    ];
+  }
+
   async detect(): Promise<WorkerAvailability> {
     const v = spawnSync(this.bin, ['--version'], { encoding: 'utf8', windowsHide: true });
     if (v.error || v.status !== 0) {
@@ -193,6 +202,7 @@ export class CodexAdapter implements WorkerAdapter {
       job.sandbox,
       '--skip-git-repo-check',
       ...this.sandboxArgs(),
+      ...this.tuningArgs(job),
       ...(job.model ? ['-m', job.model] : []),
       '-',
     ];
@@ -214,6 +224,7 @@ export class CodexAdapter implements WorkerAdapter {
       '-c',
       `sandbox_mode="${job.sandbox}"`,
       ...this.sandboxArgs(),
+      ...this.tuningArgs(job),
       ...(job.model ? ['-m', job.model] : []),
       '-',
     ];
