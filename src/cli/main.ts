@@ -53,7 +53,7 @@ function flag(name: string): string | undefined {
 function projectRoot(): string {
   const r = findAnaforRoot(process.cwd());
   if (!r) {
-    console.error('Bu dizin bir Anafor projesi değil. Önce `anafor init` (veya `anafor setup`).');
+    console.error(m().cli.notProject);
     process.exit(1);
   }
   return r;
@@ -76,9 +76,7 @@ function init(root: string): void {
   }
   const mcp = join(root, '.mcp.json');
   if (readSetupState()?.plugin_installed) {
-    console.log(
-      'Anafor plugin’i kalıcı kurulu: MCP sunucusu plugin’den gelir, .mcp.json yazılmadı.',
-    );
+    console.log(m().cli.pluginMcp);
   } else if (!existsSync(mcp)) {
     const cfg = {
       mcpServers: {
@@ -90,14 +88,14 @@ function init(root: string): void {
       },
     };
     writeFileSync(mcp, JSON.stringify(cfg, null, 2) + '\n');
-    console.log(`.mcp.json oluşturuldu (anafor sunucusu).`);
+    console.log(m().cli.mcpCreated);
   } else {
-    console.log('.mcp.json zaten var; anafor girdisini elle ekleyin:');
+    console.log(m().cli.mcpExists);
     console.log(
       JSON.stringify({ anafor: { command: process.execPath, args: [serverEntry()] } }, null, 2),
     );
   }
-  console.log(`Anafor hazır: ${join(root, '.anafor')}`);
+  console.log(m().cli.ready(join(root, '.anafor')));
 }
 
 switch (cmd) {
@@ -140,7 +138,7 @@ switch (cmd) {
       ensurePolicy(store.paths.anaforDir, store.paths.projectId);
       console.log(JSON.stringify(migrateFromOrchestrator(store), null, 2));
     } catch (e) {
-      console.error(`göç başarısız: ${(e as Error).message}`);
+      console.error(m().cli.migrateFailed((e as Error).message));
       process.exitCode = 1;
     } finally {
       store.close();
@@ -165,9 +163,7 @@ switch (cmd) {
       (a) => !a.startsWith('-') && a !== flag('worker') && a !== flag('review'),
     );
     if (!goal) {
-      console.error(
-        'kullanım: anafor run "<hedef>" [--accept] [--merge] [--worker w] [--review lightweight|standard|deep] [--model m]',
-      );
+      console.error(m().cli.runUsage);
       process.exit(2);
     }
     const model = flag('model');
@@ -198,7 +194,7 @@ switch (cmd) {
     // Canlı iş akışı: Ctrl+C ile çıkılır.
     const store = new Store(projectRoot());
     const seen = new Map<string, number>();
-    console.log('İşler izleniyor (Ctrl+C ile çık)…');
+    console.log(m().cli.watching);
     for (;;) {
       for (const j of store.listJobs()) {
         const evs = store.listEvents(j.id, seen.get(j.id) ?? 0, 50);
@@ -222,15 +218,13 @@ switch (cmd) {
         .map((s) => s.trim())
         .filter(Boolean);
       if (!ROLES.includes(role) || !workers.length) {
-        console.error(`kullanım: anafor roles set <${ROLES.join('|')}> <işçi1,işçi2,…>`);
+        console.error(m().cli.rolesUsage(ROLES.join('|')));
         process.exit(2);
       }
       const known = [...defaultAdapters(loadConfig(r)).keys()];
       const unknown = workers.filter((w) => !known.includes(w));
       if (unknown.length)
-        console.warn(
-          `uyarı: kayıtlı olmayan işçi: ${unknown.join(', ')} (kayıtlı: ${known.join(', ')})`,
-        );
+        console.warn(m().cli.unknownWorkers(unknown.join(', '), known.join(', ')));
       const cfg = existsSync(file)
         ? (JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>)
         : {};
@@ -240,14 +234,12 @@ switch (cmd) {
       break;
     }
     const cfg = loadConfig(r);
-    console.log(`beyin       claude (Claude Code + Anafor plugin)`);
+    console.log(m().cli.brainRow);
     for (const role of ROLES)
       console.log(`${role.padEnd(11)} ${(cfg.routing[role] ?? [cfg.default_worker]).join(' → ')}`);
-    console.log(
-      `\nyük dengeleyici: ${cfg.balancer.strategy} (balancer.strategy: off | balanced | protect-brain | cheap-first)`,
-    );
-    console.log(`işçiler: ${[...defaultAdapters(cfg).keys()].join(', ')}`);
-    console.log('değiştirmek için: anafor roles set <rol> <işçi1,işçi2>');
+    console.log(m().cli.balancer(cfg.balancer.strategy));
+    console.log(m().cli.workers([...defaultAdapters(cfg).keys()].join(', ')));
+    console.log(m().cli.rolesHint);
     break;
   }
   case 'limits': {
@@ -256,12 +248,11 @@ switch (cmd) {
     const codex = readCodexLimits();
     if (codex) rows.push(codex);
     for (const [k, v] of Object.entries(stored)) if (k !== 'codex' || !codex) rows.push(v);
-    if (!rows.length)
-      console.log('Henüz limit bilgisi yok (işçi çalıştıkça veya statusline ile dolar).');
+    if (!rows.length) console.log(m().cli.noLimits);
     for (const r of rows) {
       const age = Math.round((Date.now() - Date.parse(r.observed_at)) / 60_000);
       console.log(
-        `${r.worker.padEnd(12)} ${r.status.padEnd(8)} ${formatWindows(r.windows)}  (${age} dk önce, ${r.source})`,
+        `${r.worker.padEnd(12)} ${r.status.padEnd(8)} ${formatWindows(r.windows)}  ${m().cli.ago(age, r.source)}`,
       );
     }
     break;

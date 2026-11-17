@@ -3,17 +3,13 @@
  * Kaynak: vault `20 Araştırma/Rol Dağılımı Araştırması` + `Abonelik Limitleri ve Kapasite` (F19).
  * Uzaktan çekilmez; release ile güncellenir (güvenlik ve tekrarlanabilirlik).
  */
+import { m } from '../i18n/index.js';
 
 export const META_PERIOD = '2026-Q4';
 
 export type Tier = 'K1' | 'K2' | 'K3' | 'K4' | 'K5';
-export const TIER_LABEL: Record<Tier, string> = {
-  K1: 'öncü (Opus, Codex üst)',
-  K2: 'orta-güçlü (Sonnet, Codex orta, Gemini Flash)',
-  K3: 'ucuz API / açık ağırlıklı (GLM, DeepSeek, Kimi, Qwen)',
-  K4: 'hafif (Haiku, Codex Luna)',
-  K5: 'yerel (Ollama, LM Studio)',
-};
+/** Kademe etiketleri (geçerli dilde). */
+export const tierLabel = (): Record<Tier, string> => m().meta.tiers;
 
 export type WindowKind = 'five_hour' | 'weekly' | 'daily' | 'monthly' | 'budget';
 
@@ -47,7 +43,9 @@ export const SUBSCRIPTIONS: SubscriptionProfile[] = [
     id: 'claude-max',
     label: 'Claude Max (5x)',
     workers: [{ id: 'claude-lite', tier: 'K2' }],
-    note: 'claude-lite işçisinde Sonnet kullanılabilir (workers.claude-lite.model).',
+    get note() {
+      return m().meta.notes.claudeMax;
+    },
     windows: ['five_hour', 'weekly'],
     relative: 5,
     observable: true,
@@ -55,7 +53,9 @@ export const SUBSCRIPTIONS: SubscriptionProfile[] = [
   },
   {
     id: 'claude-ultra',
-    label: 'Claude Ultra (10x, 5 saatlik pencere yok)',
+    get label() {
+      return m().meta.labels.claudeUltra;
+    },
     workers: [{ id: 'claude-lite', tier: 'K2' }],
     windows: ['weekly'],
     relative: 10,
@@ -73,7 +73,9 @@ export const SUBSCRIPTIONS: SubscriptionProfile[] = [
   },
   {
     id: 'chatgpt-pro',
-    label: 'ChatGPT Pro (Codex, yalnızca haftalık)',
+    get label() {
+      return m().meta.labels.chatgptPro;
+    },
     workers: [{ id: 'codex', tier: 'K1' }],
     windows: ['weekly'],
     relative: 6,
@@ -82,12 +84,16 @@ export const SUBSCRIPTIONS: SubscriptionProfile[] = [
   },
   {
     id: 'gemini-api',
-    label: 'Gemini API anahtarı',
+    get label() {
+      return m().meta.labels.geminiApi;
+    },
     workers: [{ id: 'gemini', tier: 'K2' }],
     windows: ['budget'],
     observable: false,
     headless: 'ok',
-    note: 'Kişisel hesap girişi Gemini CLI tarafından desteklenmiyor; API anahtarı gerekir.',
+    get note() {
+      return m().meta.notes.geminiApi;
+    },
   },
   {
     id: 'antigravity',
@@ -96,7 +102,9 @@ export const SUBSCRIPTIONS: SubscriptionProfile[] = [
     windows: ['five_hour', 'weekly'],
     observable: false,
     headless: 'gri',
-    note: 'Koşullar gri alan; varsayılan kapalı, acknowledge_terms gerekir.',
+    get note() {
+      return m().meta.notes.antigravity;
+    },
   },
   {
     id: 'opencode-api',
@@ -105,7 +113,9 @@ export const SUBSCRIPTIONS: SubscriptionProfile[] = [
     windows: ['budget'],
     observable: false,
     headless: 'ok',
-    note: 'Qwen Coding Plan otomasyonu yasaklar; kullandıkça öde API tercih edin.',
+    get note() {
+      return m().meta.notes.opencodeApi;
+    },
   },
   {
     id: 'opencode-go',
@@ -117,12 +127,16 @@ export const SUBSCRIPTIONS: SubscriptionProfile[] = [
   },
   {
     id: 'local-gpu',
-    label: 'Yerel model (24 GB+ GPU)',
+    get label() {
+      return m().meta.labels.localGpu;
+    },
     workers: [{ id: 'local', tier: 'K5' }],
     windows: [],
     observable: true,
     headless: 'ok',
-    note: 'Yalnızca kısa işler: dokümantasyon, test iskeleti, tek dosya. Beyin/plan/inceleme asla.',
+    get note() {
+      return m().meta.notes.localGpu;
+    },
   },
 ];
 
@@ -192,10 +206,9 @@ const FAMILY: Record<string, string> = {
 export function recommend(subscriptionIds: string[]): Recommendation {
   const subs = SUBSCRIPTIONS.filter((s) => subscriptionIds.includes(s.id));
   const unknown = subscriptionIds.filter((id) => !SUBSCRIPTIONS.some((s) => s.id === id));
+  const t = m().meta;
   const warnings: string[] = unknown.length
-    ? [
-        `Bilinmeyen abonelik: ${unknown.join(', ')} (bilinenler: ${SUBSCRIPTIONS.map((s) => s.id).join(', ')})`,
-      ]
+    ? [t.unknownSub(unknown.join(', '), SUBSCRIPTIONS.map((s) => s.id).join(', '))]
     : [];
   const rationale: string[] = [];
 
@@ -207,21 +220,13 @@ export function recommend(subscriptionIds: string[]): Recommendation {
       if (!cur || w.tier < cur) tierOf.set(w.id, w.tier);
     }
     if (s.headless !== 'ok')
-      warnings.push(`${s.label}: koşullar ${s.headless}. ${s.note ?? ''}`.trim());
+      warnings.push(t.terms(s.label, t.headless[s.headless], s.note ?? '').trim());
     else if (s.note) rationale.push(`${s.label}: ${s.note}`);
   }
   const claude = subs.find((s) => s.id.startsWith('claude-'));
-  if (!claude)
-    warnings.push('Beyin için Claude aboneliği gerekir (Anafor yöneticisi Claude Code).');
-  const brain =
-    claude?.id === 'claude-pro'
-      ? 'Sonnet (Opus yalnızca plan/karar noktalarında)'
-      : claude
-        ? 'Opus (limit baskısında Sonnet + Opus danışman)'
-        : '—';
-  rationale.push(
-    'Beyin öncü kademede: token’ların çoğunu işçiler harcar, beyin hatası tüm turu boşa çıkarır.',
-  );
+  if (!claude) warnings.push(t.needClaude);
+  const brain = claude?.id === 'claude-pro' ? t.brainPro : claude ? t.brainMax : '—';
+  rationale.push(t.brainFrontier);
 
   const brainShare = (w: string) => (FAMILY[w] === 'anthropic' ? 1 : 0);
   const order = (role: AnaforRole): string[] => {
@@ -255,18 +260,16 @@ export function recommend(subscriptionIds: string[]): Recommendation {
     ...rev.filter((w) => FAMILY[w] === FAMILY[impl ?? '']),
   ];
   if (impl && routing.review[0] && FAMILY[routing.review[0]] !== FAMILY[impl]) {
-    rationale.push(
-      `İnceleme farklı model ailesinde: ${impl} uygular, ${routing.review[0]} inceler.`,
-    );
+    rationale.push(t.crossFamily(impl, routing.review[0]));
   } else if (impl) {
-    warnings.push('Tek model ailesi var: inceleme uygulayıcıyla aynı aileden (kör nokta riski).');
+    warnings.push(t.singleFamily);
   }
   if (tierOf.get('local')) {
     routing.implementation = routing.implementation.filter((w) => w !== 'local');
-    rationale.push('Yerel model yalnızca test/analiz yedeği; uzun ajan döngülerinde güvenilmez.');
+    rationale.push(t.localOnly);
   }
   for (const role of Object.keys(routing) as AnaforRole[]) {
-    if (!routing[role].length) warnings.push(`'${role}' için uygun işçi yok.`);
+    if (!routing[role].length) warnings.push(t.noWorker(role));
   }
   return { period: META_PERIOD, brain, routing, rationale, warnings };
 }

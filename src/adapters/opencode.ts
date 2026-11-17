@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isWindowsShim, runLineProcess } from './process.js';
+import { m } from '../i18n/index.js';
 import type {
   JobContext,
   JobSpec,
@@ -107,13 +108,11 @@ export class OpenCodeAdapter implements WorkerAdapter {
 
   async detect(): Promise<WorkerAvailability> {
     // Önce politika ve yapılandırma, sonra kurulum kontrolü.
-    if (!this.model)
-      return { available: false, reason: 'workers.opencode.model ayarlanmalı (provider/model)' };
+    if (!this.model) return { available: false, reason: m().adapters.opencodeModel };
     if (this.model.startsWith('anthropic/') && !this.allowAnthropicApi) {
       return {
         available: false,
-        reason:
-          'anthropic/* modelleri OpenCode üzerinden yalnızca API anahtarıyla (allow_anthropic_api); Claude aboneliği için claude-lite kullanın',
+        reason: m().adapters.opencodeAnthropic,
       };
     }
     const v = spawnSync(this.bin, ['--version'], {
@@ -121,7 +120,8 @@ export class OpenCodeAdapter implements WorkerAdapter {
       windowsHide: true,
       shell: isWindowsShim(this.bin),
     });
-    if (v.error || v.status !== 0) return { available: false, reason: 'opencode kurulu değil' };
+    if (v.error || v.status !== 0)
+      return { available: false, reason: m().adapters.opencodeMissing };
     return { available: true, version: v.stdout.trim(), authOk: true };
   }
 

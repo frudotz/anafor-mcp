@@ -9,6 +9,7 @@ import {
 import { ACTIVE_JOB_STATES } from '../core/states.js';
 import { formatWindows, readCodexLimits, readStoredLimits } from '../limits/limits.js';
 import { Store } from '../store/store.js';
+import { m } from '../i18n/index.js';
 
 const c = {
   dim: (s: string) => `\x1b[2m${s}\x1b[0m`,
@@ -21,21 +22,22 @@ const c = {
 
 /** Beyin olayını ekrana basılacak satıra çevirir (null: gösterme). */
 export function renderBrainEvent(e: BrainEvent): string | null {
+  const t = m().chat;
   switch (e.type) {
     case 'init':
-      return c.dim(`[beyin oturumu ${e.sessionId.slice(0, 8)} · ${e.model}]`);
+      return c.dim(t.session(e.sessionId.slice(0, 8), e.model));
     case 'text':
-      return `${c.cyan('beyin ›')} ${e.text}`;
+      return `${c.cyan(t.brainPrompt)} ${e.text}`;
     case 'tool':
       return c.dim(`  ⚙ ${e.name}${e.brief ? ` ${e.brief}` : ''}`);
     case 'result':
       return c.dim(
-        `  ✓ tur bitti${e.turns !== null ? ` · ${e.turns} adım` : ''}${e.costUsd !== null ? ` · API eşdeğeri ~$${e.costUsd.toFixed(3)}` : ''}`,
+        `  ✓ ${t.turnDone}${e.turns !== null ? ` · ${t.steps(e.turns)}` : ''}${e.costUsd !== null ? ` · ${t.apiCost(e.costUsd.toFixed(3))}` : ''}`,
       );
     case 'error':
       return c.red(`! ${e.message}`);
     case 'exit':
-      return c.dim(`[beyin oturumu kapandı (${e.code ?? '?'})]`);
+      return c.dim(t.closed(String(e.code ?? '?')));
   }
 }
 
@@ -56,7 +58,7 @@ export function jobsTable(store: Store, all = false): string[] {
       );
     }
   }
-  return lines.length ? lines : [c.dim('(görev yok)')];
+  return lines.length ? lines : [c.dim(m().chat.noTasks)];
 }
 
 export function limitsLines(): string[] {
@@ -66,7 +68,7 @@ export function limitsLines(): string[] {
   const out = Object.values(rows).map(
     (r) => `${r.worker.padEnd(12)} ${r.status.padEnd(8)} ${formatWindows(r.windows)}`,
   );
-  return out.length ? out : [c.dim('(limit bilgisi yok)')];
+  return out.length ? out : [c.dim(m().chat.noLimits)];
 }
 
 /** Yeni iş olaylarını izler (sohbet sırasında canlı iş takibi). */
@@ -153,18 +155,13 @@ export async function runChat(opts: ChatOptions): Promise<number> {
         behavior: 'deny',
         message: 'Etkileşimsiz modda izin verilmez',
       });
-      print(c.yellow(`! izin reddedildi (etkileşimsiz): ${req.tool_name}`));
+      print(c.yellow(m().chat.deniedHeadless(req.tool_name)));
       return;
     }
     asking = true;
     const brief = JSON.stringify(req.input).slice(0, 160);
     const answer = await new Promise<string>((resolve) =>
-      rl!.question(
-        c.yellow(
-          `? Beyin izin istiyor: ${req.tool_name} ${brief}\n  [e]vet / [h]ayır / [d]aima (bu oturum): `,
-        ),
-        resolve,
-      ),
+      rl!.question(c.yellow(m().chat.askPermission(req.tool_name, brief)), resolve),
     );
     asking = false;
     const a = answer.trim().toLowerCase();
@@ -198,11 +195,12 @@ export async function runChat(opts: ChatOptions): Promise<number> {
       await turn(opts.once);
       return 0;
     }
-    console.log(c.bold('Anafor sohbet') + c.dim('  (/jobs, /limits, /izinler, /yeni, /cikis)'));
+    const t = m().chat;
+    console.log(c.bold(t.title) + c.dim('  (/jobs, /limits, /izinler, /yeni, /cikis)'));
     rl = createInterface({
       input: process.stdin,
       output: process.stdout,
-      prompt: c.green('sen › '),
+      prompt: c.green(t.youPrompt),
     });
     rl.prompt();
     for await (const raw of rl) {
@@ -215,11 +213,9 @@ export async function runChat(opts: ChatOptions): Promise<number> {
       if (line === '/cikis' || line === '/exit') break;
       if (line === '/jobs') jobsTable(store).forEach((l) => print(l));
       else if (line === '/limits') limitsLines().forEach((l) => print(l));
-      else if (line === '/izinler')
-        print(`${pendingRequests(store.paths.anaforDir).length} bekleyen izin isteği`);
-      else if (line === '/yeni')
-        print(c.dim('Yeni oturum için çıkıp `anafor chat --new` çalıştırın.'));
-      else if (closed) print(c.red('Beyin oturumu kapalı; `anafor chat` ile yeniden başlatın.'));
+      else if (line === '/izinler') print(t.pending(pendingRequests(store.paths.anaforDir).length));
+      else if (line === '/yeni') print(c.dim(t.newSession));
+      else if (closed) print(c.red(t.sessionClosed));
       else await turn(line);
       if (!busy) rl.prompt();
     }

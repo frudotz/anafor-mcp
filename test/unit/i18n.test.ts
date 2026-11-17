@@ -6,6 +6,10 @@ import { parseLang, resolveLang, setLang } from '../../src/i18n/index.js';
 import { tr } from '../../src/i18n/tr.js';
 import { formatWindows } from '../../src/limits/limits.js';
 import { tempDir } from '../helpers.js';
+import { balance } from '../../src/capacity/balancer.js';
+import { recommend, SUBSCRIPTIONS } from '../../src/capacity/meta.js';
+import { decideGate } from '../../src/extensions/gate.js';
+import { classifyShell } from '../../src/hooks/director.js';
 
 /** Katalogların anahtar ağacı ve fonksiyon/metin türleri birebir aynı olmalı. */
 function shape(o: unknown): unknown {
@@ -42,6 +46,48 @@ describe('dil desteği (F24)', () => {
       expect(formatWindows(w, 10_000)).toBe('5h reset');
       setLang('tr');
       expect(formatWindows(w, 10_000)).toBe('5s sıfırlandı');
+    } finally {
+      setLang('tr');
+    }
+  });
+
+  it('CLI, kapı, kapasite ve hook metinleri dile göre (F24b)', () => {
+    const scan = {
+      ok: true as const,
+      score: 30,
+      severity: 'MEDIUM',
+      recommendation: 'CAUTION',
+      counts: {},
+      top: [],
+      scanner: 'x',
+    };
+    try {
+      setLang('en');
+      expect(decideGate(scan, false).reason).toBe(
+        'score 30 MEDIUM CAUTION: review the findings and approve with --accept-risk',
+      );
+      expect(decideGate({ ok: false, error: 'e' }, false).reason).toMatch(/^scan failed/);
+      const rec = recommend(['chatgpt-pro']);
+      expect(rec.warnings.join()).toMatch(/The brain needs a Claude subscription/);
+      expect(rec.rationale.join()).toMatch(/Brain on the frontier tier/);
+      expect(SUBSCRIPTIONS.find((s) => s.id === 'chatgpt-pro')!.label).toBe(
+        'ChatGPT Pro (Codex, weekly only)',
+      );
+      expect(classifyShell('rm -rf x')).toBe('file system command');
+      const ar = balance(
+        'review',
+        [
+          { worker: 'a', account: 'claude', costTier: 'high' },
+          { worker: 'b', account: 'codex', costTier: 'low' },
+        ],
+        [],
+        'protect-brain',
+        1.3,
+      );
+      expect(ar.notes[0]).toMatch(/load balancer \(protect-brain\): b instead of a/);
+      setLang('tr');
+      expect(decideGate(scan, false).reason).toMatch(/bulguları inceleyip/);
+      expect(classifyShell('rm -rf x')).toBe('dosya sistemi komutu');
     } finally {
       setLang('tr');
     }

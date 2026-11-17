@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { anaforHome } from '../limits/limits.js';
 import { ANAFOR_VERSION } from '../version.js';
+import { m } from '../i18n/index.js';
 
 const dist = (rel: string) => fileURLToPath(new URL(`../${rel}`, import.meta.url));
 const repoPlugin = () => fileURLToPath(new URL('../../plugin', import.meta.url));
@@ -149,14 +150,13 @@ export function installStatusline(
       return {
         changed: false,
         ok: false,
-        reason: 'settings.json okunamadı (geçersiz JSON); elle ekleyin',
+        reason: m().setupLib.settingsInvalid,
       };
     }
     const cur = (settings.statusLine as { command?: unknown } | undefined)?.command;
-    if (cur === command)
-      return { changed: false, ok: true, reason: 'Anafor statusLine zaten kurulu' };
+    if (cur === command) return { changed: false, ok: true, reason: m().setupLib.statusAlready };
     if (settings.statusLine && !isAnaforStatusline(cur)) {
-      return { changed: false, ok: false, reason: 'başka bir statusLine var; korunuyor' };
+      return { changed: false, ok: false, reason: m().setupLib.statusOther };
     }
     // Yok veya Anafor'un eski yolu (kurulum yeri değişmiş): yedekle ve yaz.
     updating = settings.statusLine !== undefined;
@@ -169,7 +169,7 @@ export function installStatusline(
   return {
     changed: true,
     ok: true,
-    reason: `statusLine ${updating ? 'güncellendi' : 'eklendi'} (yedek: settings.json.anafor-backup)`,
+    reason: updating ? m().setupLib.statusUpdated : m().setupLib.statusAdded,
   };
 }
 
@@ -183,15 +183,4 @@ export function isAnaforStatusline(command: unknown): boolean {
 }
 
 /** Eksik işçiler için kurulum ipuçları (resmi kaynaklar). */
-export const INSTALL_HINTS: Record<string, string> = {
-  gitleaks:
-    'İsteğe bağlı gizli bilgi tarayıcısı: gitleaks v8.30.1 (gh release download + checksum; docs/kurulum.md)',
-  codex: 'npm install -g @openai/codex  →  codex login',
-  'claude-lite': 'Claude Code kurulu olmalı: https://claude.com/claude-code  →  claude auth login',
-  gemini: 'Yalnızca API anahtarıyla: npm install -g @google/gemini-cli + GEMINI_API_KEY',
-  opencode:
-    'https://opencode.ai  →  anafor.config.json: workers.opencode.model (API anahtarı, yerel model veya ChatGPT planı)',
-  local: 'Ollama (https://ollama.com) veya LM Studio  →  anafor.config.json: workers.local.model',
-  antigravity:
-    'Koşullar gri alan: yalnızca workers.antigravity.enabled + acknowledge_terms ile; API anahtarı önerilir',
-};
+export const installHints = (): Record<string, string> => m().setupLib.hints;

@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import type { Decision, PreToolUseInput } from '../hooks/director.js';
 import { mcpStatus, projectMcpServers, skillDirs, skillStatus } from './registry.js';
+import { m } from '../i18n/index.js';
 
 /**
  * Eklenti koruması (F23, PreToolUse). Yönetici modundan bağımsızdır (`extensions.enforce`):
@@ -29,9 +30,6 @@ const INSTALL_PATTERNS: [RegExp, string][] = [
 ];
 const ACCEPT_RISK = /\banafor\s+ext\b[^|;&]*--accept-risk\b/i;
 
-const GUIDE =
-  'Harici skill/MCP yalnızca SkillSpector kapısından kurulur: `anafor ext add <kaynak>` (skill) veya `anafor ext add-mcp <ad> --source <kaynak> -- <komut…>`; mevcut olanı taratmak için `anafor ext adopt <ad>`.';
-
 export function extensionGuard(
   input: PreToolUseInput,
   ctx: {
@@ -48,6 +46,7 @@ export function extensionGuard(
   const tool = input.tool_name ?? '';
   const ti = input.tool_input ?? {};
   const home = ctx.home ?? homedir();
+  const t = m().guard;
 
   // 1) Skill çağrısı: yerel (proje/kullanıcı) skill dizini varsa kayıt ve özet kontrolü.
   if (tool === 'Skill') {
@@ -58,25 +57,27 @@ export function extensionGuard(
       const dir = join(dirs[scope], name);
       if (!existsSync(join(dir, 'SKILL.md'))) continue;
       const st = skillStatus(ctx.root, scope, name, dir, ctx.env);
-      if (st === 'ok') return { action: 'allow', reason: 'kayıtlı skill' };
+      if (st === 'ok') return { action: 'allow', reason: t.skillOk };
       return verdict(
-        `ANAFOR eklenti kapısı: '${name}' skill'i ${st === 'changed' ? 'tarandıktan sonra DEĞİŞMİŞ' : 'SkillSpector ile taranmamış'}. Kullanıcıdan \`anafor ext adopt ${name}${scope === 'user' ? ' --user' : ''}\` çalıştırmasını isteyin.`,
+        t.skillBlocked(
+          name,
+          st === 'changed' ? t.changed : t.unscanned,
+          `anafor ext adopt ${name}${scope === 'user' ? ' --user' : ''}`,
+        ),
       );
     }
     return null;
   }
 
   // 2) Proje .mcp.json sunucusunun aracı.
-  const m = /^mcp__([^_]+(?:_[^_]+)*?)__/.exec(tool);
-  if (m) {
+  const mcpMatch = /^mcp__([^_]+(?:_[^_]+)*?)__/.exec(tool);
+  if (mcpMatch) {
     const servers = projectMcpServers(ctx.root);
-    const server = m[1]!;
+    const server = mcpMatch[1]!;
     if (!(server in servers)) return null;
     const st = mcpStatus(ctx.root, server, servers[server]!, ctx.env);
-    if (st === 'ok') return { action: 'allow', reason: 'kayıtlı MCP' };
-    return verdict(
-      `ANAFOR eklenti kapısı: '${server}' MCP sunucusu ${st === 'changed' ? 'komutu kayıttan farklı' : 'SkillSpector ile taranmamış'}. ${GUIDE}`,
-    );
+    if (st === 'ok') return { action: 'allow', reason: t.mcpOk };
+    return verdict(t.mcpBlocked(server, st === 'changed' ? t.mcpChanged : t.unscanned));
   }
 
   // 3) Skill dizinlerine veya .mcp.json'a doğrudan yazma.
@@ -94,7 +95,7 @@ export function extensionGuard(
       inside(dirs.user) ||
       resolve(abs) === resolve(join(ctx.root, '.mcp.json'))
     ) {
-      return verdict(`ANAFOR eklenti kapısı: skill/MCP dosyalarına doğrudan yazılamaz. ${GUIDE}`);
+      return verdict(t.directWrite);
     }
     return null;
   }
@@ -105,13 +106,10 @@ export function extensionGuard(
     if (ACCEPT_RISK.test(cmd)) {
       return {
         action: 'deny',
-        reason:
-          'ANAFOR eklenti kapısı: CAUTION riskini yalnızca kullanıcı onaylayabilir. Bulguları kullanıcıya gösterin; onaylarsa komutu kendi terminalinde çalıştırsın.',
+        reason: t.acceptRisk,
       };
     }
-    for (const [re, what] of INSTALL_PATTERNS)
-      if (re.test(cmd))
-        return verdict(`ANAFOR eklenti kapısı: '${what}' doğrudan kullanılamaz. ${GUIDE}`);
+    for (const [re, what] of INSTALL_PATTERNS) if (re.test(cmd)) return verdict(t.installCmd(what));
   }
   return null;
 }

@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { m } from '../i18n/index.js';
 
 /**
  * NVIDIA SkillSpector entegrasyonu (F23). Tarama her zaman `--no-llm` ile yapılır:
@@ -66,11 +67,11 @@ export function parseReport(stdout: string, scanner = 'skillspector'): ScanResul
   try {
     d = JSON.parse(stdout.slice(stdout.indexOf('{'))) as typeof d;
   } catch {
-    return { ok: false, error: 'SkillSpector raporu JSON değil' };
+    return { ok: false, error: m().skillspector.notJson };
   }
   const ra = d.risk_assessment;
   if (!ra || typeof ra.score !== 'number' || !ra.recommendation) {
-    return { ok: false, error: 'SkillSpector raporunda risk_assessment yok' };
+    return { ok: false, error: m().skillspector.noRisk };
   }
   const issues = d.issues ?? [];
   const counts: Record<string, number> = {};
@@ -109,10 +110,10 @@ export function scanPath(bin: string, target: string, timeoutMs = 10 * 60_000): 
     maxBuffer: 64 * 1024 * 1024,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8', NO_COLOR: '1' },
   });
-  if (r.error) return { ok: false, error: `SkillSpector çalıştırılamadı: ${r.error.message}` };
+  if (r.error) return { ok: false, error: m().skillspector.spawnFailed(r.error.message) };
   if (r.status !== 0 && r.status !== 1) {
     const msg = (r.stderr || r.stdout || '').trim().split('\n').slice(-3).join(' ');
-    return { ok: false, error: `SkillSpector hata verdi (çıkış ${r.status}): ${msg}` };
+    return { ok: false, error: m().skillspector.failed(String(r.status), msg) };
   }
   return parseReport(r.stdout, skillspectorVersion(bin) ?? 'skillspector');
 }
