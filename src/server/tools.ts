@@ -53,6 +53,15 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
   );
 
   server.registerTool(
+    'workers_limits',
+    {
+      description:
+        'Bağlı yapay zekâların oturum/kullanım limitleri (5 saatlik ve haftalık pencereler, sıfırlanma zamanı). Bilinmeyenler unknown.',
+    },
+    () => wrap(() => svc().workersLimits()),
+  );
+
+  server.registerTool(
     'project_status',
     { description: 'Açık görevler, çalışan işler ve inceleme bekleyen işler (kısa özet).' },
     () => wrap(() => svc().projectStatus()),

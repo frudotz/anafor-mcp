@@ -12,6 +12,15 @@ import { runSessionStart } from '../hooks/session-start.js';
 import { startServer } from '../server/main.js';
 import { Store } from '../store/store.js';
 import { ANAFOR_VERSION } from '../version.js';
+import {
+  formatWindows,
+  parseClaudeStatusline,
+  readCodexLimits,
+  readStoredLimits,
+  recordLimits,
+  statusFrom,
+  type WorkerLimits,
+} from '../limits/limits.js';
 
 const [cmd = 'help', ...rest] = process.argv.slice(2);
 const root = resolve(rest.find((a) => !a.startsWith('-')) ?? process.cwd());
@@ -106,6 +115,50 @@ switch (cmd) {
     }
     break;
   }
+  case 'limits': {
+    const stored = readStoredLimits();
+    const rows: WorkerLimits[] = [];
+    const codex = readCodexLimits();
+    if (codex) rows.push(codex);
+    for (const [k, v] of Object.entries(stored)) if (k !== 'codex' || !codex) rows.push(v);
+    if (!rows.length)
+      console.log('Henüz limit bilgisi yok (işçi çalıştıkça veya statusline ile dolar).');
+    for (const r of rows) {
+      const age = Math.round((Date.now() - Date.parse(r.observed_at)) / 60_000);
+      console.log(
+        `${r.worker.padEnd(12)} ${r.status.padEnd(8)} ${formatWindows(r.windows)}  (${age} dk önce, ${r.source})`,
+      );
+    }
+    break;
+  }
+  case 'statusline': {
+    // Claude Code statusLine komutu: stdin JSON'daki rate_limits kaydedilir, kısa satır yazılır.
+    const chunks: Buffer[] = [];
+    for await (const c of process.stdin) chunks.push(c as Buffer);
+    try {
+      const input = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') as Record<
+        string,
+        unknown
+      >;
+      const windows = parseClaudeStatusline(input);
+      if (windows.length) {
+        recordLimits({
+          worker: 'claude',
+          source: 'claude statusline',
+          observed_at: new Date().toISOString(),
+          status: statusFrom(windows),
+          windows,
+        });
+      }
+      const model = (input.model as { display_name?: string } | undefined)?.display_name ?? '';
+      process.stdout.write(
+        `anafor ${model ? `· ${model} ` : ''}${windows.length ? `· ${formatWindows(windows)}` : ''}`,
+      );
+    } catch {
+      process.stdout.write('anafor');
+    }
+    break;
+  }
   case 'hook':
     await hook(rest[0] ?? '');
     break;
@@ -120,6 +173,8 @@ kullanım:
   anafor doctor [dizin]   ortam ve işçi kontrolü
   anafor mcp [dizin]      MCP sunucusunu stdio üzerinde başlatır
   anafor migrate [dizin]  eski .orchestrator/ durumunu .anafor/'a kopyalar (kaynak değişmez)
+  anafor limits           bağlı yapay zekâların oturum/kullanım limitleri
+  anafor statusline       Claude Code statusLine komutu (limitleri kaydeder)
   anafor hook <olay>      Claude Code hook'u (pre-tool-use | session-start), girdi stdin'den
   anafor version`);
 }

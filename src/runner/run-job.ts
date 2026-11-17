@@ -9,6 +9,7 @@ import {
   WORKER_RESULT_SCHEMA_PATH,
 } from '../contracts/worker-result.js';
 import { loadConfig } from '../core/config.js';
+import { formatWindows, limitAccount, recordLimits, statusFrom } from '../limits/limits.js';
 import { nowIso } from '../core/ids.js';
 import { compilePrompt } from '../core/prompt.js';
 import { ACTIVE_JOB_STATES } from '../core/states.js';
@@ -32,6 +33,8 @@ function summarize(ev: WorkerEvent): string {
       return `in=${ev.inputTokens ?? '?'} out=${ev.outputTokens ?? '?'}`;
     case 'error':
       return `${ev.fatal ? 'FATAL ' : ''}${ev.message.slice(0, 300)}`;
+    case 'limits':
+      return formatWindows(ev.windows);
   }
 }
 
@@ -150,6 +153,15 @@ ${r.stderr ?? ''}`,
       store.appendEvent(job.id, ev.type, summarize(ev));
       if (ev.type === 'session') store.patchJob(job.id, { sessionRef: ev.sessionRef });
       if (ev.type === 'error') lastError = ev.message;
+      if (ev.type === 'limits') {
+        recordLimits({
+          worker: limitAccount(job.worker),
+          source: `${job.worker} akışı`,
+          observed_at: nowIso(),
+          status: statusFrom(ev.windows),
+          windows: ev.windows,
+        });
+      }
       if (ev.type === 'usage') {
         usage = {
           inputTokens: (usage?.inputTokens ?? 0) + (ev.inputTokens ?? 0),
