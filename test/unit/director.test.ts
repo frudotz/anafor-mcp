@@ -178,3 +178,18 @@ describe('resolveEvidence', () => {
     expect(resolveEvidence(root, wt, '../../../../outside.txt')).toBeNull();
   });
 });
+
+describe('findAnaforRoot ev dizini', () => {
+  it('ev dizinindeki .anafor (kullanıcı verisi) proje sayılmaz', () => {
+    const t = tempDir();
+    try {
+      mkdirSync(join(t.dir, '.anafor'));
+      mkdirSync(join(t.dir, 'proj', 'src'), { recursive: true });
+      expect(findAnaforRoot(join(t.dir, 'proj', 'src'), t.dir)).toBeNull();
+      mkdirSync(join(t.dir, 'proj', '.anafor'));
+      expect(findAnaforRoot(join(t.dir, 'proj', 'src'), t.dir)).toBe(join(t.dir, 'proj'));
+    } finally {
+      t.cleanup();
+    }
+  });
+});

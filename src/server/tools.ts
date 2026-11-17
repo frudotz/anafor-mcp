@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
+import { decidePermission } from '../chat/permissions.js';
 import { ANAFOR_VERSION } from '../version.js';
 import { AnaforService, ServiceError } from './service.js';
 
@@ -402,6 +403,34 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
       },
     },
     (a) => wrap(() => svc().memoryMetrics(a)),
+  );
+
+  server.registerTool(
+    'permission_prompt',
+    {
+      description:
+        'Claude Code --permission-prompt-tool: izin gerektiren araç çağrısını `anafor chat` kullanıcısına sorar. Yanıt gelmezse reddeder. Yönetici tarafından doğrudan çağrılmaz.',
+      inputSchema: {
+        tool_name: z.string(),
+        input: z.record(z.string(), z.unknown()),
+        tool_use_id: z.string().optional(),
+      },
+    },
+    async (a) => {
+      try {
+        const d = await decidePermission(svc().store.paths.anaforDir, a.tool_name, a.input);
+        return { content: [{ type: 'text', text: JSON.stringify(d) }] };
+      } catch (e) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ behavior: 'deny', message: (e as Error).message }),
+            },
+          ],
+        };
+      }
+    },
   );
 
   server.registerTool(

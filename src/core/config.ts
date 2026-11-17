@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
 export type DirectorMode = 'enforce' | 'warn' | 'off';
@@ -80,9 +81,13 @@ export function loadConfig(root: string): AnaforConfig {
 }
 
 /** Başlangıç dizininden yukarı doğru `.anafor/` içeren ilk dizini bulur. */
-export function findAnaforRoot(start: string): string | null {
+export function findAnaforRoot(start: string, home = homedir()): string | null {
   let dir = resolve(start);
+  // Ev dizinindeki ~/.anafor kullanıcı düzeyi veridir (limitler), proje değildir.
+  const homeNorm = resolve(home).toLowerCase();
   for (;;) {
+    // Ev dizinine gelince dur: ev dizini proje değildir, üstü de aranmaz.
+    if (dir.toLowerCase() === homeNorm) return null;
     const candidate = join(dir, '.anafor');
     if (existsSync(candidate) && statSync(candidate).isDirectory()) return dir;
     const parent = dirname(dir);
