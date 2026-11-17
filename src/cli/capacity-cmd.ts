@@ -19,7 +19,7 @@ export function formatCapacity(r: {
 }): string[] {
   const out: string[] = ['Kapasite (KP = pencerenin %1’i; boş = 100 − kullanım − rezerv)'];
   for (const a of r.accounts) {
-    const head = `${a.account.padEnd(10)} ${a.healthy ? '✔' : a.observed ? '⚠' : '?'} [${a.workers.join(', ')}]`;
+    const head = `${a.account.padEnd(10)} ${!a.observed ? '?' : a.healthy ? '✔' : '⚠'} [${a.workers.join(', ')}]`;
     if (!a.observed) {
       out.push(`${head}  gözlem yok`);
       continue;
