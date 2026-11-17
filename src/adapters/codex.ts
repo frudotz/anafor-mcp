@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { runLineProcess } from './process.js';
 import type {
@@ -66,20 +67,86 @@ export function parseCodexLine(line: string): WorkerEvent[] {
   return [];
 }
 
+export type CodexWindowsSandbox = 'elevated' | 'unelevated';
+
+/**
+ * `~/.codex/config.toml` içindeki `[windows] sandbox` değeri (yalnızca bu anahtar okunur;
+ * kimlik bilgisine dokunulmaz). Yoksa null.
+ */
+export function readCodexWindowsSandbox(
+  env: NodeJS.ProcessEnv = process.env,
+): CodexWindowsSandbox | null {
+  try {
+    const toml = readFileSync(
+      join(env.CODEX_HOME ?? join(homedir(), '.codex'), 'config.toml'),
+      'utf8',
+    );
+    return parseWindowsSandbox(toml);
+  } catch {
+    return null;
+  }
+}
+
+export function parseWindowsSandbox(toml: string): CodexWindowsSandbox | null {
+  let section = '';
+  for (const raw of toml.split(/\r?\n/)) {
+    const line = raw.trim();
+    const sec = /^\[([^\]]+)\]$/.exec(line);
+    if (sec) {
+      section = sec[1]!.trim();
+      continue;
+    }
+    const m = /^sandbox\s*=\s*"([^"]*)"/.exec(line);
+    if (m && section === 'windows' && (m[1] === 'elevated' || m[1] === 'unelevated')) return m[1];
+    const dotted = /^windows\.sandbox\s*=\s*"([^"]*)"/.exec(line);
+    if (dotted && section === '' && (dotted[1] === 'elevated' || dotted[1] === 'unelevated'))
+      return dotted[1];
+  }
+  return null;
+}
+
+/**
+ * Windows'ta Codex'in "unelevated" (restricted token) sandbox'ı isimli pipe oluşturmaya izin
+ * vermez: pipe'lı stdio ile her alt süreç `spawn EPERM` verir (vitest forks, npm betikleri,
+ * test koşucuları). "elevated" sandbox (ayrı CodexSandbox* hesapları) bunu engellemez. Bkz. F16.
+ */
+export function windowsSandboxWarning(effective: CodexWindowsSandbox | null): string | null {
+  if (effective === 'elevated') return null;
+  return (
+    `Windows sandbox "${effective ?? 'varsayılan'}": işçi alt süreç başlatamayabilir (spawn EPERM), ` +
+    'testler çalışmaz. Öneri: anafor.config.json → workers.codex.windows_sandbox = "elevated"'
+  );
+}
+
 export interface CodexAdapterOptions {
   /** codex çalıştırılabilir dosyası; varsayılan ANAFOR_CODEX_BIN veya PATH'teki `codex`. */
   bin?: string;
   maxConcurrency?: number;
+  /** Yalnızca Windows: Codex `windows.sandbox` ayarını Anafor işleri için ezer. */
+  windowsSandbox?: CodexWindowsSandbox;
+  /** Test için platform ezmesi. */
+  platform?: NodeJS.Platform;
 }
 
 export class CodexAdapter implements WorkerAdapter {
   readonly id = 'codex';
   private readonly bin: string;
   private readonly maxConcurrency: number;
+  private readonly windowsSandbox: CodexWindowsSandbox | undefined;
+  private readonly platform: NodeJS.Platform;
 
   constructor(opts: CodexAdapterOptions = {}) {
     this.bin = opts.bin ?? process.env.ANAFOR_CODEX_BIN ?? 'codex';
     this.maxConcurrency = opts.maxConcurrency ?? 2;
+    this.windowsSandbox = opts.windowsSandbox;
+    this.platform = opts.platform ?? process.platform;
+  }
+
+  /** Windows'ta Anafor ezmesi varsa `-c windows.sandbox=...`. */
+  sandboxArgs(): string[] {
+    return this.platform === 'win32' && this.windowsSandbox
+      ? ['-c', `windows.sandbox="${this.windowsSandbox}"`]
+      : [];
   }
 
   async detect(): Promise<WorkerAvailability> {
@@ -88,11 +155,17 @@ export class CodexAdapter implements WorkerAdapter {
       return { available: false, reason: v.error?.message ?? `codex --version: ${v.status}` };
     }
     const auth = spawnSync(this.bin, ['login', 'status'], { encoding: 'utf8', windowsHide: true });
+    const warn =
+      this.platform === 'win32'
+        ? windowsSandboxWarning(this.windowsSandbox ?? readCodexWindowsSandbox())
+        : null;
+    const reasons = [auth.status === 0 ? null : 'codex oturum açılmamış: `codex login`', warn];
+    const reason = reasons.filter(Boolean).join(' · ');
     return {
       available: true,
       version: v.stdout.trim(),
       authOk: auth.status === 0,
-      ...(auth.status === 0 ? {} : { reason: 'codex oturum açılmamış: `codex login`' }),
+      ...(reason ? { reason } : {}),
     };
   }
 
@@ -119,6 +192,7 @@ export class CodexAdapter implements WorkerAdapter {
       '-s',
       job.sandbox,
       '--skip-git-repo-check',
+      ...this.sandboxArgs(),
       ...(job.model ? ['-m', job.model] : []),
       '-',
     ];
@@ -139,6 +213,7 @@ export class CodexAdapter implements WorkerAdapter {
       this.lastMessagePath(ctx),
       '-c',
       `sandbox_mode="${job.sandbox}"`,
+      ...this.sandboxArgs(),
       ...(job.model ? ['-m', job.model] : []),
       '-',
     ];

@@ -44,6 +44,8 @@ export interface WorkerSettings {
   acknowledge_terms?: boolean;
   /** OpenCode'da anthropic/* modellerine (yalnızca API anahtarıyla) izin. */
   allow_anthropic_api?: boolean;
+  /** Codex, yalnızca Windows: işler için `windows.sandbox` ("elevated" testlerin alt süreç başlatabilmesi için). */
+  windows_sandbox?: 'elevated' | 'unelevated';
 }
 
 export const DEFAULT_CONFIG: AnaforConfig = {

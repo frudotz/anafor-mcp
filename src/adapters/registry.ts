@@ -20,7 +20,13 @@ export function defaultAdapters(config?: Pick<AnaforConfig, 'workers'>): Adapter
   const opt = <T extends object>(o: T) =>
     Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
   const list: WorkerAdapter[] = [
-    new CodexAdapter(opt({ bin: w.codex?.bin, maxConcurrency: w.codex?.max_concurrency })),
+    new CodexAdapter(
+      opt({
+        bin: w.codex?.bin,
+        maxConcurrency: w.codex?.max_concurrency,
+        windowsSandbox: w.codex?.windows_sandbox,
+      }),
+    ),
     new ClaudeLiteAdapter(
       opt({
         bin: w['claude-lite']?.bin,
