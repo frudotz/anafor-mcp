@@ -156,6 +156,9 @@ export class OpenCodeAdapter implements WorkerAdapter {
       'json',
       '-m',
       job.model ?? this.model!,
+      // Çalışma dizini açıkça verilir (gerçek testte opencode üst sürecin PWD'sine yazdı).
+      '--dir',
+      job.workdir,
       ...extra,
       // Mesaj önce: `-f/--file` dizi seçeneği olduğundan ardından gelen konumsal argümanı da
       // dosya sanar (opencode 1.19.5 ile gerçek testte bulundu).

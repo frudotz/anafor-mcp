@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -15,6 +15,34 @@ const REAL = [
   '{"type":"text","sessionID":"ses_e18c40e15ffeWPE1AWLMBx7zXu","part":{"type":"text","text":"{\\"a\\":1}"}}',
   '{"type":"step_finish","sessionID":"ses_e18c40e15ffeWPE1AWLMBx7zXu","part":{"type":"step-finish","tokens":{"total":70,"input":50,"output":20,"reasoning":0,"cache":{"write":0,"read":0}}}}',
 ];
+
+describe('opencode gerçek araç olayları', () => {
+  // opencode 1.19.5 tool_use biçimi (gerçek çıktıdan; metadata alanları: write → filepath/exists, bash → output/exit)
+  it('write → file_change, bash → command + çıkış kodu', () => {
+    const w = JSON.stringify({
+      type: 'tool_use',
+      sessionID: 's',
+      part: {
+        type: 'tool',
+        tool: 'write',
+        state: { input: { filePath: 'a.txt', content: 'x' }, metadata: { exists: false } },
+      },
+    });
+    const b = JSON.stringify({
+      type: 'tool_use',
+      sessionID: 's',
+      part: {
+        type: 'tool',
+        tool: 'bash',
+        state: { input: { command: 'git status --short' }, metadata: { output: '', exit: 0 } },
+      },
+    });
+    expect(parseOpenCodeLine(w)).toEqual([{ type: 'file_change', path: 'a.txt', kind: 'write' }]);
+    expect(parseOpenCodeLine(b)).toEqual([
+      { type: 'command', command: 'git status --short', exitCode: 0 },
+    ]);
+  });
+});
 
 describe('opencode gerçek olay biçimi', () => {
   it('step_start → oturum, text → mesaj, step_finish → kullanım', () => {
@@ -33,12 +61,17 @@ describe('opencode gerçek olay biçimi', () => {
 describe.skipIf(!process.env.ANAFOR_E2E_OPENCODE_BIN)(
   'opencode gerçek ikili + sahte sağlayıcı',
   () => {
-    it('analysis işi doğrulanmış sonuçla needs_review olur', async () => {
+    it('implementation işi: gerçek araç döngüsü (write + bash) worktree içinde, sonuç doğrulanır', async () => {
       const t = tempDir();
       const port = 18000 + Math.floor(Math.random() * 900);
       const mock: ChildProcess = spawn(
         process.execPath,
-        [fileURLToPath(new URL('../fixtures/openai-mock.mjs', import.meta.url)), '', String(port)],
+        [
+          fileURLToPath(new URL('../fixtures/openai-mock.mjs', import.meta.url)),
+          '',
+          String(port),
+          'tools',
+        ],
         { stdio: 'ignore' },
       );
       await new Promise((r) => setTimeout(r, 800));
@@ -95,6 +128,14 @@ describe.skipIf(!process.env.ANAFOR_E2E_OPENCODE_BIN)(
         expect(job.state).toBe('needs_review');
         expect(job.sessionRef).toMatch(/^ses_/);
         expect(job.usage?.inputTokens).toBeGreaterThan(0);
+        const types = store.listEvents(d.job_id).map((e) => e.type);
+        expect(types).toEqual(expect.arrayContaining(['file_change', 'command']));
+        // izolasyon: dosya worktree'de, üst süreç dizininde DEĞİL (PWD hatası regresyonu)
+        expect(existsSync(join(job.workdir, 'ANAFOR_TOOL_TEST.txt'))).toBe(true);
+        expect(existsSync(join(process.cwd(), 'ANAFOR_TOOL_TEST.txt'))).toBe(false);
+        expect(store.listEvents(d.job_id).find((e) => e.type === 'command')?.summary).toContain(
+          '→ 0',
+        );
       } finally {
         store.close();
         mock.kill();
