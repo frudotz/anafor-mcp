@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { isWindowsShim, runLineProcess } from './process.js';
@@ -260,30 +260,45 @@ export class AntigravityAdapter implements WorkerAdapter {
     };
   }
 
-  private args(job: JobSpec): string[] {
+  /**
+   * agy 1.5.9 `--help` ile doğrulanan bayraklar: -p, --output-format stream-json,
+   * --json-schema (dize veya DOSYA YOLU), --mode accept-edits|auto|plan, --print-timeout,
+   * --conversation. İzin atlatma (--dangerously-skip-permissions) KULLANILMAZ.
+   */
+  args(job: JobSpec, ctx: JobContext): string[] {
     const raw = JSON.parse(readFileSync(job.outputSchemaPath, 'utf8')) as Record<string, unknown>;
     delete raw.$schema;
     delete raw.$id;
+    const schemaFile = join(ctx.artifactsDir, 'schema.agy.json');
+    writeFileSync(schemaFile, JSON.stringify(raw));
     const model = job.model ?? this.opts.model;
-    // ⚠️ agy'nin stdin davranışı doğrulanmadı; prompt argüman olarak (agy yerel bir .exe ise sorun yok).
     return [
       '-p',
       job.prompt,
       '--output-format',
       'stream-json',
       '--json-schema',
-      JSON.stringify(raw),
+      schemaFile,
+      // Yazma: yalnızca düzenleme onayı (auto/dangerously DEĞİL); salt okunur: plan.
+      '--mode',
+      job.sandbox === 'read-only' ? 'plan' : 'accept-edits',
+      // Oturum yoksa agy giriş bekler; iş zaman aşımıyla sınırlanır, sonsuza kadar takılmaz.
+      '--print-timeout',
+      `${Math.max(30, Math.round(job.timeoutMs / 1000))}s`,
       ...(model ? ['--model', model] : []),
-      ...(job.sandbox === 'read-only' ? ['--sandbox'] : []),
     ];
   }
 
   start(job: JobSpec, ctx: JobContext): RunHandle {
-    return this.run(this.args(job), job, ctx);
+    return this.run(this.args(job, ctx), job, ctx);
   }
 
   resume(job: JobSpec, ctx: JobContext): RunHandle {
-    return this.run([...this.args(job), '--conversation', job.resumeSessionRef ?? ''], job, ctx);
+    return this.run(
+      [...this.args(job, ctx), '--conversation', job.resumeSessionRef ?? ''],
+      job,
+      ctx,
+    );
   }
 
   private run(args: string[], job: JobSpec, ctx: JobContext): RunHandle {
