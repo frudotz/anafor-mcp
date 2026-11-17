@@ -66,6 +66,7 @@ function appendTaskAudit(auditDir: string, record: object): void {
 }
 import { runJob } from '../runner/run-job.js';
 import { spawnDetachedRunner } from '../runner/spawn.js';
+import { otherProjectLeases } from '../core/leases.js';
 import {
   Store,
   StoreError,
@@ -171,7 +172,26 @@ export class AnaforService {
     private readonly defaultWorker = 'codex',
     private readonly routing: Partial<Record<Role, string[]>> = {},
     private readonly routingMode: 'static' | 'adaptive' = 'static',
+    private readonly maxParallelJobs = 4,
   ) {}
+
+  /** Global eşzamanlılık: bu projenin aktif işleri + diğer projelerin canlı runner kiraları. */
+  parallelUsage() {
+    const project = this.store.listJobs({ states: ACTIVE_JOB_STATES }).length;
+    const others = otherProjectLeases(this.store.paths.root).length;
+    return { project, other_projects: others, total: project + others, max: this.maxParallelJobs };
+  }
+
+  private assertGlobalCapacity(): void {
+    const u = this.parallelUsage();
+    if (u.total >= u.max) {
+      throw new ServiceError(
+        'LIMIT_REACHED',
+        `Global eşzamanlılık sınırı (${u.max}) dolu: bu projede ${u.project}, diğer projelerde ${u.other_projects} iş çalışıyor`,
+        'job_wait ile bir işin bitmesini bekleyin veya anafor.config.json → max_parallel_jobs',
+      );
+    }
+  }
 
   /**
    * Router: rol için tercih sırasındaki ilk uygun işçi (erişilebilir, oturum açık, kapasite var).
@@ -362,6 +382,7 @@ export class AnaforService {
       active_jobs: active.map(jobBrief),
       jobs_needing_review: review.map(jobBrief),
       recently_closed: recent.map(taskBrief),
+      parallel: this.parallelUsage(),
     };
   }
 
@@ -424,6 +445,7 @@ export class AnaforService {
         `${workerId} '${input.role}' rolünü desteklemiyor`,
       );
     }
+    this.assertGlobalCapacity();
     const det = await adapter.detect();
     if (!det.available || det.authOk === false) {
       throw new ServiceError(
