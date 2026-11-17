@@ -1,4 +1,5 @@
 import type { Role } from '../contracts/worker-result.js';
+import type { LimitWindow } from '../limits/limits.js';
 
 /** Yeni bir işçi eklemek = bu arayüzü uygulayan bir modül + config girdisi. */
 
@@ -50,7 +51,8 @@ export type WorkerEvent =
       outputTokens?: number;
       reasoningOutputTokens?: number;
     }
-  | { type: 'error'; message: string; fatal: boolean };
+  | { type: 'error'; message: string; fatal: boolean }
+  | { type: 'limits'; windows: LimitWindow[] };
 
 export interface RawOutcome {
   exitCode: number | null;

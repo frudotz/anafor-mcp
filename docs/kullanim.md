@@ -94,6 +94,30 @@ Yıkıcı otomatik kurtarma (`reset --hard`, force push, toplu silme) yapılmaz.
 - `memory_lock acquire` → `lat.md/` güncelle → `lat check` → `memory_lock release` (token ile). Kira kendiliğinden düşmez.
 - `memory_metrics`: kısa maskelenmiş etiket. Token sayıları yalnızca işçi veya CLI gerçek değer raporladığında yazılır.
 
+## 7b. Oturum ve kullanım limitleri
+
+```bash
+node /yol/anafor-mcp/dist/cli/main.js limits
+# codex        ok       5s %10 (Sal 01:55) · 7g %38 (Cmt 19:49)
+# claude       warning  5s %84 · 7g %26
+```
+
+MCP aracı: `workers_limits`. Kaynaklar (yalnızca resmi araçların kendi verdiği bilgiler; kimlik bilgisine dokunulmaz):
+
+| İşçi | Kaynak |
+|---|---|
+| Codex | `~/.codex/sessions/**/rollout-*.jsonl` içindeki son `token_count.rate_limits` |
+| Claude (beyin ve claude-lite) | `claude-lite` işlerindeki `rate_limit_event` + Claude Code statusline girdisi |
+| Antigravity, OpenCode, yerel | Araç limit bildirmiyor → `unknown` |
+
+Beyin oturumunun limitlerini de görmek için Claude Code ayarlarına (`~/.claude/settings.json`) ekleyin:
+
+```json
+{ "statusLine": { "type": "command", "command": "node /yol/anafor-mcp/dist/cli/main.js statusline" } }
+```
+
+Router, bir penceresi %100 dolmuş (ve henüz sıfırlanmamış) işçiyi atlar.
+
 ## 8. Eski software-orchestrator'dan göç
 
 ```bash

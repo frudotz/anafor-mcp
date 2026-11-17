@@ -23,6 +23,12 @@ import {
   removeWorktree,
   taskBranchName,
 } from '../git/worktree.js';
+import {
+  formatWindows,
+  limitAccount,
+  readCodexLimits,
+  readStoredLimits,
+} from '../limits/limits.js';
 import { createCheckpoint, readCheckpoint, type CheckpointMeta } from '../governance/checkpoint.js';
 import {
   acquireMemoryLock,
@@ -158,6 +164,46 @@ export class AnaforService {
    * Router: rol için tercih sırasındaki ilk uygun işçi (erişilebilir, oturum açık, kapasite var).
    * Review işinde hedef işi yapan işçi sona alınır (çapraz model incelemesi).
    */
+  /** İşçi oturum/kullanım limitleri (bilinen kaynaklardan; bilinmiyorsa unknown). */
+  workersLimits() {
+    const stored = readStoredLimits();
+    const ids = [...new Set([...this.adapters.keys()].map(limitAccount))];
+    if (!ids.includes('claude')) ids.unshift('claude');
+    return ids.map((id) => {
+      const l = id === 'codex' ? (readCodexLimits() ?? stored[id]) : stored[id];
+      if (!l) {
+        return {
+          worker: id,
+          status: 'unknown' as const,
+          summary: 'bilinmiyor (henüz gözlenmedi veya araç limit bildirmiyor)',
+          windows: [],
+          observed_at: null,
+        };
+      }
+      return {
+        worker: id,
+        status: l.status,
+        summary: formatWindows(l.windows),
+        windows: l.windows,
+        observed_at: l.observed_at,
+        source: l.source,
+      };
+    });
+  }
+
+  /** Limiti dolmuş (sıfırlanma zamanı gelmemiş) işçi mi? */
+  private limited(workerId: string): string | null {
+    const acc = limitAccount(workerId);
+    const l =
+      acc === 'codex' ? (readCodexLimits() ?? readStoredLimits()[acc]) : readStoredLimits()[acc];
+    if (!l) return null;
+    const now = Date.now() / 1000;
+    const full = l.windows.find(
+      (w) => w.used_percent >= 100 && (w.resets_at === null || w.resets_at > now),
+    );
+    return full ? `${workerId}: ${full.name} limiti dolu (%${full.used_percent})` : null;
+  }
+
   async route(role: Role, target: Job | null): Promise<string> {
     let order = [...new Set([...(this.routing[role] ?? []), this.defaultWorker])].filter((id) =>
       this.adapters.has(id),
@@ -175,6 +221,11 @@ export class AnaforService {
       const d = await a.detect();
       if (!d.available || d.authOk === false) {
         reasons.push(`${id}: ${d.reason ?? 'kullanılamıyor'}`);
+        continue;
+      }
+      const lim = this.limited(id);
+      if (lim) {
+        reasons.push(lim);
         continue;
       }
       const running = this.store

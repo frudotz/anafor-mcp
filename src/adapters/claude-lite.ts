@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { parseClaudeRateLimitInfo } from '../limits/limits.js';
 import { runLineProcess } from './process.js';
 import type {
   JobContext,
@@ -21,6 +22,10 @@ export function parseClaudeLine(line: string): WorkerEvent[] {
   const type = ev.type;
   if (type === 'system' && ev.subtype === 'init' && typeof ev.session_id === 'string') {
     return [{ type: 'session', sessionRef: ev.session_id }];
+  }
+  if (type === 'rate_limit_event' && ev.rate_limit_info && typeof ev.rate_limit_info === 'object') {
+    const windows = parseClaudeRateLimitInfo(ev.rate_limit_info as Record<string, unknown>);
+    return windows.length ? [{ type: 'limits', windows }] : [];
   }
   if (type === 'system' && ev.subtype === 'permission_denied') {
     return [
