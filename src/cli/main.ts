@@ -14,6 +14,8 @@ import { Store } from '../store/store.js';
 import { ANAFOR_VERSION } from '../version.js';
 import { findAnaforRoot, loadConfig } from '../core/config.js';
 import { jobsTable, runChat } from './chat.js';
+import { runSetup, setupStateSummary } from './setup-cmd.js';
+import { readSetupState } from '../setup/setup.js';
 import {
   formatWindows,
   parseClaudeStatusline,
@@ -49,7 +51,7 @@ function serverEntry(): string {
   return fileURLToPath(new URL('../server/main.js', import.meta.url));
 }
 
-function init(): void {
+function init(root: string): void {
   const store = new Store(root);
   ensurePolicy(store.paths.anaforDir, store.paths.projectId);
   store.close();
@@ -59,7 +61,11 @@ function init(): void {
     appendFileSync(gi, `${content.endsWith('\n') || content === '' ? '' : '\n'}.anafor/\n`);
   }
   const mcp = join(root, '.mcp.json');
-  if (!existsSync(mcp)) {
+  if (readSetupState()?.plugin_installed) {
+    console.log(
+      'Anafor plugin’i kalıcı kurulu: MCP sunucusu plugin’den gelir, .mcp.json yazılmadı.',
+    );
+  } else if (!existsSync(mcp)) {
     const cfg = {
       mcpServers: {
         anafor: {
@@ -92,14 +98,20 @@ async function doctor(): Promise<void> {
     encoding: 'utf8',
   });
   rows.push(['git deposu', git.status === 0, git.status === 0 ? 'evet' : 'değil (`git init`)']);
-  try {
-    const s = new Store(root);
-    s.close();
-    rows.push(['sqlite (.anafor/state.db)', true, 'tamam']);
-  } catch (e) {
-    rows.push(['sqlite', false, (e as Error).message]);
+  const proj = findAnaforRoot(root);
+  if (proj) {
+    try {
+      const s = new Store(proj);
+      s.close();
+      rows.push(['sqlite (.anafor/state.db)', true, proj]);
+    } catch (e) {
+      rows.push(['sqlite', false, (e as Error).message]);
+    }
+  } else {
+    rows.push(['anafor projesi', true, 'bu dizin bağlı değil (anafor init)']);
   }
-  for (const a of defaultAdapters().values()) {
+  rows.push(['kurulum', readSetupState() !== null, setupStateSummary()]);
+  for (const a of defaultAdapters(proj ? loadConfig(proj) : undefined).values()) {
     const d = await a.detect();
     rows.push([
       `işçi: ${a.id}`,
@@ -114,7 +126,15 @@ async function doctor(): Promise<void> {
 
 switch (cmd) {
   case 'init':
-    init();
+    init(root);
+    break;
+  case 'setup':
+    process.exitCode = await runSetup({
+      yes: rest.includes('--yes'),
+      plugin: !rest.includes('--no-plugin'),
+      statusline: !rest.includes('--no-statusline'),
+      init,
+    });
     break;
   case 'doctor':
     await doctor();
@@ -264,7 +284,9 @@ switch (cmd) {
   default:
     console.log(`anafor ${ANAFOR_VERSION}
 kullanım:
-  anafor init [dizin]     .anafor/ ve .mcp.json oluşturur
+  anafor setup [--yes] [--no-plugin] [--no-statusline]
+                          ilk kurulum sihirbazı (işçiler, kalıcı plugin, statusline, proje)
+  anafor init [dizin]     projeyi bağlar: .anafor/, politika (.mcp.json plugin yoksa)
   anafor doctor [dizin]   ortam ve işçi kontrolü
   anafor mcp [dizin]      MCP sunucusunu stdio üzerinde başlatır
   anafor migrate [dizin]  eski .orchestrator/ durumunu .anafor/'a kopyalar (kaynak değişmez)
