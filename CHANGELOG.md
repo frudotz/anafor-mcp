@@ -2,6 +2,11 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/) (0.x döneminde küçük sürüm kırıcı olabilir).
 
+## [Unreleased]
+
+### Düzeltilenler
+- **Codex Windows `spawn EPERM` kök çözümü:** unelevated sandbox isimli pipe'a izin vermediği için işçi test çalıştıramıyordu. `workers.codex.windows_sandbox: "elevated"` ayarı ve `anafor doctor` teşhisi eklendi; gerçek Codex işiyle doğrulandı.
+
 ## [0.2.0] - 2026-11-17
 
 ### Eklenenler
