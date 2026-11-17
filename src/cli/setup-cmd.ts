@@ -102,8 +102,8 @@ export async function runSetup(opts: SetupOptions): Promise<number> {
       (await ask('   Claude Code statusLine kurulsun mu? (mevcut ayar korunur)'))
     ) {
       const r = installStatusline();
-      statusline = r.changed || statusline;
-      console.log(`   ${ok(r.changed)} ${r.reason}`);
+      statusline = r.ok || statusline;
+      console.log(`   ${ok(r.ok)} ${r.reason}`);
     }
 
     // 5. Proje

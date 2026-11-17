@@ -45,10 +45,26 @@ describe('kurulum', () => {
       expect(s.permissions.defaultMode).toBe('auto');
       expect(s.statusLine.command).toMatch(/statusline$/);
       expect(existsSync(`${f}.anafor-backup`)).toBe(true);
-      // ikinci kez: mevcut statusLine korunur
+      // ikinci kez: Anafor'un kendi statusLine'ı → zaten kurulu (✔), değişiklik yok
       const r = installStatusline(f);
-      expect(r.changed).toBe(false);
-      expect(r.reason).toContain('korunuyor');
+      expect(r).toMatchObject({ changed: false, ok: true });
+      expect(r.reason).toContain('zaten kurulu');
+      // Anafor'un eski kurulum yolu → güncellenir
+      const old = JSON.parse(readFileSync(f, 'utf8'));
+      old.statusLine.command = '"node" "C:\\eski\\anafor-mcp\\dist\\cli\\main.js" statusline';
+      writeFileSync(f, JSON.stringify(old));
+      expect(installStatusline(f)).toMatchObject({ changed: true, reason: /güncellendi/ });
+      // başkasının statusLine'ı korunur (✘)
+      writeFileSync(
+        f,
+        JSON.stringify({ statusLine: { type: 'command', command: 'ccusage line' } }),
+      );
+      expect(installStatusline(f)).toMatchObject({
+        changed: false,
+        ok: false,
+        reason: /korunuyor/,
+      });
+      expect(JSON.parse(readFileSync(f, 'utf8')).statusLine.command).toBe('ccusage line');
       // hiç dosya yoksa oluşturulur
       expect(installStatusline(join(t.dir, 'yeni', 'settings.json')).changed).toBe(true);
       // geçersiz JSON'a dokunulmaz
