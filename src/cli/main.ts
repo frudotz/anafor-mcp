@@ -15,9 +15,17 @@ import { ANAFOR_VERSION } from '../version.js';
 import { findAnaforRoot, loadConfig } from '../core/config.js';
 import { jobsTable, runChat } from './chat.js';
 import { buildGoalPrompt, type RunGoalOptions } from './run.js';
-import { runSetup, setupStateSummary } from './setup-cmd.js';
+import { runSetup } from './setup-cmd.js';
 import { runExt } from './ext-cmd.js';
-import { findSkillspector, skillspectorVersion } from '../extensions/skillspector.js';
+import { runDoctor } from './doctor-cmd.js';
+import { healthSignals, statusLine } from './health.js';
+import {
+  availableUpdate,
+  readUpdateCache,
+  refreshInBackground,
+  refreshUpdateCache,
+  runUpdate,
+} from './update.js';
 import { formatCapacity, runRecommend } from './capacity-cmd.js';
 import { AnaforService } from '../server/service.js';
 import { readSetupState } from '../setup/setup.js';
@@ -91,53 +99,6 @@ function init(root: string): void {
   console.log(`Anafor hazır: ${join(root, '.anafor')}`);
 }
 
-async function doctor(): Promise<void> {
-  const rows: [string, boolean, string][] = [];
-  rows.push([
-    'node >= 24',
-    Number(process.versions.node.split('.')[0]) >= 24,
-    process.versions.node,
-  ]);
-  const git = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
-  rows.push(['git deposu', git.status === 0, git.status === 0 ? 'evet' : 'değil (`git init`)']);
-  const proj = findAnaforRoot(root);
-  if (proj) {
-    try {
-      const s = new Store(proj);
-      s.close();
-      rows.push(['sqlite (.anafor/state.db)', true, proj]);
-    } catch (e) {
-      rows.push(['sqlite', false, (e as Error).message]);
-    }
-  } else {
-    rows.push(['anafor projesi', true, 'bu dizin bağlı değil (anafor init)']);
-  }
-  rows.push(['kurulum', readSetupState() !== null, setupStateSummary()]);
-  {
-    const bin = findSkillspector(proj ? loadConfig(proj).extensions.skillspector_bin : null);
-    const v = bin ? skillspectorVersion(bin) : null;
-    rows.push([
-      'SkillSpector (eklenti kapısı)',
-      true,
-      v ?? 'yok — harici skill/MCP eklenemez (kurulum: anafor ext add yardımı)',
-    ]);
-  }
-  for (const a of defaultAdapters(proj ? loadConfig(proj) : undefined).values()) {
-    const d = await a.detect();
-    rows.push([
-      `işçi: ${a.id}`,
-      d.available && d.authOk !== false,
-      d.available ? `${d.version ?? ''}${d.reason ? ` · ${d.reason}` : ''}` : (d.reason ?? 'yok'),
-    ]);
-  }
-  for (const [name, okv, info] of rows)
-    console.log(`${okv ? '✔' : '✘'} ${name.padEnd(28)} ${info}`);
-  if (rows.some(([n, okv]) => !okv && !n.startsWith('işçi:'))) process.exitCode = 1;
-}
-
 switch (cmd) {
   case 'init':
     init(root);
@@ -147,11 +108,24 @@ switch (cmd) {
       yes: rest.includes('--yes'),
       plugin: !rest.includes('--no-plugin'),
       statusline: !rest.includes('--no-statusline'),
+      project: !rest.includes('--no-project'),
       init,
     });
     break;
   case 'doctor':
-    await doctor();
+    process.exitCode = await runDoctor(root);
+    break;
+  case 'update':
+    try {
+      process.exitCode = await runUpdate((l) => console.log(l), rest.includes('--check'));
+    } catch (e) {
+      console.error(`Güncelleme başarısız: ${(e as Error).message}`);
+      process.exitCode = 1;
+    }
+    break;
+  case 'update-check':
+    // statusline'ın arka planda başlattığı denetim (çıktı yok)
+    await refreshUpdateCache();
     break;
   case 'mcp':
     await startServer(process.env.ANAFOR_PROJECT_ROOT ?? (rest[0] ? root : undefined));
@@ -325,16 +299,19 @@ switch (cmd) {
     break;
   }
   case 'statusline': {
-    // Claude Code statusLine komutu: stdin JSON'daki rate_limits kaydedilir, kısa satır yazılır.
+    // Claude Code statusLine komutu: limitleri kaydeder; sürüm, güncelleme ve sağlık önerisi yazar.
     const chunks: Buffer[] = [];
-    for await (const c of process.stdin) chunks.push(c as Buffer);
+    for await (const ch of process.stdin) chunks.push(ch as Buffer);
+    let input: Record<string, unknown> = {};
     try {
-      const input = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') as Record<
-        string,
-        unknown
-      >;
-      const windows = parseClaudeStatusline(input);
-      if (windows.length) {
+      input = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') as Record<string, unknown>;
+    } catch {
+      // geçersiz girdi: yalnızca sürüm yazılır
+    }
+    let windows: ReturnType<typeof parseClaudeStatusline> = [];
+    try {
+      windows = parseClaudeStatusline(input);
+      if (windows.length)
         recordLimits({
           worker: 'claude',
           source: 'claude statusline',
@@ -342,14 +319,26 @@ switch (cmd) {
           status: statusFrom(windows),
           windows,
         });
-      }
-      const model = (input.model as { display_name?: string } | undefined)?.display_name ?? '';
-      process.stdout.write(
-        `anafor ${model ? `· ${model} ` : ''}${windows.length ? `· ${formatWindows(windows)}` : ''}`,
-      );
     } catch {
-      process.stdout.write('anafor');
+      // limit kaydı statusline'ı durdurmaz
     }
+    let signals: ReturnType<typeof healthSignals> = [];
+    try {
+      refreshInBackground();
+      const ws = input.workspace as { current_dir?: string } | undefined;
+      signals = healthSignals(ws?.current_dir ?? (input.cwd as string | undefined));
+    } catch {
+      // sağlık sinyali statusline'ı durdurmaz
+    }
+    process.stdout.write(
+      statusLine({
+        version: ANAFOR_VERSION,
+        model: (input.model as { display_name?: string } | undefined)?.display_name,
+        windows,
+        update: availableUpdate(readUpdateCache()),
+        signals,
+      }),
+    );
     break;
   }
   case 'hook':
@@ -362,7 +351,7 @@ switch (cmd) {
   default:
     console.log(`anafor ${ANAFOR_VERSION}
 kullanım:
-  anafor setup [--yes] [--no-plugin] [--no-statusline]
+  anafor setup [--yes] [--no-plugin] [--no-statusline] [--no-project]
                           ilk kurulum sihirbazı (işçiler, kalıcı plugin, statusline, proje)
   anafor init [dizin]     projeyi bağlar: .anafor/, politika (.mcp.json plugin yoksa)
   anafor doctor [dizin]   ortam ve işçi kontrolü
@@ -384,6 +373,7 @@ kullanım:
                           harici skill/MCP için SkillSpector kapısı (anafor ext yardım)
   anafor statusline       Claude Code statusLine komutu (limitleri kaydeder)
   anafor hook <olay>      Claude Code hook'u (pre-tool-use | session-start), girdi stdin'den
+  anafor update [--check]  son sürümü indirir, SHA256 doğrular, kurar ve plugin'i yeniler
   anafor version`);
 }
 

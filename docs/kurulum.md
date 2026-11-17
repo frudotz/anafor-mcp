@@ -64,10 +64,37 @@ Sihirbazın adımları:
 1. **Ortam:** Node, git ve Claude Code kontrolü.
 2. **İşçiler:** hangileri hazır, oturum ve limit durumu, eksikler için kurulum ipucu.
 3. **Plugin:** Anafor plugin'ini üretir. Onay verirsen resmi `claude plugin install` komutuyla Claude Code'a **kalıcı** kurar; böylece `--plugin-dir` gerekmez.
-4. **Statusline:** Claude limitlerinin görünmesi için `~/.claude/settings.json`'a durum satırı ekler. Mevcut bir statusLine varsa dokunulmaz; değiştirmeden önce yedek alınır.
-5. **Proje:** bulunduğun git deposunu Anafor'a bağlar (`anafor init`).
+4. **Statusline:** `~/.claude/settings.json`'a durum satırı ekler. Mevcut bir statusLine varsa dokunulmaz; değiştirmeden önce yedek alınır. Satır şunları gösterir:
 
-Etkileşimsiz kurulum: `anafor setup --yes` (atlamak için `--no-plugin`, `--no-statusline`).
+   ```
+   anafor v0.4.0 · ⬆ v0.5.0: anafor update · ⚠ 2 iş başarısız: anafor doctor · Opus 5.5 · 5s %24 · 7g %33
+   ```
+
+   - **Sürüm:** kurulu Anafor sürümü.
+   - **Yeni sürüm:** varsa güncelleme komutuyla birlikte gösterilir. Denetim 6 saatte bir arka planda yapılır ve statusline'ı bekletmez. Yalnızca herkese açık GitHub Release bilgisi okunur. Kapatmak için `ANAFOR_NO_UPDATE_CHECK=1`.
+   - **Kararlılık önerileri:**
+     - Plugin CLI'dan eskiyse: `anafor setup`.
+     - Son `anafor doctor` sorun bulduysa: `anafor doctor`.
+     - Projede son 2 saatte 2'den fazla iş başarısız olduysa: `anafor doctor`.
+   - **Model ve Claude limitleri.**
+5. **Proje:** bulunduğun git deposunu Anafor'a bağlar (`anafor init`). Varsayılan cevap "hayır"dır.
+
+Etkileşimsiz kurulum: `anafor setup --yes`. Atlamak istediğin adımlar için `--no-plugin`, `--no-statusline` veya `--no-project` ekle.
+
+## Güncelleme
+
+```bash
+anafor update          # son sürümü indir, SHA-256 doğrula, kur, plugin'i yenile
+anafor update --check  # yalnızca yeni sürüm var mı
+```
+
+`anafor update` şu adımları izler:
+1. Sürümün `SHA256SUMS.txt` dosyasını ve paketini indirir.
+2. Özeti doğrular. Uyuşmazsa hiçbir şey kurulmaz.
+3. Paketi `npm install -g` ile kurar.
+4. Plugin'i `anafor setup --yes --no-statusline --no-project` ile yeniler.
+
+Ardından Claude Code'u yeniden başlat.
 
 ## 4. Kullan
 
@@ -78,7 +105,7 @@ claude                           # Claude Code içinde: /anafor:plan <hedef>
 anafor jobs | anafor watch       # işleri izle
 anafor limits                    # oturum/kullanım limitleri
 anafor roles set review codex,claude-lite
-anafor doctor                    # sorun giderme
+anafor doctor                    # bölümlere ayrılmış kontrol; sonuç statusline'a yansır
 ```
 
 ## Kullanım koşulları özeti
