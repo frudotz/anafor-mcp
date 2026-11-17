@@ -10,6 +10,9 @@ import { balance } from '../../src/capacity/balancer.js';
 import { recommend, SUBSCRIPTIONS } from '../../src/capacity/meta.js';
 import { decideGate } from '../../src/extensions/gate.js';
 import { classifyShell } from '../../src/hooks/director.js';
+import { AnaforService, type ServiceError } from '../../src/server/service.js';
+import { serverInstructions, toolDescriptions } from '../../src/server/tools.js';
+import { Store } from '../../src/store/store.js';
 
 /** Katalogların anahtar ağacı ve fonksiyon/metin türleri birebir aynı olmalı. */
 function shape(o: unknown): unknown {
@@ -90,6 +93,36 @@ describe('dil desteği (F24)', () => {
       expect(classifyShell('rm -rf x')).toBe('dosya sistemi komutu');
     } finally {
       setLang('tr');
+    }
+  });
+
+  it('MCP sunucusu: araç açıklamaları ve servis hataları dile göre (F24d)', () => {
+    const t = tempDir();
+    const store = new Store(t.dir);
+    const svc = new AnaforService(store, new Map(), () => undefined);
+    const err = () => {
+      try {
+        svc.taskStatus('T-yok');
+      } catch (e) {
+        return e as ServiceError;
+      }
+      throw new Error('hata bekleniyordu');
+    };
+    try {
+      setLang('en');
+      const e = err();
+      expect(e.code).toBe('NOT_FOUND');
+      expect(e.message).toBe('Task not found: T-yok');
+      expect(e.hint).toBe('List tasks with project_status');
+      expect(toolDescriptions().task_status).toBe('Task state, criteria and jobs.');
+      expect(serverInstructions()).toMatch(/^Anafor: you are the DIRECTOR/);
+      setLang('tr');
+      expect(err().message).toBe('Görev bulunamadı: T-yok');
+      expect(toolDescriptions().task_status).toBe('Görevin durumu, kriterleri ve işleri.');
+    } finally {
+      setLang('tr');
+      store.close();
+      t.cleanup();
     }
   });
 });

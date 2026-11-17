@@ -54,6 +54,10 @@ import {
 } from '../governance/evidence.js';
 import { ensurePolicy } from '../governance/policy.js';
 import { activeGrants, createGrant, endGrant } from '../hooks/grants.js';
+import { m } from '../i18n/index.js';
+
+/** Servis mesaj kataloğu (geçerli dil). */
+const s = () => m().service;
 
 function appendTaskAudit(auditDir: string, record: object): void {
   mkdirSync(auditDir, { recursive: true });
@@ -185,8 +189,8 @@ export class AnaforService {
     if (u.total >= u.max) {
       throw new ServiceError(
         'LIMIT_REACHED',
-        `Global eşzamanlılık sınırı (${u.max}) dolu: bu projede ${u.project}, diğer projelerde ${u.other_projects} iş çalışıyor`,
-        'job_wait ile bir işin bitmesini bekleyin veya anafor.config.json → max_parallel_jobs',
+        s().globalLimit(u.max, u.project, u.other_projects),
+        s().globalLimitHint,
       );
     }
   }
@@ -205,7 +209,7 @@ export class AnaforService {
         return {
           worker: id,
           status: 'unknown' as const,
-          summary: 'bilinmiyor (henüz gözlenmedi veya araç limit bildirmiyor)',
+          summary: s().limitsUnknown,
           windows: [],
           observed_at: null,
         };
@@ -235,7 +239,7 @@ export class AnaforService {
   }
 
   private capacitySnapshot(cap: ReturnType<typeof loadConfig>['capacity']) {
-    const accounts: Record<string, string[]> = { claude: ['beyin'] };
+    const accounts: Record<string, string[]> = { claude: [s().brainLabel] };
     for (const id of this.adapters.keys()) (accounts[limitAccount(id)] ??= []).push(id);
     const limits = Object.fromEntries(Object.keys(accounts).map((a) => [a, currentLimits(a)]));
     return capacityReport({
@@ -257,7 +261,7 @@ export class AnaforService {
     const report = this.capacitySnapshot(cfg.capacity);
     return {
       ...report,
-      unit: 'KP = pencerenin %1i; free = 100 − kullanım − rezerv',
+      unit: s().capacityUnit,
       subscriptions: cfg.subscriptions,
       recommendation: cfg.subscriptions.length ? recommend(cfg.subscriptions) : null,
     };
@@ -271,7 +275,7 @@ export class AnaforService {
     const full = l.windows.find(
       (w) => w.used_percent >= 100 && (w.resets_at === null || w.resets_at > now),
     );
-    return full ? `${workerId}: ${full.name} limiti dolu (%${full.used_percent})` : null;
+    return full ? s().windowFull(workerId, full.name, full.used_percent) : null;
   }
 
   async route(role: Role, target: Job | null): Promise<string> {
@@ -320,7 +324,7 @@ export class AnaforService {
       if (!a.capabilities().roles.includes(role)) continue;
       const d = await a.detect();
       if (!d.available || d.authOk === false) {
-        reasons.push(`${id}: ${d.reason ?? 'kullanılamıyor'}`);
+        reasons.push(`${id}: ${d.reason ?? s().unavailable}`);
         continue;
       }
       const lim = this.limited(id);
@@ -332,15 +336,15 @@ export class AnaforService {
         .listJobs({ states: ACTIVE_JOB_STATES })
         .filter((j) => j.worker === id).length;
       if (running >= a.capabilities().maxConcurrency) {
-        reasons.push(`${id}: kapasite dolu`);
+        reasons.push(s().capacityFull(id));
         continue;
       }
       return id;
     }
     throw new ServiceError(
       'WORKER_UNAVAILABLE',
-      `'${role}' için uygun işçi yok`,
-      reasons.join('; ') || 'workers_list ile durumu kontrol edin',
+      s().noWorker(role),
+      reasons.join('; ') || s().noWorkerHint,
     );
   }
 
@@ -480,7 +484,7 @@ export class AnaforService {
   async jobDispatch(input: DispatchInput) {
     const task = this.mustTask(input.taskId);
     if (isClosedTaskState(task.state) || task.state === 'blocked') {
-      throw new ServiceError('INVALID_STATE', `Görev ${task.id} durumu: ${task.state}`);
+      throw new ServiceError('INVALID_STATE', s().taskStateBad(task.id, task.state));
     }
     const target = input.targetJobId ? this.mustJob(input.targetJobId) : null;
     this.routeNotes = [];
@@ -490,23 +494,20 @@ export class AnaforService {
     if (!adapter) {
       throw new ServiceError(
         'WORKER_UNAVAILABLE',
-        `Bilinmeyen işçi: ${workerId}`,
-        `Kullanılabilir: ${[...this.adapters.keys()].join(', ')}`,
+        s().unknownWorker(workerId),
+        s().availableWorkers([...this.adapters.keys()].join(', ')),
       );
     }
     const caps = adapter.capabilities();
     if (!caps.roles.includes(input.role)) {
-      throw new ServiceError(
-        'VALIDATION_FAILED',
-        `${workerId} '${input.role}' rolünü desteklemiyor`,
-      );
+      throw new ServiceError('VALIDATION_FAILED', s().roleUnsupported(workerId, input.role));
     }
     this.assertGlobalCapacity();
     const det = await adapter.detect();
     if (!det.available || det.authOk === false) {
       throw new ServiceError(
         'WORKER_UNAVAILABLE',
-        `${workerId} kullanılamıyor: ${det.reason ?? 'bilinmiyor'}`,
+        s().workerUnavailable(workerId, det.reason ?? s().unknown),
       );
     }
     const running = this.store
@@ -515,8 +516,8 @@ export class AnaforService {
     if (running >= caps.maxConcurrency) {
       throw new ServiceError(
         'LIMIT_REACHED',
-        `${workerId} eşzamanlılık sınırı (${caps.maxConcurrency}) dolu`,
-        'job_wait ile bir işin bitmesini bekleyin',
+        s().workerLimit(workerId, caps.maxConcurrency),
+        s().workerLimitHint,
       );
     }
 
@@ -527,22 +528,14 @@ export class AnaforService {
       input.workspace ??
       (target ? 'readonly' : writes ? (repoReady ? 'worktree' : 'shared') : 'readonly');
     if (workspace === 'worktree' && !repoReady) {
-      throw new ServiceError(
-        'VALIDATION_FAILED',
-        'worktree modu en az bir commit içeren bir git deposu gerektirir',
-        "Önce commit atın veya workspace: 'shared' kullanın",
-      );
+      throw new ServiceError('VALIDATION_FAILED', s().worktreeNeedsRepo, s().worktreeNeedsRepoHint);
     }
     if (workspace === 'shared') {
       const writer = this.store
         .listJobs({ states: ACTIVE_JOB_STATES })
         .find((j) => j.workspaceMode === 'shared');
       if (writer) {
-        throw new ServiceError(
-          'CONFLICT',
-          `Paylaşılan çalışma alanında zaten yazan bir iş var: ${writer.id}`,
-          "Bitmesini bekleyin veya workspace: 'worktree' kullanın",
-        );
+        throw new ServiceError('CONFLICT', s().sharedWriter(writer.id), s().sharedWriterHint);
       }
     }
 
@@ -588,7 +581,7 @@ export class AnaforService {
           branch = wt.branch;
           baseSha = wt.base;
         } catch (e) {
-          throw new ServiceError('INTERNAL', `Worktree oluşturulamadı: ${(e as Error).message}`);
+          throw new ServiceError('INTERNAL', s().worktreeFailed((e as Error).message));
         }
       }
     }
@@ -621,9 +614,7 @@ export class AnaforService {
         .stdout.split('\n')
         .filter((l) => l.trim() && !l.includes('.anafor/'));
       if (dirty.length) {
-        warnings.push(
-          `Çalışma ağacında ${dirty.length} commit edilmemiş değişiklik var; job_diff bunları da gösterir (taban: HEAD).`,
-        );
+        warnings.push(s().dirtyShared(dirty.length));
       }
     }
     this.startJob(job);
@@ -638,7 +629,7 @@ export class AnaforService {
   jobDiff(jobId: string, statOnly = false) {
     const j = this.mustJob(jobId);
     if (!isGitRepo(j.workdir)) {
-      throw new ServiceError('VALIDATION_FAILED', 'Çalışma alanı bir git deposu değil');
+      throw new ServiceError('VALIDATION_FAILED', s().notGitRepo);
     }
     const d = workDiff(j.workdir, j.baseSha);
     const dir = this.store.paths.jobDir(jobId);
@@ -701,7 +692,7 @@ export class AnaforService {
           ok: m.merged,
           detail: m.merged
             ? `${m.taskBranch} ← ${job.branch}`
-            : `çakışma: ${m.conflicts.join(', ')}`,
+            : s().mergeConflict(m.conflicts.join(', ')),
         });
         if (m.merged) integration = { task_branch: m.taskBranch, commit: m.commit };
       } catch (e) {
@@ -715,7 +706,7 @@ export class AnaforService {
       if (reviewJob && reviewJob.state === 'needs_review') {
         this.guard(() => this.store.transitionJob(reviewJob.id, 'approved'));
       }
-      this.store.updateTask(taskId, { state: 'accepted', note: `kabul: ${job.id}` });
+      this.store.updateTask(taskId, { state: 'accepted', note: s().acceptedNote(job.id) });
       appendTaskAudit(this.store.paths.auditDir, {
         event: 'task_accepted',
         task_id: taskId,
@@ -732,10 +723,10 @@ export class AnaforService {
       passed_gates: gates.filter((g) => g.ok).map((g) => g.gate),
       integration,
       note: failed.length
-        ? 'Kapılardan geçmedi: düzeltme isteyin (job_request_changes) veya kullanıcıya raporlayın.'
+        ? s().gatesFailedNote
         : integration
-          ? `Kabul edildi; değişiklikler ${integration.task_branch} dalında. Kullanıcı dalına almak için task_merge.`
-          : 'Kabul edildi. Kalıcı bilgi varsa proje hafızasını güncelleyin.',
+          ? s().acceptedOnBranch(integration.task_branch)
+          : s().acceptedPlain,
     };
   }
 
@@ -748,12 +739,12 @@ export class AnaforService {
     job: Job,
     reason: string,
   ): { ok: boolean; detail: string } {
-    if (!reason.trim()) return { ok: false, detail: 'doğrulama gerekçesi zorunlu' };
+    if (!reason.trim()) return { ok: false, detail: s().verifyReasonRequired };
     const dir = join(this.store.paths.anaforDir, 'evidence');
     const testsF = join(dir, `${taskId}-tests.txt`);
     const scanF = join(dir, `${taskId}-scan.txt`);
     if (!existsSync(testsF) || !existsSync(scanF)) {
-      return { ok: false, detail: 'kanıt yok: önce evidence_generate' };
+      return { ok: false, detail: s().noEvidence };
     }
     const after = job.endedAt ? Date.parse(job.endedAt) : 0;
     const fresh = [testsF, scanF].every((f) => statSync(f).mtimeMs >= after);
@@ -771,9 +762,7 @@ export class AnaforService {
     });
     return {
       ok,
-      detail: ok
-        ? `Anafor kanıtı: testler geçti, tarama temiz, işten sonra üretildi (gerekçe: ${reason})`
-        : `kanıt yetersiz: taze=${fresh}, test=${testsOk}, tarama=${scanOk}`,
+      detail: ok ? s().evidenceOk(reason) : s().evidenceWeak(fresh, testsOk, scanOk),
     };
   }
 
@@ -786,25 +775,22 @@ export class AnaforService {
     if (task.state !== 'accepted') {
       throw new ServiceError(
         'INVALID_STATE',
-        `Görev kabul edilmemiş: ${task.state}`,
-        'Önce task_accept',
+        s().taskNotAccepted(task.state),
+        s().taskNotAcceptedHint,
       );
     }
     const root = this.store.paths.root;
     const branch = taskBranchName(taskId);
     if (!branchExists(root, branch)) {
-      throw new ServiceError(
-        'NOT_FOUND',
-        `Görev dalı yok: ${branch} (shared modda değişiklikler zaten çalışma ağacında)`,
-      );
+      throw new ServiceError('NOT_FOUND', s().noTaskBranch(branch));
     }
     const current = git(root, ['branch', '--show-current']).stdout.trim();
     const target = targetBranch ?? current;
     if (target !== current) {
       throw new ServiceError(
         'VALIDATION_FAILED',
-        `Hedef dal (${target}) çalışma ağacındaki daldan (${current}) farklı`,
-        'Hedef dala geçin veya target_branch vermeyin',
+        s().targetMismatch(target, current),
+        s().targetMismatchHint,
       );
     }
     // Yalnızca izlenen dosyalardaki değişiklikler engeller. İzlenmeyen dosyalar (ör. kanıtlar)
@@ -813,11 +799,7 @@ export class AnaforService {
       .stdout.split('\n')
       .filter((l) => l.trim() && !l.includes('.anafor/'));
     if (dirty.length) {
-      throw new ServiceError(
-        'CONFLICT',
-        `Çalışma ağacında ${dirty.length} commit edilmemiş değişiklik var; birleştirme yapılmadı`,
-        'Kullanıcı değişikliklerini commit edin veya stash edin',
-      );
+      throw new ServiceError('CONFLICT', s().dirtyMerge(dirty.length), s().dirtyMergeHint);
     }
     const before = headSha(root);
     const email = git(root, ['config', 'user.email']).stdout.trim();
@@ -836,7 +818,7 @@ export class AnaforService {
         .stdout.split('\n')
         .filter(Boolean);
       git(root, ['merge', '--abort']);
-      return { merged: false, target, conflicts, note: 'Çakışma: birleştirme geri alındı.' };
+      return { merged: false, target, conflicts, note: s().mergeAborted };
     }
     const after = headSha(root);
     appendTaskAudit(this.store.paths.auditDir, {
@@ -851,7 +833,7 @@ export class AnaforService {
       target,
       before,
       after,
-      note: 'Geri almak için: git revert -m 1 ' + after,
+      note: s().revertHint(after),
     };
   }
 
@@ -872,12 +854,12 @@ export class AnaforService {
     const kept: { path: string; reason: string }[] = [];
     for (const path of new Set(jobs.map((j) => j.workdir))) {
       if (busy.has(path)) {
-        kept.push({ path, reason: 'aktif veya incelemede iş var' });
+        kept.push({ path, reason: s().keptBusy });
         continue;
       }
       if (!existsSync(path)) continue;
       if (hasChanges(path)) {
-        kept.push({ path, reason: 'kaydedilmemiş değişiklik var (silinmedi)' });
+        kept.push({ path, reason: s().keptDirty });
         continue;
       }
       const owner = jobs.find((j) => j.workdir === path);
@@ -906,14 +888,14 @@ export class AnaforService {
   taskClose(taskId: string, outcome: 'abandoned' | 'superseded', note: string) {
     const task = this.mustTask(taskId);
     if (isClosedTaskState(task.state)) {
-      throw new ServiceError('INVALID_STATE', `Görev zaten kapalı: ${task.state}`);
+      throw new ServiceError('INVALID_STATE', s().taskClosed(task.state));
     }
     const active = this.store.listJobs({ taskId, states: ACTIVE_JOB_STATES });
     if (active.length) {
       throw new ServiceError(
         'CONFLICT',
-        `Görevde aktif işler var: ${active.map((j) => j.id).join(', ')}`,
-        'Önce job_cancel ile iptal edin',
+        s().activeJobs(active.map((j) => j.id).join(', ')),
+        s().activeJobsHint,
       );
     }
     const t = this.store.updateTask(taskId, { state: outcome, note });
@@ -988,12 +970,12 @@ export class AnaforService {
   jobCancel(jobId: string, reason: string) {
     const j = this.mustJob(jobId);
     if (!ACTIVE_JOB_STATES.includes(j.state)) {
-      throw new ServiceError('INVALID_STATE', `İş ${jobId} aktif değil: ${j.state}`);
+      throw new ServiceError('INVALID_STATE', s().jobNotActive(jobId, j.state));
     }
     // Önce durum (runner yarışta geri çekilir), sonra süreç.
     const cancelled = this.guard(() =>
       this.store.transitionJob(jobId, 'cancelled', {
-        error: `iptal: ${reason}`,
+        error: s().cancelError(reason),
         endedAt: nowIso(),
       }),
     );
@@ -1007,18 +989,18 @@ export class AnaforService {
   async jobRequestChanges(jobId: string, findings: Finding[], instructions?: string) {
     const j = this.mustJob(jobId);
     if (j.state !== 'needs_review') {
-      throw new ServiceError('INVALID_STATE', `İş ${jobId} incelemede değil: ${j.state}`);
+      throw new ServiceError('INVALID_STATE', s().jobNotInReview(jobId, j.state));
     }
     const task = this.mustTask(j.taskId);
     if (task.correctionCount >= MAX_CORRECTIONS) {
       this.store.updateTask(task.id, {
         state: 'blocked',
-        note: `Düzeltme sınırı (${MAX_CORRECTIONS}) aşıldı`,
+        note: s().correctionLimitNote(MAX_CORRECTIONS),
       });
       throw new ServiceError(
         'LIMIT_REACHED',
-        `Görev ${task.id} için ${MAX_CORRECTIONS} düzeltme sınırına ulaşıldı; görev blocked`,
-        'Kullanıcıya raporlayın veya pürüzse intervene ile müdahale edin',
+        s().correctionLimit(task.id, MAX_CORRECTIONS),
+        s().correctionLimitHint,
       );
     }
     this.guard(() => this.store.transitionJob(jobId, 'changes_requested'));
@@ -1059,7 +1041,7 @@ export class AnaforService {
       if (!alive) {
         this.guard(() =>
           this.store.transitionJob(j.id, 'failed', {
-            error: 'orphaned: runner süreci bulunamadı (yeniden çalıştırılmadı)',
+            error: s().orphaned,
             endedAt: nowIso(),
           }),
         );
@@ -1120,9 +1102,7 @@ export class AnaforService {
       operation: input.operation,
       task_id: input.task_id,
       reasons,
-      note: reasons.length
-        ? 'Yetkisiz: daha riskli bir yönteme geçmeyin; eksik kanıtı tamamlayın veya kullanıcı onayı isteyin. Denemeyi operation_record ile blocked olarak kaydedin.'
-        : 'Yetkili. İşlemi projenin normal araçlarıyla yapın ve sonucu operation_record ile kaydedin.',
+      note: reasons.length ? s().unauthorizedNote : s().authorizedNote,
     };
   }
 
@@ -1156,10 +1136,10 @@ export class AnaforService {
         return {
           acquired: true,
           token: l.token,
-          note: 'İş bitince mutlaka release edin (finally).',
+          note: s().lockReleaseNote,
         };
       }
-      if (!opts.token) throw new Error('release için token gerekli');
+      if (!opts.token) throw new Error(s().releaseNeedsToken);
       const l = releaseMemoryLock(this.memoryDir, this.store.paths.projectId, opts.token);
       return { released: true, task_id: l.task_id };
     } catch (e) {
@@ -1194,10 +1174,9 @@ export class AnaforService {
     );
     const reasons: string[] = [];
     if (failed.length >= esc.failure_threshold)
-      reasons.push(`${failed.length} başarısız/reddedilen iş (eşik ${esc.failure_threshold})`);
-    if (task.state === 'blocked') reasons.push('görev blocked');
-    if (stalled.length)
-      reasons.push(`${stalled.length} iş ${esc.stall_minutes} dakikadan uzun süredir bitmedi`);
+      reasons.push(s().takeoverFailed(failed.length, esc.failure_threshold));
+    if (task.state === 'blocked') reasons.push(s().takeoverBlocked);
+    if (stalled.length) reasons.push(s().takeoverStalled(stalled.length, esc.stall_minutes));
     return {
       task_id: taskId,
       eligible: reasons.length > 0,
@@ -1216,15 +1195,15 @@ export class AnaforService {
     if (!st.eligible) {
       throw new ServiceError(
         'INVALID_STATE',
-        `Devralma koşulları oluşmadı: ${st.failed_jobs.length} başarısız iş, eşik ${st.thresholds.failure_threshold}`,
-        'Önce job_request_changes ile işçiye düzeltme verin; tekrarlayan başarısızlıkta devralın',
+        s().takeoverNotEligible(st.failed_jobs.length, st.thresholds.failure_threshold),
+        s().takeoverNotEligibleHint,
       );
     }
-    if (!reason.trim()) throw new ServiceError('VALIDATION_FAILED', 'Devralma gerekçesi zorunlu');
+    if (!reason.trim()) throw new ServiceError('VALIDATION_FAILED', s().takeoverReasonRequired);
     const task = this.mustTask(taskId);
     const root = this.store.paths.root;
     for (const j of this.store.listJobs({ taskId, states: ACTIVE_JOB_STATES })) {
-      if (j.worker !== 'director') this.jobCancel(j.id, `yönetici devraldı: ${reason}`);
+      if (j.worker !== 'director') this.jobCancel(j.id, s().takeoverCancel(reason));
     }
     const prev = this.store
       .listJobs({ taskId })
@@ -1264,7 +1243,7 @@ export class AnaforService {
     });
     this.store.transitionJob(jobId, 'starting');
     this.store.transitionJob(jobId, 'running', { startedAt: nowIso() });
-    this.store.updateTask(taskId, { state: 'in_progress', note: `devralındı: ${reason}` });
+    this.store.updateTask(taskId, { state: 'in_progress', note: s().takenOverNote(reason) });
     const relDir = relative(root, workdir).replace(/\\/g, '/');
     const grant = createGrant(root, {
       reason: `TAKEOVER ${taskId}: ${reason}`,
@@ -1288,9 +1267,7 @@ export class AnaforService {
       grant_id: grant.grant_id,
       expires_at: grant.expires_at,
       instructions:
-        mode === 'worktree'
-          ? `Yalnızca ${workdir} içinde çalış (dal ${branch}). Bitince testleri çalıştır ve takeover_complete çağır; ardından task_accept.`
-          : 'Paylaşılan çalışma alanında çalış. Bitince takeover_complete, ardından task_accept.',
+        mode === 'worktree' ? s().takeoverWorktree(workdir, branch) : s().takeoverShared,
     };
   }
 
@@ -1309,7 +1286,7 @@ export class AnaforService {
   ) {
     const job = this.mustJob(jobId);
     if (job.worker !== 'director' || job.state !== 'running') {
-      throw new ServiceError('INVALID_STATE', `İş ${jobId} aktif bir devralma işi değil`);
+      throw new ServiceError('INVALID_STATE', s().notTakeoverJob(jobId));
     }
     const changed = isGitRepo(job.workdir) ? workDiff(job.workdir, job.baseSha).changedFiles : [];
     const result: WorkerResultV1 = {
@@ -1360,21 +1337,13 @@ export class AnaforService {
     const cwd = existsSync(integ) ? integ : root;
     const jobs = this.store.listJobs({ taskId }).filter((j) => j.baseSha);
     const base = jobs[0]?.baseSha ?? headSha(root);
-    if (!base)
-      throw new ServiceError(
-        'VALIDATION_FAILED',
-        'Taban commit bulunamadı (git deposu ve commit gerekli)',
-      );
+    if (!base) throw new ServiceError('VALIDATION_FAILED', s().noBaseCommit);
 
     let tests: ReturnType<typeof generateTestEvidence> | null = null;
     if (!opts.skipTests) {
       const cmd = opts.testCommand ?? loadConfig(root).test_command ?? detectTestCommand(cwd);
       if (!cmd) {
-        throw new ServiceError(
-          'VALIDATION_FAILED',
-          'Test komutu bulunamadı',
-          'test_command verin veya anafor.config.json → test_command',
-        );
+        throw new ServiceError('VALIDATION_FAILED', s().noTestCommand, s().noTestCommandHint);
       }
       tests = generateTestEvidence(root, cwd, evidenceDir, taskId, cmd);
     }
@@ -1394,7 +1363,7 @@ export class AnaforService {
         scanner: scan.scanner,
         findings: scan.findings,
       },
-      note: 'operation_authorize için: test_evidence, sensitive_scan_evidence, tests_passed, sensitive_scan_clean bu değerlerden.',
+      note: s().evidenceNote,
     };
   }
 
@@ -1411,7 +1380,7 @@ export class AnaforService {
       });
       return {
         ...g,
-        note: 'Yalnızca bu yollarda ve süre içinde düzenleme serbest. Bitince intervene_end ile özet ver.',
+        note: s().interveneNote,
       };
     } catch (e) {
       throw new ServiceError('VALIDATION_FAILED', (e as Error).message);
@@ -1439,12 +1408,12 @@ export class AnaforService {
     } catch (e) {
       this.guard(() =>
         this.store.transitionJob(job.id, 'failed', {
-          error: `Runner başlatılamadı: ${(e as Error).message}`,
+          error: s().runnerFailed((e as Error).message),
           endedAt: nowIso(),
         }),
       );
       this.settleTask(job.taskId);
-      throw new ServiceError('WORKER_UNAVAILABLE', `Runner başlatılamadı: ${(e as Error).message}`);
+      throw new ServiceError('WORKER_UNAVAILABLE', s().runnerFailed((e as Error).message));
     }
   }
 
@@ -1460,18 +1429,13 @@ export class AnaforService {
 
   private mustTask(id: string): Task {
     const t = this.store.getTask(id);
-    if (!t)
-      throw new ServiceError(
-        'NOT_FOUND',
-        `Görev bulunamadı: ${id}`,
-        'project_status ile görevleri listeleyin',
-      );
+    if (!t) throw new ServiceError('NOT_FOUND', s().taskNotFound(id), s().taskNotFoundHint);
     return t;
   }
 
   private mustJob(id: string): Job {
     const j = this.store.getJob(id);
-    if (!j) throw new ServiceError('NOT_FOUND', `İş bulunamadı: ${id}`);
+    if (!j) throw new ServiceError('NOT_FOUND', s().jobNotFound(id));
     return j;
   }
 
