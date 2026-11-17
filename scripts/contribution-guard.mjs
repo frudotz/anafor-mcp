@@ -42,6 +42,11 @@ export const SENSITIVE_PATHS = [
   /^src\/runner\/spawn\.ts$/,
   /^schemas\//,
   /^SECURITY\.md$/,
+  /^LICENSE$/,
+  /^NOTICE$/,
+  /^src\/version\.ts$/,
+  /^AGENTS\.md$/,
+  /^CONTRIBUTING\.md$/,
   /^docs\/contribution-guard\.md$/,
 ];
 

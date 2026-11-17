@@ -28,6 +28,9 @@ Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme:
 - **İngilizce CLI, hook ve işçi metinleri (F24b)** ile **İngilizce dokümanlar (F24c)**.
 - **Katkı koruması (F29):** PR'lar için G01–G19 kuralları (`docs/contribution-guard.md`), doctor ile bulunan düzeltmeleri paylaşma rehberi (`docs/sharing-fixes.md`), `SECURITY.md`. `anafor doctor`, sorun veya öneri olduğunda düzeltmeyi paylaşmayı hatırlatır.
 
+- **İş emri dili:** arayüz dili İngilizceyse işçiye giden iş emri de İngilizcedir (kimlik satırları aynı kalır); işçi raporu aynı dilde gelir.
+- **Yönetişim:** iki bakımcılı onay kuralı (frudotz, RedRiveRR), `NOTICE` (AGPL-3.0 §7(b) atıf), `anafor version` kaynak/lisans satırı, iki dilli issue şablonları (#51).
+
 ### Değişenler
 - `anafor setup` proje bağlama sorusunda varsayılan cevap artık "hayır". `--no-project` eklendi.
 

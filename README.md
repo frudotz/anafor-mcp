@@ -117,6 +117,13 @@ npm run build
 
 Katkı kuralları: [CONTRIBUTING.md](CONTRIBUTING.md)
 
-## Lisans
+## Lisans, çatallar ve atıf
 
-[AGPL-3.0](LICENSE)
+Anafor [AGPL-3.0-only](LICENSE) lisanslıdır. Çatallamak (fork), değiştirmek ve kendi yol haritanızla geliştirmek serbesttir. Bunu yaparken uymanız gereken koşullar:
+
+- **`LICENSE` ve [`NOTICE`](NOTICE) dosyalarını koruyun.** NOTICE, AGPL-3.0 §7(b) kapsamında **orijinal kaynağın ve asıl geliştiricilerin** (https://github.com/frudotz/anafor-mcp, frudotz ve RedRiveRR) README'nizde ve `anafor version` çıktısında belirtilmesini şart koşar.
+- **Değişiklikleri işaretleyin (§5(a)).** Değiştirilmiş bir sürümü orijinal Anafor gibi sunmayın.
+- **Türetilmiş çalışmalar da AGPL-3.0 ile lisanslanır.** Değiştirilmiş bir sürümü ağ üzerinden başkalarına sunuyorsanız (örneğin bir MCP sunucusu olarak), o kullanıcılara kaynak kodunu sağlamanız gerekir (§13).
+- **Düzeltmeleri geri gönderin.** Çatalınızda düzelttiğiniz hataları ana repoya PR olarak gönderirseniz herkes yararlanır: [docs/sharing-fixes.md](docs/sharing-fixes.md).
+
+Bu bölüm hukuki tavsiye değildir; bağlayıcı metin [LICENSE](LICENSE) dosyasıdır.

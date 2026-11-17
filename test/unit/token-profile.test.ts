@@ -93,3 +93,34 @@ describe('önbellek dostu iş emri (F22)', () => {
     }
   });
 });
+
+describe('iş emri dili (F24)', () => {
+  it('İngilizce iş emri aynı yapıda ve kimlik satırları aynı', () => {
+    const t = tempDir();
+    const store = new Store(t.dir);
+    try {
+      const task = store.createTask({ title: 'T', objective: 'O' });
+      const job = store.createJob({
+        taskId: task.id,
+        role: 'review',
+        worker: 'codex',
+        workspaceMode: 'shared',
+        workdir: t.dir,
+        instructions: 'I',
+        timeoutS: 30,
+      });
+      const en = compilePrompt(task, job, { lang: 'en' });
+      expect(en).toMatch(/^# Anafor job order/);
+      expect(en).toContain('Do NOT modify code.');
+      expect(en).toContain('## Identity');
+      expect(en).toContain(`job_id: ${job.id}`);
+      expect(en).toContain('- (not specified)');
+      const tr = compilePrompt(task, job, { lang: 'tr' });
+      expect(tr).toMatch(/^# Anafor iş emri/);
+      expect(compilePrompt(task, job, { lang: 'en', resumed: true })).toMatch(/\(continued\)/);
+    } finally {
+      store.close();
+      t.cleanup();
+    }
+  });
+});

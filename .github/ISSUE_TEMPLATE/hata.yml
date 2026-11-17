@@ -1,27 +1,45 @@
-name: Hata bildirimi
-description: Beklenmeyen davranış
+name: Hata bildirimi / Bug report
+description: Beklenmeyen davranış / Unexpected behaviour
 labels: [bug]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        **Güvenlik açığı mı? / Security issue?** Burada açmayın; `SECURITY.md` içindeki özel raporlama yolunu kullanın. / Do not file it here; use the private reporting described in `SECURITY.md`.
+        Loglardan gizli bilgileri, kullanıcı adlarını ve yerel yolları çıkarın. / Remove secrets, usernames and local paths from logs.
   - type: textarea
     id: ne-oldu
     attributes:
-      label: Ne oldu, ne bekleniyordu?
+      label: Ne oldu, ne bekleniyordu? / What happened, what did you expect?
     validations:
       required: true
   - type: textarea
     id: adimlar
     attributes:
-      label: Yeniden üretme adımları
+      label: Yeniden üretme adımları / Steps to reproduce
     validations:
       required: true
   - type: input
     id: ortam
     attributes:
-      label: Ortam
-      placeholder: 'OS, Node, anafor, codex/claude sürümleri'
+      label: Ortam / Environment
+      placeholder: 'OS, Node, anafor version, codex/claude versions'
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: anafor doctor --json
+      description: Sorunlu kontrollerin kodları yeterli / The codes of failing checks are enough (`problems`, `warnings`).
+      render: json
   - type: textarea
     id: log
     attributes:
-      label: İlgili log
-      description: Gizli bilgileri çıkarın.
+      label: İlgili log / Relevant log
       render: text
+  - type: checkboxes
+    id: fix
+    attributes:
+      label: Düzeltme / Fix
+      options:
+        - label: Düzeltmeyi kendim PR olarak göndermek istiyorum (docs/sharing-fixes.md) / I'd like to send the fix as a PR
