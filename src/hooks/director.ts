@@ -48,8 +48,59 @@ const MUTATING_PATTERNS: [RegExp, Why][] = [
 
 /** Shell komutu dosya değiştiriyor mu? Değiştiriyorsa neden döner. */
 export function classifyShell(command: string): string | null {
-  for (const [re, why] of MUTATING_PATTERNS) if (re.test(command)) return m().director.why[why];
+  const interpreter =
+    /(?:^|[\s;&|(])(?:bash|sh|zsh)\s+-c\b|(?:^|[\s;&|(])(?:pwsh|powershell)\s+(?:-c\b|-command\b)|(?:^|[\s;&|(])cmd\s+\/c\b|(?:^|[\s;&|(])eval\b|(?:^|[\s;&|(])(?:node\s+-e|python\s+-c)\b/i.test(
+      command,
+    );
+  const candidate = stripQuotedAndHeredoc(command, !interpreter);
+  for (const [re, why] of MUTATING_PATTERNS) if (re.test(candidate)) return m().director.why[why];
   return null;
+}
+
+/** Removes non-command text while preserving shell syntax that can execute substitutions. */
+export function stripQuotedAndHeredoc(command: string, stripQuotes = true): string {
+  const lines = command.split(/\r?\n/);
+  let text = '';
+  let heredoc: { delimiter: string; stripTabs: boolean } | null = null;
+  for (const line of lines) {
+    if (heredoc) {
+      const end = heredoc.stripTabs ? line.replace(/^\t+/, '') : line;
+      if (end.trimEnd() === heredoc.delimiter) heredoc = null;
+      text += line.replace(/>/g, ' ') + '\n';
+      continue;
+    }
+    let out = '';
+    for (let i = 0; i < line.length;) {
+      if (line.startsWith('<<', i)) {
+        const match = line.slice(i).match(/^<<(-?)[ \t]*(['"]?)([\w.-]+)\2/);
+        if (match) heredoc = { delimiter: match[3] ?? '', stripTabs: match[1] === '-' };
+      }
+      const ch = line[i];
+      if (stripQuotes && ch === "'") {
+        const end = line.indexOf("'", i + 1);
+        if (end >= 0) {
+          out += line.slice(i + 1, end).replace(/>/g, ' ');
+          i = end + 1;
+          continue;
+        }
+      } else if (stripQuotes && ch === '"') {
+        let end = i + 1;
+        while (end < line.length && line[end] !== '"') end++;
+        if (end < line.length) {
+          const value = line.slice(i + 1, end);
+          if (!value.includes('$(') && !value.includes('`')) {
+            out += value.replace(/>/g, ' ');
+            i = end + 1;
+            continue;
+          }
+        }
+      }
+      out += ch;
+      i++;
+    }
+    text += out + '\n';
+  }
+  return text;
 }
 
 function toRel(root: string, cwd: string, p: string): string | null {
