@@ -3,11 +3,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { WorkerResultV1 } from '../src/contracts/worker-result.js';
 
-export function tempDir(prefix = 'anafor-test-'): { dir: string; cleanup: () => void } {
+export function tempDir(
+  prefix = 'anafor-test-',
+  opts: { maxRetries?: number; retryDelay?: number } = {},
+): { dir: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   return {
     dir,
-    cleanup: () => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }),
+    cleanup: () =>
+      rmSync(dir, {
+        recursive: true,
+        force: true,
+        maxRetries: opts.maxRetries ?? 5,
+        retryDelay: opts.retryDelay ?? 100,
+      }),
   };
 }
 

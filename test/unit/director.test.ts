@@ -2,7 +2,12 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_CONFIG, findAnaforRoot, resolveProjectRoot } from '../../src/core/config.js';
-import { classifyShell, decide, runPreToolUse } from '../../src/hooks/director.js';
+import {
+  classifyShell,
+  decide,
+  runPreToolUse,
+  stripQuotedAndHeredoc,
+} from '../../src/hooks/director.js';
 import { activeGrants, createGrant, endGrant } from '../../src/hooks/grants.js';
 import { tempDir } from '../helpers.js';
 
@@ -38,9 +43,34 @@ describe('classifyShell', () => {
     'git commit -m "x"',
     'gh pr merge 3 --squash --auto',
     'echo $((2>1))',
+    "echo 'a > b'",
+    'git commit -m "x -> y"',
+    `gh pr create --body "$(cat <<'EOF'\n<id…> [--mode any]\nEOF\n)"`,
+    'grep "=>" f',
   ];
   it.each(mutating)('değiştirici: %s', (c) => expect(classifyShell(c)).not.toBeNull());
   it.each(safe)('güvenli: %s', (c) => expect(classifyShell(c)).toBeNull());
+  it.each([
+    'echo x > f',
+    'cat <<EOF > out.txt',
+    'echo "$(cat a > b)"',
+    'echo `cat a > b`',
+    "printf '%s' x >> log",
+    "bash -c 'echo a > f'",
+    'sh -c "x > f"',
+    'pwsh -Command "Get-Date > f"',
+    "powershell -c 'Get-Date > f'",
+    'cmd /c "echo a > f"',
+    'eval "echo a > f"',
+    'node -e "console.log(1); process.stdout.write(\"x > f\")"',
+    'python -c \'print(1); open("f", "w")\'',
+  ])('gerçek yönlendirmeyi yakalar: %s', (c) => expect(classifyShell(c)).not.toBeNull());
+  it('tırnak ve heredoc içeriğini safça ayıklar, açılış satırını korur', () => {
+    expect(stripQuotedAndHeredoc(`cat <<'EOF' > out\ntext > ignored\nEOF\necho 'x > y'`)).toContain(
+      '> out',
+    );
+    expect(stripQuotedAndHeredoc('echo "$(cat a > b)"')).toContain('> b');
+  });
 });
 
 describe('decide', () => {
