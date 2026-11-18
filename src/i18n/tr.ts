@@ -122,6 +122,9 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
   },
 
   status: {
+    workerLabel: (worker: string) => (worker === 'codex' ? 'codex' : worker),
+    ageMinutes: 'dk önce',
+    ageHours: 'sa önce',
     update: (v: string) => `⬆ v${v}: anafor update`,
     pluginOld: (v: string) => `plugin v${v}`,
     problem: 'sorun var',

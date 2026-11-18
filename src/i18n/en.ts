@@ -124,6 +124,9 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
   },
 
   status: {
+    workerLabel: (worker: string) => (worker === 'codex' ? 'codex' : worker),
+    ageMinutes: 'm ago',
+    ageHours: 'h ago',
     update: (v: string) => `⬆ v${v}: anafor update`,
     pluginOld: (v: string) => `plugin v${v}`,
     problem: 'problem',
