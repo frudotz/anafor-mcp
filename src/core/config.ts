@@ -142,3 +142,11 @@ export function findAnaforRoot(start: string, home = homedir()): string | null {
     dir = parent;
   }
 }
+
+/** Shared project-root precedence for MCP, hooks, and CLI. */
+export function resolveProjectRoot(env: NodeJS.ProcessEnv = process.env, cwd = process.cwd()) {
+  if (env.ANAFOR_PROJECT_ROOT) return { root: resolve(env.ANAFOR_PROJECT_ROOT), initialized: true };
+  const start = env.CLAUDE_PROJECT_DIR ?? cwd;
+  const found = findAnaforRoot(start);
+  return found ? { root: found, initialized: true } : { root: resolve(start), initialized: false };
+}

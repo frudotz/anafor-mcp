@@ -41,6 +41,10 @@ export function isTerminalJobState(s: JobState): boolean {
   return JOB_TRANSITIONS[s].length === 0;
 }
 
+export function isJobWaitComplete(s: JobState): boolean {
+  return isTerminalJobState(s) || s === 'needs_review' || s === 'approved';
+}
+
 export function canTransitionJob(from: JobState, to: JobState): boolean {
   return JOB_TRANSITIONS[from].includes(to);
 }

@@ -1,4 +1,4 @@
-import { findAnaforRoot, loadConfig } from '../core/config.js';
+import { loadConfig, resolveProjectRoot } from '../core/config.js';
 import { ACTIVE_JOB_STATES } from '../core/states.js';
 import { Store } from '../store/store.js';
 import { checkExtensions } from '../extensions/registry.js';
@@ -11,8 +11,9 @@ export function runSessionStart(
   env: NodeJS.ProcessEnv = process.env,
 ): string {
   if (env.ANAFOR_WORKER === '1') return '';
-  const root = findAnaforRoot(input.cwd ?? process.cwd());
-  if (!root) return '';
+  const resolved = resolveProjectRoot(env, input.cwd ?? process.cwd());
+  if (!resolved.initialized) return '';
+  const root = resolved.root;
   const config = loadConfig(root);
   const store = new Store(root);
   try {

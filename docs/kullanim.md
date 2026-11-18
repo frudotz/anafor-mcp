@@ -60,7 +60,9 @@ Beyin hedefi kullanıcı olmadan baştan sona yürütür: plan → dağıt → i
 | Adım | Komut veya araç |
 |---|---|
 | Plan | `/anafor:plan <hedef>`: analiz → görevler + kabul kriterleri → onay |
-| Dağıt | `/anafor:run`: `job_dispatch` → `job_wait` → `job_result` / `job_diff` |
+| Dağıt | `/anafor:run`: `job_dispatch` → uzun işte arka plan `anafor job wait <id>` → `job_result` / `job_diff` |
+
+Uzun işleri beklemek için Claude Code'da Bash `run_in_background` kullanarak `anafor job wait <id>` çalıştırın; bitince harness yöneticiyi uyandırır. MCP `job_wait` aracı en fazla 50 saniyelik kısa kontroller içindir.
 | Düzelt | `job_request_changes` (aynı işçi oturumu, görev başına en fazla 5) |
 | Kabul | `/anafor:accept <görev> <iş>`: `task_accept` kapıları; worktree işi görev dalına birleşir. İşçi testleri çalıştıramadıysa (ör. sandbox): `evidence_generate` → `task_accept` + `verified_by_evidence_reason` |
 | Dalına al | `task_merge`: görev dalı → çalışma ağacındaki dal (temiz ağaç şartı) |

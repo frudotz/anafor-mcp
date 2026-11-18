@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { DEFAULT_CONFIG, findAnaforRoot } from '../../src/core/config.js';
+import { DEFAULT_CONFIG, findAnaforRoot, resolveProjectRoot } from '../../src/core/config.js';
 import { classifyShell, decide, runPreToolUse } from '../../src/hooks/director.js';
 import { activeGrants, createGrant, endGrant } from '../../src/hooks/grants.js';
 import { tempDir } from '../helpers.js';
@@ -100,6 +100,19 @@ describe('decide', () => {
   });
 });
 
+it('hook and MCP resolve CLAUDE_PROJECT_DIR even when hook cwd points elsewhere', () => {
+  const root = tempDir().dir;
+  mkdirSync(join(root, '.anafor'), { recursive: true });
+  const other = tempDir().dir;
+  const env = { CLAUDE_PROJECT_DIR: root } as NodeJS.ProcessEnv;
+  expect(resolveProjectRoot(env, other).root).toBe(root);
+  const result = runPreToolUse(
+    { cwd: other, tool_name: 'Edit', tool_input: { file_path: join(root, 'src', 'unsafe.ts') } },
+    env,
+  );
+  expect(result).toContain('deny');
+});
+
 describe('runPreToolUse + izinler (dosya sistemi)', () => {
   let t: ReturnType<typeof tempDir>;
   beforeEach(() => {
@@ -107,6 +120,8 @@ describe('runPreToolUse + izinler (dosya sistemi)', () => {
     mkdirSync(join(t.dir, '.anafor'), { recursive: true });
   });
   afterEach(() => t.cleanup());
+  const runLocal = (input: Parameters<typeof runPreToolUse>[0]) =>
+    runPreToolUse(input, { ANAFOR_PROJECT_ROOT: t.dir });
 
   it('Anafor projesi değilse çıktı yok', () => {
     const plain = tempDir();
@@ -120,7 +135,7 @@ describe('runPreToolUse + izinler (dosya sistemi)', () => {
   });
 
   it('engelleme Claude Code biçiminde döner ve ihlal audit e yazılır', () => {
-    const out = runPreToolUse({
+    const out = runLocal({
       cwd: join(t.dir),
       tool_name: 'Write',
       tool_input: { file_path: 'src/a.ts' },
@@ -140,18 +155,18 @@ describe('runPreToolUse + izinler (dosya sistemi)', () => {
   it('proje config ile warn modu', () => {
     writeFileSync(join(t.dir, 'anafor.config.json'), JSON.stringify({ director_mode: 'warn' }));
     expect(
-      runPreToolUse({ cwd: t.dir, tool_name: 'Write', tool_input: { file_path: 'src/a.ts' } }),
+      runLocal({ cwd: t.dir, tool_name: 'Write', tool_input: { file_path: 'src/a.ts' } }),
     ).toBe('');
   });
 
   it('grant yaşam döngüsü: oluştur → izin → bitir → izin yok', () => {
     const g = createGrant(t.dir, { reason: 'küçük çakışma', paths: ['src/a.ts'], ttlMin: 5 });
     expect(
-      runPreToolUse({ cwd: t.dir, tool_name: 'Write', tool_input: { file_path: 'src/a.ts' } }),
+      runLocal({ cwd: t.dir, tool_name: 'Write', tool_input: { file_path: 'src/a.ts' } }),
     ).toBe('');
     endGrant(t.dir, g.grant_id, 'çözüldü');
     expect(
-      runPreToolUse({ cwd: t.dir, tool_name: 'Write', tool_input: { file_path: 'src/a.ts' } }),
+      runLocal({ cwd: t.dir, tool_name: 'Write', tool_input: { file_path: 'src/a.ts' } }),
     ).not.toBe('');
   });
 

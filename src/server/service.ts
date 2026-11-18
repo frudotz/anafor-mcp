@@ -7,6 +7,7 @@ import {
   ACTIVE_JOB_STATES,
   isClosedTaskState,
   isTerminalJobState,
+  isJobWaitComplete,
   MAX_CORRECTIONS,
   type JobState,
 } from '../core/states.js';
@@ -926,12 +927,10 @@ export class AnaforService {
   async jobWait(jobIds: string[], timeoutS = 45, mode: 'any' | 'all' = 'any') {
     for (const id of jobIds) this.mustJob(id);
     const deadline = Date.now() + Math.min(Math.max(timeoutS, 1), MAX_WAIT_S) * 1000;
-    const settled = (s: JobState) =>
-      isTerminalJobState(s) || s === 'needs_review' || s === 'approved';
     for (;;) {
       const jobs = jobIds.map((id) => this.store.mustGetJob(id));
-      const done = jobs.filter((j) => settled(j.state));
-      const pending = jobs.filter((j) => !settled(j.state));
+      const done = jobs.filter((j) => isJobWaitComplete(j.state));
+      const pending = jobs.filter((j) => !isJobWaitComplete(j.state));
       const satisfied = mode === 'any' ? done.length > 0 : pending.length === 0;
       if (satisfied || Date.now() >= deadline) {
         return {
