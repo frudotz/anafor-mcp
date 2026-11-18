@@ -156,7 +156,7 @@ MCP aracı: `workers_limits`. Kaynaklar (yalnızca resmi araçların kendi verdi
 
 | İşçi | Kaynak |
 |---|---|
-| Codex | `~/.codex/sessions/**/rollout-*.jsonl` içindeki son `token_count.rate_limits` |
+| Codex | `codex app-server` içindeki salt okunur `account/rateLimits/read`; erişilemezse rollout yedeği. `anafor limits --refresh` canlı yeniler, statusline önbelleği en fazla 5 dakikada bir arka planda yeniler. |
 | Claude (beyin ve claude-lite) | `claude-lite` işlerindeki `rate_limit_event` + Claude Code statusline girdisi |
 | Antigravity, OpenCode, yerel | Araç limit bildirmiyor → `unknown` |
 

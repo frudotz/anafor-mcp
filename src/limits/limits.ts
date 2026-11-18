@@ -1,6 +1,8 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { isWindowsShim, quoteCmdArg, killTree } from '../adapters/process.js';
 import { m } from '../i18n/index.js';
 
 /**
@@ -174,6 +176,102 @@ export function readCodexLimits(env: NodeJS.ProcessEnv = process.env): WorkerLim
   return null;
 }
 
+/** Read Codex's official, read-only rate limit endpoint over app-server JSON-RPC. */
+export async function readCodexLimitsLive(
+  env: NodeJS.ProcessEnv = process.env,
+  bin = env.ANAFOR_CODEX_BIN || 'codex',
+  timeoutMs = 15_000,
+  appServerArgs = ['app-server'],
+): Promise<WorkerLimits | null> {
+  return new Promise((resolve) => {
+    let child: ReturnType<typeof spawn>;
+    try {
+      const args = appServerArgs;
+      const shim = isWindowsShim(bin);
+      child = spawn(bin, shim ? args.map(quoteCmdArg) : args, {
+        env,
+        stdio: ['pipe', 'pipe', 'ignore'],
+        windowsHide: true,
+        shell: shim,
+      });
+    } catch {
+      resolve(null);
+      return;
+    }
+    let done = false;
+    let buffer = '';
+    let initialized = false;
+    const finish = (value: WorkerLimits | null) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      if (child.exitCode === null) killTree(child);
+      resolve(value);
+    };
+    const send = (obj: object) => child.stdin?.write(`${JSON.stringify(obj)}\n`);
+    const timer = setTimeout(() => finish(null), timeoutMs);
+    child.on('error', () => finish(null));
+    child.on('close', () => finish(null));
+    child.stdout?.on('data', (chunk: Buffer) => {
+      buffer += chunk.toString('utf8');
+      let i: number;
+      while ((i = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, i).trim();
+        buffer = buffer.slice(i + 1);
+        let msg: Record<string, unknown>;
+        try {
+          msg = JSON.parse(line) as Record<string, unknown>;
+        } catch {
+          continue;
+        }
+        if (msg.id === 1 && !initialized) {
+          initialized = true;
+          send({ method: 'initialized' });
+          send({ id: 2, method: 'account/rateLimits/read' });
+        } else if (msg.id === 2) {
+          if (msg.error) {
+            finish(null);
+            return;
+          }
+          const result = (msg.result ?? {}) as Record<string, unknown>;
+          const rl = (result.rateLimits ?? {}) as Record<string, unknown>;
+          const windows: LimitWindow[] = [];
+          for (const [key, name] of [
+            ['primary', 'five_hour'],
+            ['secondary', 'seven_day'],
+          ] as const) {
+            const w = rl[key] as Record<string, unknown> | undefined;
+            if (w && typeof w.usedPercent === 'number')
+              windows.push({
+                name,
+                used_percent: w.usedPercent,
+                resets_at: typeof w.resetsAt === 'number' ? w.resetsAt : null,
+                window_minutes:
+                  typeof w.windowDurationMins === 'number' ? w.windowDurationMins : null,
+              });
+          }
+          if (!windows.length) {
+            finish(null);
+            return;
+          }
+          const limits = rl.rateLimitReachedType ? 'limited' : statusFrom(windows);
+          const status =
+            result.ordinaryUsageAllowed === false && limits === 'ok' ? 'warning' : limits;
+          finish({
+            worker: 'codex',
+            source: 'codex app-server',
+            observed_at: new Date().toISOString(),
+            status,
+            windows,
+          });
+        }
+      }
+    });
+    child.stdin?.on('error', () => finish(null));
+    send({ id: 1, method: 'initialize', params: { clientInfo: { name: 'anafor', version: '1' } } });
+  });
+}
+
 /** İnsan okunur kısa özet: "5s %44 (14:30'da sıfırlanır) · 7g %26" (dil: F24). */
 export function formatWindows(windows: LimitWindow[], now = Date.now()): string {
   const t = m().windows;
@@ -191,15 +289,30 @@ export function formatWindows(windows: LimitWindow[], now = Date.now()): string 
     .join(' · ');
 }
 
-/** Bir hesabın en güncel limit gözlemi (Codex: rollout dosyası; diğerleri: kayıtlı). */
+/** Bir hesabın en güncel önbelleklenmiş limit gözlemi. */
 export function currentLimits(
   account: string,
   env: NodeJS.ProcessEnv = process.env,
 ): WorkerLimits | null {
   const stored = readStoredLimits(env)[account] ?? null;
   if (account !== 'codex') return stored;
-  const live = readCodexLimits(env);
-  if (!live) return stored;
-  if (!stored) return live;
-  return Date.parse(live.observed_at) >= Date.parse(stored.observed_at) ? live : stored;
+  return stored;
+}
+
+/** Refresh Codex cache via app-server, falling back to a newer rollout observation only. */
+export async function refreshCodexLimits(
+  env: NodeJS.ProcessEnv = process.env,
+  bin = env.ANAFOR_CODEX_BIN || 'codex',
+  timeoutMs = 15_000,
+  appServerArgs = ['app-server'],
+): Promise<WorkerLimits | null> {
+  const live = await readCodexLimitsLive(env, bin, timeoutMs, appServerArgs);
+  const stored = readStoredLimits(env).codex ?? null;
+  const candidate = live ?? readCodexLimits(env);
+  if (!candidate) return stored;
+  if (live || !stored || Date.parse(candidate.observed_at) > Date.parse(stored.observed_at)) {
+    recordLimits(candidate, env);
+    return candidate;
+  }
+  return stored;
 }

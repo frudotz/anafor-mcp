@@ -7,7 +7,7 @@ import {
   type PermissionRequest,
 } from '../chat/permissions.js';
 import { ACTIVE_JOB_STATES } from '../core/states.js';
-import { formatWindows, readCodexLimits, readStoredLimits } from '../limits/limits.js';
+import { formatWindows, readStoredLimits } from '../limits/limits.js';
 import { Store } from '../store/store.js';
 import { m } from '../i18n/index.js';
 
@@ -63,8 +63,7 @@ export function jobsTable(store: Store, all = false): string[] {
 
 export function limitsLines(): string[] {
   const stored = readStoredLimits();
-  const codex = readCodexLimits();
-  const rows = { ...stored, ...(codex ? { codex } : {}) };
+  const rows = stored;
   const out = Object.values(rows).map(
     (r) => `${r.worker.padEnd(12)} ${r.status.padEnd(8)} ${formatWindows(r.windows)}`,
   );
