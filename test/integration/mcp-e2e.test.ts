@@ -15,7 +15,9 @@ function parse(res: unknown): any {
 
 describe.skipIf(!existsSync(SERVER))('MCP sunucusu uçtan uca (stdio)', () => {
   it('araçlar listelenir; görev → dağıt → bekle → sonuç (ayrık runner + sahte işçi)', async () => {
-    const t = tempDir();
+    // job_wait can return before the runner calls store.close(); on Windows, open SQLite/WAL
+    // handles can briefly prevent deletion. Use linear backoff for ~5.5 seconds here.
+    const t = tempDir('anafor-test-', { maxRetries: 10, retryDelay: 100 });
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: [SERVER],
