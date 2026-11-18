@@ -166,6 +166,8 @@ To also see the brain session's limits, add this to your Claude Code settings (`
 { "statusLine": { "type": "command", "command": "node /path/anafor-mcp/dist/cli/main.js statusline" } }
 ```
 
+The statusline reads Codex limits from cache. Observations older than 30 minutes are dimmed and those older than 24 hours are hidden. The default worker list is `codex`; set `"statusline": { "workers": [] }` in `anafor.config.json` to disable worker limits, or add other workers with cached limits.
+
 The router skips a worker whose window is 100% full (and not yet reset).
 
 ## 7c. Capacity model and role assignment recommendation

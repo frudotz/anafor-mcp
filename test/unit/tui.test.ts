@@ -2,7 +2,13 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { stripVTControlCharacters as strip } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { healthSignals, recentFailures, statusLine, writeHealth } from '../../src/cli/health.js';
+import {
+  healthSignals,
+  recentFailures,
+  statusLine,
+  statuslineWorkers,
+  writeHealth,
+} from '../../src/cli/health.js';
 import { wrap } from '../../src/cli/ui.js';
 import {
   availableUpdate,
@@ -49,6 +55,24 @@ describe('sürüm denetimi (F28)', () => {
 });
 
 describe('statusline ve sağlık sinyalleri (F28)', () => {
+  it('geçersiz proje configinde Codex varsayılanına düşer ve satır üretir', () => {
+    const t = tempDir();
+    try {
+      mkdirSync(join(t.dir, '.anafor'));
+      writeFileSync(
+        join(t.dir, 'anafor.config.json'),
+        JSON.stringify({ workers: { codex: { user_config: 'invalid' } } }),
+      );
+      const workers = statuslineWorkers(t.dir, {});
+      expect(workers).toEqual(['codex']);
+      expect(
+        strip(statusLine({ version: '1', windows: [], update: null, signals: [], workers: [] })),
+      ).toBe('anafor v1');
+    } finally {
+      t.cleanup();
+    }
+  });
+
   it('satır: sürüm, güncelleme, öneriler, model, limitler', () => {
     const s = strip(
       statusLine({
@@ -65,6 +89,25 @@ describe('statusline ve sağlık sinyalleri (F28)', () => {
     expect(strip(statusLine({ version: '0.4.0', windows: [], update: null, signals: [] }))).toBe(
       'anafor v0.4.0',
     );
+  });
+
+  it('önbellekteki işçi limitlerini yaş ve durum renkleriyle gösterir', () => {
+    const now = Date.parse('2026-11-19T12:00:00Z');
+    const limit = (minutes: number, status: 'ok' | 'warning' | 'limited' = 'ok') => ({
+      worker: 'codex',
+      source: 'cache',
+      observed_at: new Date(now - minutes * 60_000).toISOString(),
+      status,
+      windows: [{ name: 'five_hour', used_percent: 3, resets_at: null, window_minutes: 300 }],
+    });
+    const base = { version: '1', windows: [], update: null, signals: [], now };
+    expect(strip(statusLine({ ...base, workers: [limit(5)] }))).toContain('codex 5s %3');
+    expect(statusLine({ ...base, workers: [limit(31)] })).toContain('90'); // gray ANSI sequence
+    expect(strip(statusLine({ ...base, workers: [limit(31)] }))).toContain('(31dk önce)');
+    expect(strip(statusLine({ ...base, workers: [limit(24 * 60)] }))).not.toContain('codex');
+    expect(statusLine({ ...base, workers: [limit(1, 'limited')] })).toContain('31m'); // red ANSI sequence
+    expect(statusLine({ ...base, workers: [limit(1, 'warning')] })).toContain('33m'); // yellow ANSI sequence
+    expect(strip(statusLine({ ...base, workers: [] }))).toBe('anafor v1');
   });
 
   it('eski plugin, başarısız doctor ve art arda başarısız işler önerilir', () => {
