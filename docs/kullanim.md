@@ -116,6 +116,14 @@ Sunucu yeniden başlarsa ölü işler `failed (orphaned)` olur. **Hiçbir iş ot
 
 `.anafor/config.json` yerel ezmeler içindir (commit edilmez). Proje dosyası önceliklidir.
 
+### İşçi CLI yapılandırma yalıtımı
+
+Codex varsayılan olarak `workers.codex.user_config: "isolate"` kullanır. `--ignore-user-config` ile başlar; kişisel `~/.codex/config.toml` (veya `CODEX_HOME`) içinden yalnızca `model` (özel provider yoksa), `model_reasoning_effort` ve Windows `sandbox` ayarları aktarılır. İş emrindeki model/effort ve `workers.codex.windows_sandbox` bu değerleri ezer. Kişisel MCP, plugin ve proje ayarları aktarılmaz. İzolasyonda web arama, uygulama bağlayıcıları ve görsel üretim kapalıdır. Kullanıcının `sandbox_workspace_write.network_access` ayarı da taşınmaz; sandbox ağ erişimi varsayılan olarak kapalıdır. Bu ayarları ve ağ erişimini işçiye açmanız gerekiyorsa Codex için `inherit` kullanın. codex-cli 0.167.2 ile yapılan ölçümde yaklaşık %22 daha az ilk tur girdi token'ı (16,8K → 13,1K), `--ignore-user-config` tek başına değil, uygulama bağlayıcıları, görsel üretim ve web arama kapatıldığında görüldü; tek başına config yoksayma ölçümünde fark yoktu.
+
+claude-lite varsayılan olarak `--disable-slash-commands` ile slash komutlarını/skill'leri kapatır, `--strict-mcp-config` ile harici MCP yapılandırmasını yüklemez. Kullanıcının hook'ları ve diğer Claude Code ayarları etkin kalır. `workers["claude-lite"].user_config: "inherit"` yalnızca slash komutlarını kapatma bayrağını kaldırır; strict MCP yapılandırması korunur.
+
+Kişisel CLI yapılandırmasını bilinçli olarak devralmak için ilgili işçide `"user_config": "inherit"` ayarlayın; örneğin `"workers": { "codex": { "user_config": "inherit" } }`. Bu ayar Codex için kullanıcı config yalıtımını, claude-lite için slash komutlarını kapatma bayrağını kaldırır.
+
 `routing_mode` varsayılan olarak `static` kalır ve `routing` listesini aynen kullanır. `adaptive` seçildiğinde, aynı rolde en az üç bitmiş işi olan işçiler kabul oranına göre öne alınır; daha az geçmişi olanlar listede bulundukları konumu korur. `worker_stats` MCP aracı (isteğe bağlı `role` filtresiyle) kabul, hata, değişiklik isteği, süre ve token ortalamalarını gösterir.
 
 ## 6. Yönetişim (commit, push, merge, deploy)
