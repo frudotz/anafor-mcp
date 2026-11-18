@@ -4,6 +4,10 @@
 
 **Anafor** is an orchestration system that makes Claude Code the _manager_ and other AI coding agents (starting with OpenAI Codex CLI) its _workers_.
 
+## Usage boundary
+
+Anafor is for personal, local use: it runs with your own account and on your own machine, using official, unmodified CLI binaries; it does not read, store, or transmit credentials or session tokens, and does not bypass limits. Do not offer Anafor as a hosted service to others through your subscription. High parallelism may trigger provider restrictions. See the [usage guide](docs/en/usage.md#8b-workers-and-terms-of-use) for provider terms.
+
 - Claude plans, splits the work, dispatches it to workers, reviews the result and accepts it.
 - Workers run tasks in isolated workspaces and return a structured result **validated against a JSON Schema**.
 - Communication happens through typed **MCP tools**. The rules (edit ban, acceptance gates, permission policy) are enforced in code, not in the prompt.
