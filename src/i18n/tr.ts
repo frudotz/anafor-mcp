@@ -419,6 +419,12 @@ Politika: HIGH/CRITICAL ve tarama hatası engellenir; CAUTION yalnızca --accept
       'testler çalışmaz. Öneri: anafor.config.json → workers.codex.windows_sandbox = "elevated"',
     sandboxDefault: 'varsayılan',
     codexLogin: 'codex oturum açılmamış: `codex login`',
+    codexProviderNeedsInherit:
+      'Özel Codex model sağlayıcısı algılandı; workers.codex.user_config: "inherit" gerekli olabilir.',
+    invalidUserConfig: (worker: string, value: string) =>
+      `workers.${worker}.user_config "isolate" veya "inherit" olmalı (alınan: ${value}).`,
+    projectInheritIgnored: (worker: string) =>
+      `anafor.config.json içindeki workers.${worker}.user_config = "inherit" güvenlik nedeniyle yok sayıldı; inherit için .anafor/config.json kullanın.`,
     geminiKey:
       'Gemini CLI yalnızca API anahtarıyla (GEMINI_API_KEY); kişisel hesap girişleri 2026-06-18’de kapandı',
     geminiMissing: 'gemini CLI kurulu değil',

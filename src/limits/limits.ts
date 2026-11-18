@@ -129,7 +129,7 @@ function newestRollouts(sessionsDir: string, max = 5): string[] {
  * olayının `rate_limits` alanı (primary ≈ 5 saat, secondary ≈ haftalık).
  */
 export function readCodexLimits(env: NodeJS.ProcessEnv = process.env): WorkerLimits | null {
-  const codexHome = env.CODEX_HOME ?? join(homedir(), '.codex');
+  const codexHome = env.CODEX_HOME || join(homedir(), '.codex');
   for (const file of newestRollouts(join(codexHome, 'sessions'))) {
     const lines = readFileSync(file, 'utf8').split('\n');
     for (let i = lines.length - 1; i >= 0; i--) {

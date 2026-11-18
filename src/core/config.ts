@@ -6,6 +6,7 @@ import type { EffortSetting, TokenProfile } from './token-profile.js';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { m } from '../i18n/index.js';
 
 export type DirectorMode = 'enforce' | 'warn' | 'off';
 export type RoutingMode = 'static' | 'adaptive';
@@ -65,6 +66,8 @@ export interface WorkerSettings {
   allow_anthropic_api?: boolean;
   /** Codex, yalnızca Windows: işler için `windows.sandbox` ("elevated" testlerin alt süreç başlatabilmesi için). */
   windows_sandbox?: 'elevated' | 'unelevated';
+  /** Personal CLI config isolation. */
+  user_config?: 'isolate' | 'inherit';
   /** Antigravity: headless modda izin verilen BİREBİR komutlar (test_command otomatik eklenir). */
   allowed_commands?: string[];
   /** Akıl yürütme düzeyi: tek değer veya rol başına (token_profile'ı ezer). */
@@ -96,7 +99,7 @@ export const DEFAULT_CONFIG: AnaforConfig = {
   worktree_cache: null,
   escalation: { failure_threshold: 3, stall_minutes: 60, takeover_minutes: 120 },
   test_command: null,
-  workers: {},
+  workers: { codex: { user_config: 'isolate' }, 'claude-lite': { user_config: 'isolate' } },
   routing: {
     implementation: ['codex', 'claude-lite'],
     test: ['claude-lite', 'codex'],
@@ -117,14 +120,43 @@ export function loadConfig(root: string): AnaforConfig {
   };
   const local = read(join(root, '.anafor', 'config.json'));
   const project = read(join(root, 'anafor.config.json'));
-  return {
+  const workerIds = new Set([
+    ...Object.keys(DEFAULT_CONFIG.workers),
+    ...Object.keys(local.workers ?? {}),
+    ...Object.keys(project.workers ?? {}),
+  ]);
+  const workers: Record<string, WorkerSettings> = {};
+  for (const id of workerIds) {
+    workers[id] = {
+      ...DEFAULT_CONFIG.workers[id],
+      ...local.workers?.[id],
+      ...project.workers?.[id],
+    };
+  }
+  const result = {
     ...DEFAULT_CONFIG,
     ...local,
     ...project,
+    workers,
     capacity: { ...DEFAULT_CAPACITY, ...local.capacity, ...project.capacity },
     extensions: { ...DEFAULT_EXTENSIONS, ...local.extensions, ...project.extensions },
     balancer: { ...DEFAULT_BALANCER, ...local.balancer, ...project.balancer },
   };
+  for (const id of ['codex', 'claude-lite']) {
+    const localValue = local.workers?.[id]?.user_config;
+    const projectValue = project.workers?.[id]?.user_config;
+    if (projectValue === 'inherit') console.warn(m().adapters.projectInheritIgnored(id));
+    const value =
+      localValue ??
+      (projectValue === 'inherit' ? DEFAULT_CONFIG.workers[id]?.user_config : projectValue);
+    if (value !== undefined && value !== 'isolate' && value !== 'inherit') {
+      throw new Error(m().adapters.invalidUserConfig(id, String(value)));
+    }
+    const settings = result.workers[id]!;
+    delete settings.user_config;
+    if (value !== undefined) settings.user_config = value;
+  }
+  return result;
 }
 
 /** Başlangıç dizininden yukarı doğru `.anafor/` içeren ilk dizini bulur. */

@@ -89,6 +89,7 @@ export interface ClaudeLiteOptions {
   maxConcurrency?: number;
   /** Yazma işlerinde izinli araçlar (Claude Code izin kuralı sözdizimi). */
   allowedTools?: string[];
+  userConfig?: 'isolate' | 'inherit';
 }
 
 export const DEFAULT_WRITE_TOOLS = [
@@ -126,12 +127,14 @@ export class ClaudeLiteAdapter implements WorkerAdapter {
   private readonly model: string;
   private readonly maxConcurrency: number;
   private readonly allowedTools: string[];
+  private readonly userConfig: 'isolate' | 'inherit';
 
   constructor(opts: ClaudeLiteOptions = {}) {
     this.bin = opts.bin ?? process.env.ANAFOR_CLAUDE_BIN ?? 'claude';
     this.model = opts.model ?? 'haiku';
     this.maxConcurrency = opts.maxConcurrency ?? 3;
     this.allowedTools = opts.allowedTools ?? DEFAULT_WRITE_TOOLS;
+    this.userConfig = opts.userConfig ?? 'isolate';
   }
 
   async detect(): Promise<WorkerAvailability> {
@@ -163,7 +166,7 @@ export class ClaudeLiteAdapter implements WorkerAdapter {
     return this.run([...this.args(job), '--resume', job.resumeSessionRef], job, ctx);
   }
 
-  private args(job: JobSpec): string[] {
+  args(job: JobSpec): string[] {
     // Claude CLI doğrulayıcısı draft 2020-12 meta-şema referansını tanımıyor: $schema/$id çıkarılır.
     const raw = JSON.parse(readFileSync(job.outputSchemaPath, 'utf8')) as Record<string, unknown>;
     delete raw.$schema;
@@ -181,6 +184,7 @@ export class ClaudeLiteAdapter implements WorkerAdapter {
       '--json-schema',
       schema,
       '--strict-mcp-config',
+      ...(this.userConfig !== 'inherit' ? ['--disable-slash-commands'] : []),
       '--permission-mode',
       readonly ? 'default' : 'acceptEdits',
       '--allowedTools',
