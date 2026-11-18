@@ -46,7 +46,7 @@ Claude Code içinde örnek istek: *"Anafor ile görev aç, Codex'e dağıt, biti
 | `workers_list`, `project_status` | İşçiler ve proje panosu |
 | `task_create`, `task_status` | Kabul kriterli görev |
 | `job_dispatch` | İşi işçiye verir; hemen `job_id` döner, iş ayrık süreçte sürer |
-| `job_wait`, `job_status`, `job_events` | En fazla 50 sn bekleme, durum, olay günlüğü |
+| `job_wait`, `job_status`, `job_events` | Kısa (en fazla 50 sn) bekleme, durum, olay günlüğü |
 | `job_result` | Şemayla doğrulanmış sonuç, token kullanımı, artefakt yolları |
 | `job_request_changes` | Bulgularla, aynı işçi oturumunda düzeltme (görev başına en fazla 5) |
 | `job_cancel` | İptal ve süreç ağacını sonlandırma |
@@ -58,6 +58,8 @@ Claude Code içinde örnek istek: *"Anafor ile görev aç, Codex'e dağıt, biti
 | `intervene`, `intervene_end` | Pürüz istisnası: süreli ve yol kısıtlı, audit'li doğrudan düzenleme izni |
 | `checkpoint`, `operation_authorize`, `operation_record` | Yönetişim: git durumu kaydı, politika ve kanıt kapısı, append-only audit |
 | `memory_lock`, `memory_metrics` | Lat.md hafızası için münhasır yazma kirası ve ölçümler |
+
+Uzun işler için `anafor job wait <id>` komutunu Claude Code'da Bash `run_in_background` ile çalıştırın; iş bitince harness yöneticiyi uyandırır. `job_wait` MCP aracı kısa kontroller içindir.
 
 ### Paralel çalışma: git worktree
 

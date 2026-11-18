@@ -6,18 +6,13 @@
  */
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { defaultAdapters } from '../adapters/registry.js';
-import { findAnaforRoot, loadConfig } from '../core/config.js';
+import { findAnaforRoot, loadConfig, resolveProjectRoot } from '../core/config.js';
 import { m } from '../i18n/index.js';
 import { Store } from '../store/store.js';
 import { AnaforService, ServiceError } from './service.js';
 import { createMcpServer } from './tools.js';
 
-export function resolveProjectRoot(env: NodeJS.ProcessEnv = process.env, cwd = process.cwd()) {
-  if (env.ANAFOR_PROJECT_ROOT) return { root: env.ANAFOR_PROJECT_ROOT, initialized: true };
-  const start = env.CLAUDE_PROJECT_DIR ?? cwd;
-  const found = findAnaforRoot(start);
-  return found ? { root: found, initialized: true } : { root: start, initialized: false };
-}
+export { resolveProjectRoot };
 
 export async function startServer(projectRoot?: string): Promise<void> {
   const resolved = projectRoot ? { root: projectRoot, initialized: true } : resolveProjectRoot();

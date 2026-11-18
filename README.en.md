@@ -46,7 +46,7 @@ Example request inside Claude Code: _"Open a task with Anafor, dispatch it to Co
 | `workers_list`, `project_status` | Workers and project board |
 | `task_create`, `task_status` | Task with acceptance criteria |
 | `job_dispatch` | Hands a job to a worker; returns `job_id` immediately, the job runs in a detached process |
-| `job_wait`, `job_status`, `job_events` | Wait up to 50 s, status, event log |
+| `job_wait`, `job_status`, `job_events` | Short wait (up to 50 s), status, event log |
 | `job_result` | Schema-validated result, token usage, artifact paths |
 | `job_request_changes` | Fix-up with findings, in the same worker session (at most 5 per task) |
 | `job_cancel` | Cancel and kill the process tree |
@@ -58,6 +58,8 @@ Example request inside Claude Code: _"Open a task with Anafor, dispatch it to Co
 | `intervene`, `intervene_end` | Snag exception: time-boxed, path-restricted, audited direct edit permission |
 | `checkpoint`, `operation_authorize`, `operation_record` | Governance: git state snapshot, policy and evidence gate, append-only audit |
 | `memory_lock`, `memory_metrics` | Exclusive write lease and metrics for Lat.md memory |
+
+For long jobs, run `anafor job wait <id>` with Claude Code Bash `run_in_background`; the harness wakes the director when the job finishes. The MCP `job_wait` tool is for short checks.
 
 ### Parallel work: git worktree
 
