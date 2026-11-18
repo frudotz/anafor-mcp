@@ -18,7 +18,7 @@
 | Codex (önerilen) | `npm install -g @openai/codex` → `codex login` |
 | Claude Haiku (`claude-lite`) | Ek kurulum yok; Claude Code yeterli |
 | Yerel model | Ollama (https://ollama.com) veya LM Studio → `anafor.config.json` |
-| OpenCode / Gemini / Antigravity | deneysel; koşullar için [kullanim.md](kullanim.md#8b-işçiler-ve-kullanım-koşulları) |
+| OpenCode / Gemini / Antigravity | deneysel; Gemini/Antigravity abonelik erişimi desteklenmez. Koşullar için [kullanim.md](kullanim.md#8b-işçiler-ve-kullanım-koşulları) |
 
 ### İsteğe bağlı: gitleaks (önerilen)
 
@@ -114,9 +114,12 @@ anafor doctor                    # bölümlere ayrılmış kontrol; sonuç statu
 
 ## Kullanım koşulları özeti
 
-- Anafor yalnızca **resmi CLI'ları**, senin **kendi oturumunla**, **senin bilgisayarında** çalıştırır. Hiçbir oturum token'ını okumaz, saklamaz, aktarmaz.
-- Claude aboneliği yalnızca resmi `claude` ikilisiyle kullanılır. Ortamda `ANTHROPIC_API_KEY` varsa işçi süreçlerinden çıkarılır; aksi halde API faturalanırdı.
-- Anafor'u **başkalarına ürün olarak** sunacaksan (kişisel kullanım dışı) API anahtarıyla kimlik doğrulama önerilir; Anthropic, Agent SDK ve ürünler için abonelik girişini önceden onay olmadan kabul etmez.
+- Anafor kişisel ve yerel kullanım içindir: kendi hesabın ve makinen, resmi ve değiştirilmemiş CLI ikilileri. Kimlik bilgisi/oturum token'ı okunmaz, saklanmaz veya aktarılmaz; limit atlatılmaz. Yüksek paralellik sağlayıcı kısıtlamasına yol açabilir. Anafor'u aboneliğin üzerinden başkalarına barındırılmış hizmet olarak sunma.
+- **Claude:** Anthropic [Legal & Compliance](https://code.claude.com/docs/en/legal-and-compliance) sayfasına göre kendi abonelik girişin resmi `claude` ikilisiyle ordinary, individual usage için izinlidir. Kimlik bilgisi aracılığı ve başkaları adına yönlendirme yasaktır. `ANTHROPIC_API_KEY` işçi ortamından çıkarılır.
+- **Codex:** resmi CLI ve kendi ChatGPT girişi kullanılır. [OpenAI Kullanım Politikaları](https://openai.com/policies/usage-policies/) (2026-11-20) uyarınca OpenAI çıktıları rakip model eğitimi için veri, puan veya sıralama üretmekte kullanılamaz. Anafor'un işçi istatistikleri ve ölçümleri yalnızca değerlendirme/kıyaslama içindir; eğitim verisi olarak dışa aktarılmamalıdır. Başkalarına model erişimi sağlayan platformlar OpenAI onayı ister.
+- **Gemini CLI:** Google AI Pro/Ultra girişi 2026-06-18'de kapandı; yalnızca API anahtarı, Vertex veya Code Assist Standard/Enterprise kullanılabilir.
+- **Antigravity:** tüketici AI Pro/Ultra planlarında `agy`'yi üçüncü taraf ajan/uygulamada sarmak Google [FAQ](https://antigravity.google/docs/faq) ve [Ek Koşullar §6](https://antigravity.google/terms) uyarınca desteklenmez ve hesabın askıya alınması riskini taşır. Üçüncü taraf ajanlar için Google Gemini Enterprise veya [AI Studio API anahtarı](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli) kullanın; abonelik girişi için `enabled` + `acknowledge_terms` açmayın.
+- Bu özet hukuki görüş değildir; güncel sağlayıcı koşullarını kendin kontrol et.
 - Ayrıntı: [kullanim.md](kullanim.md).
 
 ## Kaldırma
