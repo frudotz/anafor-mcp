@@ -18,7 +18,7 @@ Workers (at least one):
 | Codex (recommended) | `npm install -g @openai/codex` → `codex login` |
 | Claude Haiku (`claude-lite`) | Nothing extra; Claude Code is enough |
 | Local model | Ollama (https://ollama.com) or LM Studio → `anafor.config.json` |
-| OpenCode / Gemini / Antigravity | experimental; for terms see [usage.md](usage.md#8b-workers-and-terms-of-use) |
+| OpenCode / Gemini / Antigravity | experimental; Gemini/Antigravity subscription access is unsupported. See [usage.md](usage.md#8b-workers-and-terms-of-use) |
 
 ### Optional: gitleaks (recommended)
 
@@ -114,9 +114,12 @@ anafor doctor                    # sectioned checks; the result is reflected in 
 
 ## Terms of use summary
 
-- Anafor only runs **official CLIs**, with **your own session**, **on your machine**. It never reads, stores or transmits any session token.
-- A Claude subscription is used only through the official `claude` binary. If `ANTHROPIC_API_KEY` is set in the environment it is removed from worker processes; otherwise you would be billed through the API.
-- If you will offer Anafor **to others as a product** (beyond personal use), API key authentication is recommended; Anthropic does not allow subscription login for the Agent SDK and products without prior approval.
+- Anafor is for personal, local use: your own account and machine, with official, unmodified CLI binaries. It does not read, store, or transmit credentials/session tokens, or bypass limits. High parallelism may trigger provider restrictions. Do not offer Anafor as a hosted service to others through your subscription.
+- **Claude:** Anthropic's [Legal & Compliance](https://code.claude.com/docs/en/legal-and-compliance) page permits your own subscription login through the official `claude` binary for ordinary, individual usage. Credential brokering and routing on behalf of others are prohibited. `ANTHROPIC_API_KEY` is removed from worker environments.
+- **Codex:** use the official CLI and your own ChatGPT login. Under the [OpenAI Usage Policies](https://openai.com/policies/usage-policies/) (2026-11-20), OpenAI outputs may not be used to develop data, scores, or rankings for training competing models. Anafor worker statistics and measurements are for evaluation/benchmarking only and must not be exported as training data. Platforms that provide model access to others require OpenAI approval.
+- **Gemini CLI:** Google AI Pro/Ultra login was discontinued on 2026-06-18; only an API key, Vertex, or Code Assist Standard/Enterprise is available.
+- **Antigravity:** on consumer AI Pro/Ultra plans, wrapping `agy` inside a third-party agent/app is unsupported under Google's [FAQ](https://antigravity.google/docs/faq) and [Additional Terms §6](https://antigravity.google/terms), and risks account suspension. For third-party agents, Google recommends Gemini Enterprise or an [AI Studio API key](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli); do not enable `enabled` + `acknowledge_terms` for subscription login.
+- This summary is not legal advice; check the providers' current terms yourself.
 - Details: [usage.md](usage.md).
 
 ## Uninstalling
