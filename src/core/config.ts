@@ -12,6 +12,8 @@ export type DirectorMode = 'enforce' | 'warn' | 'off';
 export type RoutingMode = 'static' | 'adaptive';
 
 export interface AnaforConfig {
+  /** Statusline'da limitleri gösterilecek işçiler. */
+  statusline: { workers: string[] };
   /** Yönetici modunda Claude'un doğrudan düzenleme yapması: engelle / uyar / serbest. */
   director_mode: DirectorMode;
   /** Yönetici modunda her zaman düzenlenebilir yollar (proje köküne göre glob). */
@@ -75,6 +77,7 @@ export interface WorkerSettings {
 }
 
 export const DEFAULT_CONFIG: AnaforConfig = {
+  statusline: { workers: ['codex'] },
   director_mode: 'enforce',
   allow_paths: [
     'lat.md/**',
@@ -137,6 +140,7 @@ export function loadConfig(root: string): AnaforConfig {
     ...DEFAULT_CONFIG,
     ...local,
     ...project,
+    statusline: { workers: ['codex'], ...local.statusline, ...project.statusline },
     workers,
     capacity: { ...DEFAULT_CAPACITY, ...local.capacity, ...project.capacity },
     extensions: { ...DEFAULT_EXTENSIONS, ...local.extensions, ...project.extensions },

@@ -166,6 +166,8 @@ Beyin oturumunun limitlerini de görmek için Claude Code ayarlarına (`~/.claud
 { "statusLine": { "type": "command", "command": "node /yol/anafor-mcp/dist/cli/main.js statusline" } }
 ```
 
+Statusline, Codex limitlerini önbellekten gösterir. Eski gözlemler 30 dakikadan sonra soluk görünür, 24 saatten sonra gizlenir. Varsayılan işçi listesi `codex`'tir; `anafor.config.json` içinde `"statusline": { "workers": [] }` ile kapatılabilir veya başka kayıtlı işçiler eklenebilir.
+
 Router, bir penceresi %100 dolmuş (ve henüz sıfırlanmamış) işçiyi atlar.
 
 ## 7c. Kapasite modeli ve rol dağılımı önerisi

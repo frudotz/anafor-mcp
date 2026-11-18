@@ -1,8 +1,13 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { findAnaforRoot } from '../core/config.js';
-import { anaforHome, formatWindows, type LimitWindow } from '../limits/limits.js';
+import { findAnaforRoot, loadConfig, resolveProjectRoot } from '../core/config.js';
+import {
+  anaforHome,
+  formatWindows,
+  type LimitWindow,
+  type WorkerLimits,
+} from '../limits/limits.js';
 import { m } from '../i18n/index.js';
 import { readSetupState } from '../setup/setup.js';
 import { ANAFOR_VERSION } from '../version.js';
@@ -20,6 +25,16 @@ export interface Health {
 }
 
 const healthFile = (env?: NodeJS.ProcessEnv) => join(anaforHome(env), 'health.json');
+
+/** Statusline must stay available even when project configuration is malformed. */
+export function statuslineWorkers(cwd?: string, env: NodeJS.ProcessEnv = process.env): string[] {
+  try {
+    const project = resolveProjectRoot(env, cwd ?? process.cwd());
+    return project.initialized ? loadConfig(project.root).statusline.workers : ['codex'];
+  } catch {
+    return ['codex'];
+  }
+}
 
 export function writeHealth(h: Omit<Health, 'at' | 'version'>, env?: NodeJS.ProcessEnv): void {
   mkdirSync(anaforHome(env), { recursive: true });
@@ -84,6 +99,8 @@ export function statusLine(i: {
   windows: LimitWindow[];
   update: string | null;
   signals: Signal[];
+  workers?: WorkerLimits[];
+  now?: number;
 }): string {
   const parts = [`${c('cyan', 'anafor', true)} ${c('gray', `v${i.version}`, true)}`];
   if (i.update) parts.push(c('yellow', m().status.update(i.update), true));
@@ -91,5 +108,23 @@ export function statusLine(i: {
     parts.push(c(s.level === 'error' ? 'red' : 'yellow', `⚠ ${s.text}: ${s.command}`, true));
   if (i.model) parts.push(i.model);
   if (i.windows.length) parts.push(formatWindows(i.windows));
+  for (const worker of i.workers ?? []) {
+    const ageMs = (i.now ?? Date.now()) - Date.parse(worker.observed_at);
+    if (!Number.isFinite(ageMs) || ageMs >= 24 * 60 * 60_000) continue;
+    const age =
+      ageMs < 60 * 60_000
+        ? `${Math.floor(ageMs / 60_000)}${m().status.ageMinutes}`
+        : `${Math.floor(ageMs / 3_600_000)}${m().status.ageHours}`;
+    const body = `${m().status.workerLabel(worker.worker)} ${formatWindows(worker.windows)}${ageMs > 30 * 60_000 ? ` (${age})` : ''}`;
+    const color =
+      worker.status === 'limited'
+        ? 'red'
+        : worker.status === 'warning'
+          ? 'yellow'
+          : ageMs > 30 * 60_000
+            ? 'gray'
+            : undefined;
+    parts.push(color ? c(color, body, true) : body);
+  }
   return parts.join(c('gray', ' · ', true));
 }

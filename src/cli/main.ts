@@ -20,7 +20,7 @@ import { runSetup } from './setup-cmd.js';
 import { runExt } from './ext-cmd.js';
 import { m, parseLang } from '../i18n/index.js';
 import { runDoctor } from './doctor-cmd.js';
-import { healthSignals, statusLine } from './health.js';
+import { healthSignals, statusLine, statuslineWorkers } from './health.js';
 import {
   availableUpdate,
   readUpdateCache,
@@ -451,6 +451,14 @@ switch (cmd) {
         windows,
         update: availableUpdate(readUpdateCache()),
         signals,
+        workers: (() => {
+          const configured = statuslineWorkers(
+            (input.workspace as { current_dir?: string } | undefined)?.current_dir ??
+              (input.cwd as string | undefined),
+          );
+          const stored = readStoredLimits();
+          return configured.flatMap((worker) => (stored[worker] ? [stored[worker]!] : []));
+        })(),
       }),
     );
     break;
