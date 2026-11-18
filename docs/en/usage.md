@@ -156,7 +156,7 @@ MCP tool: `workers_limits`. Sources (only information the official tools provide
 
 | Worker | Source |
 |---|---|
-| Codex | the last `token_count.rate_limits` in `~/.codex/sessions/**/rollout-*.jsonl` |
+| Codex | read-only `account/rateLimits/read` via `codex app-server`, with rollout files as fallback. `anafor limits --refresh` refreshes live; the statusline refreshes its cache in the background at most every five minutes. |
 | Claude (brain and claude-lite) | `rate_limit_event` from `claude-lite` jobs + Claude Code statusline input |
 | Antigravity, OpenCode, local | The tool does not report limits → `unknown` |
 
