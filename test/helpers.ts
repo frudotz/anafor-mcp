@@ -7,7 +7,10 @@ export function tempDir(prefix = 'anafor-test-'): { dir: string; cleanup: () => 
   const dir = mkdtempSync(join(tmpdir(), prefix));
   return {
     dir,
-    cleanup: () => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }),
+    // job_wait may observe the runner's terminal state just before its finally
+    // block closes the SQLite store. On Windows, open DB/WAL handles can keep
+    // the temp tree undeletable briefly; allow about 5.5 seconds for shutdown under load.
+    cleanup: () => rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }),
   };
 }
 
