@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** anafor CLI: init | doctor | mcp | version */
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,8 +33,10 @@ import { AnaforService } from '../server/service.js';
 import { readSetupState } from '../setup/setup.js';
 import {
   formatWindows,
+  anaforHome,
   parseClaudeStatusline,
   readCodexLimits,
+  refreshCodexLimits,
   readStoredLimits,
   recordLimits,
   statusFrom,
@@ -58,6 +60,15 @@ function projectRoot(): string {
     process.exit(1);
   }
   return resolved.root;
+}
+
+function codexBin(): string {
+  const project = resolveProjectRoot();
+  return (
+    (project.initialized ? loadConfig(project.root).workers.codex?.bin : undefined) ??
+    process.env.ANAFOR_CODEX_BIN ??
+    'codex'
+  );
 }
 
 const ROLES = ['implementation', 'review', 'analysis', 'test'] as const;
@@ -326,7 +337,10 @@ switch (cmd) {
   case 'limits': {
     const stored = readStoredLimits();
     const rows: WorkerLimits[] = [];
-    const codex = readCodexLimits();
+    let codex = stored.codex ?? null;
+    if (rest.includes('--refresh')) {
+      codex = await refreshCodexLimits(process.env, codexBin());
+    }
     if (codex) rows.push(codex);
     for (const [k, v] of Object.entries(stored)) if (k !== 'codex' || !codex) rows.push(v);
     if (!rows.length) console.log(m().cli.noLimits);
@@ -336,6 +350,10 @@ switch (cmd) {
         `${r.worker.padEnd(12)} ${r.status.padEnd(8)} ${formatWindows(r.windows)}  ${m().cli.ago(age, r.source)}`,
       );
     }
+    break;
+  }
+  case 'limits-refresh': {
+    await refreshCodexLimits(process.env, codexBin());
     break;
   }
   case 'capacity': {
@@ -401,6 +419,26 @@ switch (cmd) {
     let signals: ReturnType<typeof healthSignals> = [];
     try {
       refreshInBackground();
+      const lastCodex = readStoredLimits().codex;
+      const refreshMarker = join(anaforHome(), 'codex-limits-refresh');
+      let lastAttempt = 0;
+      try {
+        lastAttempt = Number(readFileSync(refreshMarker, 'utf8')) || 0;
+      } catch {
+        /* first refresh */
+      }
+      if (
+        (!lastCodex || Date.now() - Date.parse(lastCodex.observed_at) > 5 * 60_000) &&
+        Date.now() - lastAttempt > 5 * 60_000
+      ) {
+        writeFileSync(refreshMarker, String(Date.now()));
+        const child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'limits-refresh'], {
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: true,
+        });
+        child.unref();
+      }
       const ws = input.workspace as { current_dir?: string } | undefined;
       signals = healthSignals(ws?.current_dir ?? (input.cwd as string | undefined));
     } catch {

@@ -7,6 +7,8 @@ import {
   parseClaudeRateLimitInfo,
   parseClaudeStatusline,
   readCodexLimits,
+  readCodexLimitsLive,
+  refreshCodexLimits,
   readStoredLimits,
   recordLimits,
   statusFrom,
@@ -76,6 +78,98 @@ describe('limitler', () => {
         ['seven_day', 38],
       ]);
       expect(readCodexLimits({ CODEX_HOME: join(t.dir, 'yok') })).toBeNull();
+    } finally {
+      t.cleanup();
+    }
+  });
+
+  it('Codex app-server JSON-RPC dönüşümü kimliksiz önbellek kaydı', async () => {
+    const t = tempDir();
+    try {
+      const script = join(t.dir, 'server.cjs');
+      writeFileSync(
+        script,
+        [
+          "const rl = require('node:readline').createInterface({ input: process.stdin });",
+          'const limits = {',
+          "  rateLimitReachedType: 'hard_limit',",
+          '  primary: { usedPercent: 3, windowDurationMins: 300, resetsAt: 1795048405 },',
+          '  secondary: { usedPercent: 38, windowDurationMins: 10080, resetsAt: 1795279781 },',
+          '};',
+          "const result = { ordinaryUsageAllowed: false, accountId: 'secret', rateLimits: limits };",
+          "rl.on('line', (l) => {",
+          '  const m = JSON.parse(l);',
+          '  if (m.id === 1) console.log(JSON.stringify({ id: 1, result: {} }));',
+          '  if (m.id === 2) console.log(JSON.stringify({ id: 2, result }));',
+          '});',
+        ].join('\n'),
+      );
+      const value = await readCodexLimitsLive({}, process.execPath, 2000, [script]);
+      expect(value?.source).toBe('codex app-server');
+      expect(value?.status).toBe('limited');
+      expect(value?.windows.map((w) => [w.name, w.window_minutes, w.resets_at])).toEqual([
+        ['five_hour', 300, 1795048405],
+        ['seven_day', 10080, 1795279781],
+      ]);
+      recordLimits(value!, { ANAFOR_HOME: t.dir });
+      expect(JSON.stringify(readStoredLimits({ ANAFOR_HOME: t.dir }))).not.toContain('secret');
+    } finally {
+      t.cleanup();
+    }
+  });
+
+  it('app-server timeout, hata yanıtı ve erken çıkışta null döner', async () => {
+    const t = tempDir();
+    try {
+      const make = (body: string) => {
+        const script = join(t.dir, `server-${Math.random()}.cjs`);
+        writeFileSync(script, body);
+        return script;
+      };
+      const timeoutServer = make(`process.stdin.resume();`);
+      expect(await readCodexLimitsLive({}, process.execPath, 30, [timeoutServer])).toBeNull();
+      const errorServer = make(
+        [
+          "const r = require('node:readline').createInterface({ input: process.stdin });",
+          "r.on('line', (l) => {",
+          '  const m = JSON.parse(l);',
+          '  if (m.id === 1) console.log(JSON.stringify({ id: 1, result: {} }));',
+          "  if (m.id === 2) console.log(JSON.stringify({ id: 2, error: { code: -1, message: 'failure' } }));",
+          '});',
+        ].join('\n'),
+      );
+      expect(await readCodexLimitsLive({}, process.execPath, 1000, [errorServer])).toBeNull();
+      const exitServer = make(`process.exit(0);`);
+      expect(await readCodexLimitsLive({}, process.execPath, 1000, [exitServer])).toBeNull();
+    } finally {
+      t.cleanup();
+    }
+  });
+
+  it('eski rollout yedeği daha yeni önbelleği ezmez', async () => {
+    const t = tempDir();
+    try {
+      const env = { ANAFOR_HOME: join(t.dir, 'anafor'), CODEX_HOME: join(t.dir, 'codex') };
+      const day = join(env.CODEX_HOME, 'sessions', '2026', '11', '17');
+      mkdirSync(day, { recursive: true });
+      writeFileSync(
+        join(day, 'rollout-old.jsonl'),
+        JSON.stringify({
+          timestamp: '2026-11-17T10:00:00Z',
+          payload: { rate_limits: { primary: { used_percent: 40, window_minutes: 300 } } },
+        }),
+      );
+      const fresh = {
+        worker: 'codex',
+        source: 'existing',
+        observed_at: '2026-11-18T10:00:00Z',
+        status: 'ok' as const,
+        windows: [{ name: 'five_hour', used_percent: 10, resets_at: null, window_minutes: 300 }],
+      };
+      recordLimits(fresh, env);
+      const result = await refreshCodexLimits(env, '__missing_codex_binary__', 50);
+      expect(result?.source).toBe('existing');
+      expect(readStoredLimits(env).codex?.source).toBe('existing');
     } finally {
       t.cleanup();
     }
