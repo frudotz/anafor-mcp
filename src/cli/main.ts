@@ -12,7 +12,8 @@ import { runSessionStart } from '../hooks/session-start.js';
 import { startServer } from '../server/main.js';
 import { Store } from '../store/store.js';
 import { ANAFOR_VERSION, SOURCE_NOTICE } from '../version.js';
-import { findAnaforRoot, loadConfig } from '../core/config.js';
+import { resolveProjectRoot, loadConfig } from '../core/config.js';
+import { waitForJobs } from '../core/job-wait.js';
 import { jobsTable, runChat } from './chat.js';
 import { buildGoalPrompt, type RunGoalOptions } from './run.js';
 import { runSetup } from './setup-cmd.js';
@@ -51,12 +52,12 @@ function flag(name: string): string | undefined {
 
 /** Anafor projesinin kökü (cwd'den yukarı); yoksa açıklayıcı hata. */
 function projectRoot(): string {
-  const r = findAnaforRoot(process.cwd());
-  if (!r) {
+  const resolved = resolveProjectRoot();
+  if (!resolved.initialized) {
     console.error(m().cli.notProject);
     process.exit(1);
   }
-  return r;
+  return resolved.root;
 }
 
 const ROLES = ['implementation', 'review', 'analysis', 'test'] as const;
@@ -188,6 +189,83 @@ switch (cmd) {
     const store = new Store(projectRoot());
     try {
       jobsTable(store, rest.includes('--all')).forEach((l) => console.log(l));
+    } finally {
+      store.close();
+    }
+    break;
+  }
+  case 'job': {
+    if (rest[0] !== 'wait') {
+      console.error(m().cli.jobWaitUsage);
+      process.exitCode = 1;
+      break;
+    }
+    const optionValue = (name: string) => {
+      const i = rest.indexOf(`--${name}`);
+      return i < 0 ? undefined : rest[i + 1];
+    };
+    const modeValue = optionValue('mode') ?? 'all';
+    const timeoutRaw = optionValue('timeout');
+    const silenceRaw = optionValue('silence');
+    const ids = rest
+      .slice(1)
+      .filter((a, i, arr) => !a.startsWith('--') && (i === 0 || !arr[i - 1]!.startsWith('--')));
+    const timeoutS = timeoutRaw === undefined ? undefined : Number(timeoutRaw);
+    const silenceS = silenceRaw === undefined ? 300 : Number(silenceRaw);
+    if (
+      !ids.length ||
+      !['any', 'all'].includes(modeValue) ||
+      (timeoutS !== undefined && (!Number.isFinite(timeoutS) || timeoutS < 0)) ||
+      !Number.isFinite(silenceS) ||
+      silenceS < 0
+    ) {
+      console.error(m().cli.jobWaitUsage);
+      process.exitCode = 1;
+      break;
+    }
+    const store = new Store(projectRoot());
+    try {
+      const result = await waitForJobs(store, ids, {
+        mode: modeValue as 'any' | 'all',
+        ...(timeoutS === undefined ? {} : { timeoutS }),
+        silenceS,
+        onSilence: (job) => console.warn(m().cli.jobWaitSilence(job.id)),
+      });
+      const now = Date.now();
+      for (const job of result.finished) {
+        const duration = job.startedAt
+          ? Math.max(
+              0,
+              Math.round(
+                ((job.endedAt ? Date.parse(job.endedAt) : now) - Date.parse(job.startedAt)) / 1000,
+              ),
+            )
+          : 0;
+        console.log(
+          m().cli.jobWaitSummary(
+            job.id,
+            job.worker,
+            job.state,
+            duration,
+            job.result?.summary?.replace(/\s+/g, ' ').slice(0, 160) ?? '',
+          ),
+        );
+      }
+      if (result.timedOut) {
+        console.error(m().cli.jobWaitTimeout(result.pending.map((j) => j.id).join(', ')));
+        process.exitCode = 2;
+      }
+    } catch (e) {
+      const missing = ids.find((id) => {
+        try {
+          store.mustGetJob(id);
+          return false;
+        } catch {
+          return true;
+        }
+      });
+      console.error(missing ? m().cli.jobWaitUnknown(missing) : (e as Error).message);
+      process.exitCode = 1;
     } finally {
       store.close();
     }

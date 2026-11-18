@@ -1,5 +1,5 @@
 import { isAbsolute, matchesGlob, relative, resolve } from 'node:path';
-import { findAnaforRoot, loadConfig, type AnaforConfig } from '../core/config.js';
+import { loadConfig, resolveProjectRoot, type AnaforConfig } from '../core/config.js';
 import { extensionGuard } from '../extensions/guard.js';
 import { activeGrants, recordViolation, type Grant } from './grants.js';
 import { m } from '../i18n/index.js';
@@ -107,8 +107,9 @@ export function runPreToolUse(
   env: NodeJS.ProcessEnv = process.env,
 ): string {
   if (env.ANAFOR_WORKER === '1') return ''; // işçi süreci: yönetici kuralı uygulanmaz
-  const root = findAnaforRoot(input.cwd ?? process.cwd());
-  if (!root) return ''; // Anafor projesi değil
+  const resolved = resolveProjectRoot(env, input.cwd ?? process.cwd());
+  if (!resolved.initialized) return ''; // Anafor projesi değil
+  const root = resolved.root;
   const config = loadConfig(root);
   // Eklenti kapısı yönetici modundan bağımsız uygulanır (F23).
   const g = extensionGuard(input, { root, config });

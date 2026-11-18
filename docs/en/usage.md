@@ -60,7 +60,9 @@ The brain carries out the goal end to end without a user: plan → dispatch → 
 | Step | Command or tool |
 |---|---|
 | Plan | `/anafor:plan <goal>`: analysis → tasks + acceptance criteria → approval |
-| Dispatch | `/anafor:run`: `job_dispatch` → `job_wait` → `job_result` / `job_diff` |
+| Dispatch | `/anafor:run`: `job_dispatch` → background `anafor job wait <id>` for long jobs → `job_result` / `job_diff` |
+
+For long waits, start `anafor job wait <id>` with Claude Code Bash `run_in_background`; the harness wakes the director when it finishes. MCP `job_wait` is for short checks of at most 50 seconds.
 | Fix | `job_request_changes` (same worker session, at most 5 per task) |
 | Accept | `/anafor:accept <task> <job>`: `task_accept` gates; the worktree job is merged into the task branch. If the worker could not run tests (e.g. sandbox): `evidence_generate` → `task_accept` + `verified_by_evidence_reason` |
 | Bring into your branch | `task_merge`: task branch → branch of the working tree (clean tree required) |
