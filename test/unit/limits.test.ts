@@ -89,7 +89,20 @@ describe('limitler', () => {
       const script = join(t.dir, 'server.cjs');
       writeFileSync(
         script,
-        `const rl=require('node:readline').createInterface({input:process.stdin}); rl.on('line',l=>{const m=JSON.parse(l); if(m.id===1) console.log(JSON.stringify({id:1,result:{}})); if(m.id===2) console.log(JSON.stringify({id:2,result:{ordinaryUsageAllowed:false,accountId:'secret',rateLimits:{rateLimitReachedType:'hard_limit',primary:{usedPercent:3,windowDurationMins:300,resetsAt:1795048405},secondary:{usedPercent:38,windowDurationMins:10080,resetsAt:1795279781}}}}));});`,
+        [
+          "const rl = require('node:readline').createInterface({ input: process.stdin });",
+          'const limits = {',
+          "  rateLimitReachedType: 'hard_limit',",
+          '  primary: { usedPercent: 3, windowDurationMins: 300, resetsAt: 1795048405 },',
+          '  secondary: { usedPercent: 38, windowDurationMins: 10080, resetsAt: 1795279781 },',
+          '};',
+          "const result = { ordinaryUsageAllowed: false, accountId: 'secret', rateLimits: limits };",
+          "rl.on('line', (l) => {",
+          '  const m = JSON.parse(l);',
+          '  if (m.id === 1) console.log(JSON.stringify({ id: 1, result: {} }));',
+          '  if (m.id === 2) console.log(JSON.stringify({ id: 2, result }));',
+          '});',
+        ].join('\n'),
       );
       const value = await readCodexLimitsLive({}, process.execPath, 2000, [script]);
       expect(value?.source).toBe('codex app-server');
@@ -116,7 +129,14 @@ describe('limitler', () => {
       const timeoutServer = make(`process.stdin.resume();`);
       expect(await readCodexLimitsLive({}, process.execPath, 30, [timeoutServer])).toBeNull();
       const errorServer = make(
-        `const r=require('node:readline').createInterface({input:process.stdin}); r.on('line',l=>{const m=JSON.parse(l); if(m.id===1) console.log(JSON.stringify({id:1,result:{}})); if(m.id===2) console.log(JSON.stringify({id:2,error:{code:-1,message:'failure'}}));});`,
+        [
+          "const r = require('node:readline').createInterface({ input: process.stdin });",
+          "r.on('line', (l) => {",
+          '  const m = JSON.parse(l);',
+          '  if (m.id === 1) console.log(JSON.stringify({ id: 1, result: {} }));',
+          "  if (m.id === 2) console.log(JSON.stringify({ id: 2, error: { code: -1, message: 'failure' } }));",
+          '});',
+        ].join('\n'),
       );
       expect(await readCodexLimitsLive({}, process.execPath, 1000, [errorServer])).toBeNull();
       const exitServer = make(`process.exit(0);`);
