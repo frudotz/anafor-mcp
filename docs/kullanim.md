@@ -195,7 +195,7 @@ anafor capacity recommend                                  # abonelik kimlikleri
 - Eşit kademede beynin hesabını paylaşmayan işçi öne alınır.
 - İnceleme, uygulayıcıdan farklı bir model ailesine verilir.
 - Yerel modeller yalnızca test ve analiz için yedek olarak kullanılır.
-- Koşulları gri alanda olan abonelikler uyarıyla gösterilir.
+- Sağlayıcı koşullarına tabi abonelikli işçiler uyarıyla gösterilir.
 
 Ayarlar (`anafor.config.json`):
 
@@ -310,12 +310,19 @@ node /yol/anafor-mcp/dist/cli/main.js migrate /projen
 
 | İşçi | Nasıl | Durum | Koşul notu |
 |---|---|---|---|
-| `codex` | `codex exec` (kendi ChatGPT girişin veya API anahtarı) | ✅ doğrulandı | Resmi CLI yerelde: izinli |
-| `claude-lite` | `claude -p --model haiku` | ✅ doğrulandı | Resmi `claude` ikilisi kendi aboneliğinle: izinli. `ANTHROPIC_API_KEY` işçi ortamından çıkarılır |
+| `codex` | `codex exec` (kendi ChatGPT girişin veya API anahtarı) | ✅ doğrulandı | Resmi CLI; ayrıntılar aşağıda |
+| `claude-lite` | `claude -p --model haiku` | ✅ doğrulandı | Resmi `claude` ikilisi; ayrıntılar aşağıda. `ANTHROPIC_API_KEY` işçi ortamından çıkarılır |
 | `local` | OpenAI uyumlu API (Ollama, LM Studio) | ✅ sahte sunucuyla test | Yalnızca `analysis`/`review` (dosya düzenlemez) |
 | `opencode` | `opencode run --format json` | ✅ doğrulandı (gerçek opencode 1.19.5 + OpenAI uyumlu sağlayıcı) | API anahtarı, yerel model veya ChatGPT planı. **Claude aboneliği OpenCode ile kullanılamaz**; `anthropic/*` modelleri yalnızca `allow_anthropic_api` ile |
-| `gemini` | `gemini -p --output-format stream-json --approval-mode auto_edit\|plan` | ✅ doğrulandı (gerçek gemini-cli 0.68 + Gemini API uyumlu sahte sunucu) | Kişisel Google girişleri 2026-06-18'de kapandı: **yalnızca `GEMINI_API_KEY`**. `~/.gemini/settings.json` → `security.auth.selectedType: "gemini-api-key"` gerekli |
-| `antigravity` | `agy -p --output-format stream-json --json-schema <dosya> --mode accept-edits\|plan` | ✅ doğrulandı (gerçek agy 1.5.9 + gerçek hesap, uyum testi), **varsayılan kapalı** | Koşullar gri alan (üçüncü taraf erişimi ihlal sayılabiliyor). Açmak için `enabled` + `acknowledge_terms`; API anahtarı önerilir |
+| `gemini` | `gemini -p --output-format stream-json --approval-mode auto_edit\|plan` | ✅ doğrulandı (gerçek gemini-cli 0.68 + Gemini API uyumlu sahte sunucu) | Google AI Pro/Ultra girişi 2026-06-18'de kapandı; yalnızca API anahtarı, Vertex veya Code Assist Standard/Enterprise |
+| `antigravity` | `agy -p --output-format stream-json --json-schema <dosya> --mode accept-edits\|plan` | ✅ doğrulandı (gerçek agy 1.5.9 + gerçek hesap, uyum testi), **varsayılan kapalı** | AI Pro/Ultra aboneliğinde üçüncü taraf ajan/uygulamada sarma desteklenmez ve hesap askıya alma riski taşır; Gemini Enterprise veya AI Studio API anahtarı kullanın |
+
+**Kullanım sınırı:** Anafor kişisel ve yerel kullanım içindir: kendi hesabın ve makinen, resmi ve değiştirilmemiş CLI'lar. Kimlik bilgisi/oturum token'ı okunmaz, saklanmaz veya aktarılmaz; limit atlatılmaz. Anafor'u abonelik üzerinden başkalarına barındırılmış hizmet olarak sunma. Yüksek paralellik sağlayıcı kısıtlamasına yol açabilir.
+
+- **Claude:** Anthropic [Legal & Compliance](https://code.claude.com/docs/en/legal-and-compliance) sayfasına göre kendi abonelik girişi resmi `claude` ikilisiyle ordinary, individual usage için izinlidir. Kimlik bilgisi aracılığı ve başkaları adına yönlendirme yasaktır.
+- **Codex:** resmi CLI ve kendi ChatGPT girişi. [OpenAI Kullanım Politikaları](https://openai.com/policies/usage-policies/) (2026-11-20): OpenAI çıktıları rakip model eğitimi için veri/puan/sıralama üretmekte kullanılamaz. Anafor işçi istatistikleri ve ölçümleri yalnızca değerlendirme/kıyaslama içindir; eğitim verisi olarak dışa aktarılmamalıdır. Başkalarına model erişimi sağlayan platformlar OpenAI onayı ister.
+- **Antigravity:** Google [FAQ](https://antigravity.google/docs/faq) ve [Ek Koşullar §6](https://antigravity.google/terms) uyarınca tüketici planlarında üçüncü taraf ajan/uygulama desteği yoktur. Google üçüncü taraf ajanlar için Gemini Enterprise veya [AI Studio API anahtarını](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli) önerir; abonelik girişi için aşağıdaki `enabled` + `acknowledge_terms` örneğini kullanmayın.
+- Bu özet hukuki görüş değildir; güncel sağlayıcı koşullarını kendin kontrol et.
 
 Örnek yapılandırma:
 
@@ -324,7 +331,7 @@ node /yol/anafor-mcp/dist/cli/main.js migrate /projen
   "workers": {
     "local": { "model": "qwen3-coder", "base_url": "http://127.0.0.1:11434/v1" },
     "opencode": { "model": "ollama/qwen3-coder" },
-    "antigravity": { "enabled": true, "acknowledge_terms": true }
+    "antigravity": { "enabled": false }
   },
   "routing": { "review": ["codex", "local", "claude-lite"] }
 }
@@ -334,7 +341,7 @@ node /yol/anafor-mcp/dist/cli/main.js migrate /projen
 **Antigravity ve terminal komutları:** headless `agy`, izin soramadığı için komutları otomatik reddeder. Anafor izin atlatma bayrağı kullanmaz; bunun yerine o oturuma özel `--settings` ile yalnızca şu komutlara izin verir: projenin `test_command` değeri ve `workers.antigravity.allowed_commands`. agy 1.5.9 joker desteklemez, komutlar **birebir** eşleşmelidir. İzin listesi iş emrine de yazılır. Reddedilen komutlar iş olaylarında `error` olarak görünür.
 
 ```json
-{ "test_command": "npm test", "workers": { "antigravity": { "enabled": true, "acknowledge_terms": true, "allowed_commands": ["npm run lint"] } } }
+{ "test_command": "npm test", "workers": { "antigravity": { "enabled": false, "allowed_commands": ["npm run lint"] } } }
 ```
 Gerçek uyum testleri (Antigravity: `agy` ile bir kez giriş yaptıktan sonra `ANAFOR_AGY_BIN=<agy.exe yolu> ANAFOR_E2E_AGY=1`):
 - OpenCode, hesap gerektirmeden sahte sağlayıcıyla: `ANAFOR_E2E_OPENCODE_BIN=<opencode yolu> npx vitest run test/integration/opencode-real.test.ts`

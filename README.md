@@ -4,6 +4,10 @@
 
 **Anafor**, Claude Code'u *yönetici*, diğer yapay zekâ kodlama ajanlarını (önce OpenAI Codex CLI) *işçi* yapan bir orkestrasyon sistemidir.
 
+## Kullanım sınırı
+
+Anafor kişisel ve yerel kullanım içindir: kendi hesabınızda ve makinenizde, resmi ve değiştirilmemiş CLI'larla çalışır; kimlik bilgisi veya oturum token'ı okumaz, saklamaz ya da aktarmaz ve limit atlatmaz. Anafor'u aboneliğiniz üzerinden başkalarına barındırılmış hizmet olarak sunmayın. Yüksek paralellik sağlayıcı kısıtlamalarına yol açabilir. Sağlayıcı koşulları için [kullanım kılavuzuna](docs/kullanim.md#8b-işçiler-ve-kullanım-koşulları) bakın.
+
 - Claude planlar, işi parçalar, işçiye dağıtır, sonucu inceler ve kabul eder.
 - İşçiler izole çalışma alanlarında görevleri yürütür ve **JSON Schema ile doğrulanan** yapılandırılmış sonuç döner.
 - İletişim, tipli **MCP araçlarıyla** kurulur. Kurallar (düzenleme yasağı, kabul kapıları, yetki politikası) prompt'ta değil, kodda uygulanır.

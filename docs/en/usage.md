@@ -195,7 +195,7 @@ Principles behind the recommendation:
 - At equal tier, a worker that does not share the brain's account is preferred.
 - Review is given to a different model family than the implementer.
 - Local models are used only as a fallback for tests and analysis.
-- Subscriptions whose terms are a gray area are shown with a warning.
+- Subscription-based workers are shown with a provider-terms warning.
 
 Settings (`anafor.config.json`):
 
@@ -311,12 +311,20 @@ node /path/anafor-mcp/dist/cli/main.js migrate /your-project
 
 | Worker | How | Status | Terms note |
 |---|---|---|---|
-| `codex` | `codex exec` (your own ChatGPT login or API key) | ✅ verified | Official CLI, run locally: permitted |
-| `claude-lite` | `claude -p --model haiku` | ✅ verified | Official `claude` binary with your own subscription: permitted. `ANTHROPIC_API_KEY` is removed from the worker environment |
+| `codex` | `codex exec` (your own ChatGPT login or API key) | ✅ verified | Official CLI; details below |
+| `claude-lite` | `claude -p --model haiku` | ✅ verified | Official `claude` binary; details below. `ANTHROPIC_API_KEY` is removed from the worker environment |
 | `local` | OpenAI-compatible API (Ollama, LM Studio) | ✅ tested with a fake server | Only `analysis`/`review` (does not edit files) |
 | `opencode` | `opencode run --format json` | ✅ verified (real opencode 1.19.5 + OpenAI-compatible provider) | API key, local model or ChatGPT plan. **A Claude subscription cannot be used with OpenCode**; `anthropic/*` models only with `allow_anthropic_api` |
-| `gemini` | `gemini -p --output-format stream-json --approval-mode auto_edit\|plan` | ✅ verified (real gemini-cli 0.68 + Gemini-API-compatible fake server) | Personal Google logins were shut down on 2026-06-18: **`GEMINI_API_KEY` only**. `~/.gemini/settings.json` → `security.auth.selectedType: "gemini-api-key"` required |
-| `antigravity` | `agy -p --output-format stream-json --json-schema <file> --mode accept-edits\|plan` | ✅ verified (real agy 1.5.9 + real account, conformance test), **disabled by default** | Terms are a gray area (third-party access may count as a violation). To enable: `enabled` + `acknowledge_terms`; an API key is recommended |
+| `gemini` | `gemini -p --output-format stream-json --approval-mode auto_edit\|plan` | ✅ verified (real gemini-cli 0.68 + Gemini-API-compatible fake server) | Google AI Pro/Ultra login ended on 2026-06-18; API key, Vertex, or Code Assist Standard/Enterprise only |
+| `antigravity` | `agy -p --output-format stream-json --json-schema <file> --mode accept-edits\|plan` | ✅ verified (real agy 1.5.9 + real account, conformance test), **disabled by default** | Wrapping it in a third-party agent/app on AI Pro/Ultra is unsupported and risks account suspension; use Gemini Enterprise or an AI Studio API key |
+
+**Usage boundary:** Anafor is for personal, local use: your own account and machine, official, unmodified CLIs. It does not read, store, or transmit credentials/session tokens, or bypass limits. Do not offer Anafor as a hosted service to others through your subscription. High parallelism may trigger provider restrictions.
+
+- **Claude:** Anthropic's [Legal & Compliance](https://code.claude.com/docs/en/legal-and-compliance) page permits your own subscription login with the official `claude` binary for ordinary, individual usage. Credential brokering and routing on behalf of others are prohibited.
+- **Codex:** official CLI and your own ChatGPT login. The [OpenAI Usage Policies](https://openai.com/policies/usage-policies/) (2026-11-20) prohibit using OpenAI outputs to develop data, scores, or rankings for training competing models. Anafor worker statistics and measurements are for evaluation/benchmarking only and must not be exported as training data. Platforms providing model access to others require OpenAI approval.
+- **Gemini CLI:** Google AI Pro/Ultra login ended on 2026-06-18; API key, Vertex, or Code Assist Standard/Enterprise only.
+- **Antigravity:** Google's [FAQ](https://antigravity.google/docs/faq) and [Additional Terms §6](https://antigravity.google/terms) do not support third-party agent/app wrapping on consumer plans and this risks account suspension. Google recommends Gemini Enterprise or an [AI Studio API key](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli) for third-party agents; do not use the `enabled` + `acknowledge_terms` example below for subscription login.
+- This summary is not legal advice; check the providers' current terms yourself.
 
 Example configuration:
 
@@ -325,7 +333,7 @@ Example configuration:
   "workers": {
     "local": { "model": "qwen3-coder", "base_url": "http://127.0.0.1:11434/v1" },
     "opencode": { "model": "ollama/qwen3-coder" },
-    "antigravity": { "enabled": true, "acknowledge_terms": true }
+    "antigravity": { "enabled": false }
   },
   "routing": { "review": ["codex", "local", "claude-lite"] }
 }
@@ -334,7 +342,7 @@ Example configuration:
 **Antigravity and terminal commands:** headless `agy` automatically denies commands because it cannot ask for permission. Anafor does not use a permission-bypass flag; instead it uses a session-specific `--settings` to allow only these commands: the project's `test_command` value and `workers.antigravity.allowed_commands`. agy 1.5.9 does not support wildcards; commands must match **exactly**. The allowlist is also written into the job brief. Denied commands appear as `error` in the job events.
 
 ```json
-{ "test_command": "npm test", "workers": { "antigravity": { "enabled": true, "acknowledge_terms": true, "allowed_commands": ["npm run lint"] } } }
+{ "test_command": "npm test", "workers": { "antigravity": { "enabled": false, "allowed_commands": ["npm run lint"] } } }
 ```
 
 Real conformance tests (Antigravity: after logging in once with `agy`, `ANAFOR_AGY_BIN=<path to agy.exe> ANAFOR_E2E_AGY=1`):
