@@ -116,6 +116,14 @@ In a new worktree, `worktree_cache` replicates the dependency directory from the
 
 `.anafor/config.json` is for local overrides (not committed). The project file takes precedence.
 
+### Worker CLI config isolation
+
+Codex defaults to `workers.codex.user_config: "isolate"`. It starts with `--ignore-user-config`; only `model` (when there is no custom provider), `model_reasoning_effort`, and Windows `sandbox` are copied from `~/.codex/config.toml` (or `CODEX_HOME`). Job model/effort and `workers.codex.windows_sandbox` take precedence. Personal MCP servers, plugins, and project settings are not passed through. Web search, app connectors, and image generation are disabled in isolation. The user's `sandbox_workspace_write.network_access` setting is also not copied; sandbox network access is off by default. Use Codex `inherit` when a worker needs these settings or network access. In a measurement with codex-cli 0.167.2, first-turn input tokens fell by about 22% (16.8K → 13.1K) when app connectors, image generation, and web search were disabled; ignoring user config alone made no measurable difference.
+
+claude-lite uses `--disable-slash-commands` to disable slash commands/skills and `--strict-mcp-config` to keep external MCP configuration out. User hooks and other Claude Code settings remain active. `workers["claude-lite"].user_config: "inherit"` only removes the slash-command disabling flag; strict MCP configuration remains enabled.
+
+To deliberately inherit the personal CLI configuration, set `"user_config": "inherit"` for that worker, for example `"workers": { "codex": { "user_config": "inherit" } }`. This removes Codex user-config isolation or claude-lite's slash-command disabling flag, respectively.
+
 `routing_mode` stays `static` by default and uses the `routing` list as is. With `adaptive`, workers that have at least three finished jobs in the same role are moved ahead by acceptance rate; those with less history keep their position in the list. The `worker_stats` MCP tool (with an optional `role` filter) shows acceptance, failure, change requests, duration and token averages.
 
 ## 6. Governance (commit, push, merge, deploy)

@@ -79,7 +79,7 @@ export function readCodexWindowsSandbox(
 ): CodexWindowsSandbox | null {
   try {
     const toml = readFileSync(
-      join(env.CODEX_HOME ?? join(homedir(), '.codex'), 'config.toml'),
+      join(env.CODEX_HOME || join(homedir(), '.codex'), 'config.toml'),
       'utf8',
     );
     return parseWindowsSandbox(toml);
@@ -89,21 +89,111 @@ export function readCodexWindowsSandbox(
 }
 
 export function parseWindowsSandbox(toml: string): CodexWindowsSandbox | null {
+  return parseCodexUserConfig(toml).windowsSandbox ?? null;
+}
+
+export interface CodexUserConfig {
+  model?: string;
+  /** Kept only to warn: provider tables may contain secrets and are not forwarded. */
+  model_provider?: string;
+  model_reasoning_effort?: string;
+  windowsSandbox?: CodexWindowsSandbox;
+}
+
+/** Read only Codex settings explicitly safe to pass into an isolated worker. */
+export function parseCodexUserConfig(toml: string): CodexUserConfig {
+  const result: CodexUserConfig = {};
   let section = '';
+  let multilineQuote: '"""' | "'''" | null = null;
   for (const raw of toml.split(/\r?\n/)) {
-    const line = raw.trim();
-    const sec = /^\[([^\]]+)\]$/.exec(line);
-    if (sec) {
-      section = sec[1]!.trim();
+    if (multilineQuote) {
+      if (raw.includes(multilineQuote)) multilineQuote = null;
       continue;
     }
-    const m = /^sandbox\s*=\s*"([^"]*)"/.exec(line);
-    if (m && section === 'windows' && (m[1] === 'elevated' || m[1] === 'unelevated')) return m[1];
-    const dotted = /^windows\.sandbox\s*=\s*"([^"]*)"/.exec(line);
-    if (dotted && section === '' && (dotted[1] === 'elevated' || dotted[1] === 'unelevated'))
-      return dotted[1];
+    const line = stripTomlComment(raw).trim();
+    const sectionMatch = /^\[([^\]]+)\]$/.exec(line);
+    if (sectionMatch) {
+      section = sectionMatch[1]!.trim();
+      continue;
+    }
+    if (/^\[\[.*\]\]$/.test(line)) {
+      section = '\0array-table';
+      continue;
+    }
+    if (line.startsWith('[')) {
+      section = '\0invalid-table';
+      continue;
+    }
+    const pair = /^("(?:\\.|[^"\\])*"|'[^']*'|[A-Za-z_][\w.-]*)\s*=\s*(.*)$/.exec(line);
+    if (!pair) continue;
+    const key = parseTomlKey(pair[1]!);
+    const source = pair[2]!;
+    if (source.startsWith('"""') || source.startsWith("'''")) {
+      const quote = source.slice(0, 3) as '"""' | "'''";
+      if (source.indexOf(quote, 3) === -1) multilineQuote = quote;
+      continue;
+    }
+    const value = parseTomlString(source);
+    if (value === null) continue;
+    if (section === '' && ['model', 'model_provider', 'model_reasoning_effort'].includes(key)) {
+      result[key as 'model' | 'model_provider' | 'model_reasoning_effort'] = value;
+    } else if (
+      (section === 'windows' && key === 'sandbox') ||
+      (section === '' && key === 'windows.sandbox')
+    ) {
+      if (value === 'elevated' || value === 'unelevated') result.windowsSandbox = value;
+    }
   }
-  return null;
+  return result;
+}
+
+function parseTomlKey(source: string): string {
+  if (source.startsWith('"')) {
+    try {
+      return JSON.parse(source) as string;
+    } catch {
+      return '';
+    }
+  }
+  return source.startsWith("'") ? source.slice(1, -1) : source;
+}
+
+function stripTomlComment(line: string): string {
+  let quote = '';
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]!;
+    if ((c === '"' || c === "'") && (i === 0 || line[i - 1] !== '\\'))
+      quote = quote === c ? '' : quote || c;
+    if (c === '#' && !quote) return line.slice(0, i);
+  }
+  return line;
+}
+
+function parseTomlString(source: string): string | null {
+  const s = source.trim();
+  if (s.startsWith('"')) {
+    const match = /^"((?:\\.|[^"\\])*)"\s*$/.exec(s);
+    if (!match) return null;
+    try {
+      return JSON.parse(`"${match[1]}"`) as string;
+    } catch {
+      return null;
+    }
+  }
+  const single = /^'([^']*)'\s*$/.exec(s);
+  return single?.[1] ?? null;
+}
+
+export function readCodexUserConfig(env: NodeJS.ProcessEnv = process.env): CodexUserConfig {
+  try {
+    const text = readFileSync(
+      join(env.CODEX_HOME || join(homedir(), '.codex'), 'config.toml'),
+      'utf8',
+    );
+    return parseCodexUserConfig(text);
+  } catch {
+    return {};
+  }
 }
 
 /**
@@ -117,12 +207,19 @@ export function windowsSandboxWarning(effective: CodexWindowsSandbox | null): st
   return t.windowsSandbox(effective ?? t.sandboxDefault);
 }
 
+export function codexProviderWarning(config: CodexUserConfig, userConfig: string): string | null {
+  return userConfig !== 'inherit' && config.model_provider && config.model_provider !== 'openai'
+    ? m().adapters.codexProviderNeedsInherit
+    : null;
+}
+
 export interface CodexAdapterOptions {
   /** codex çalıştırılabilir dosyası; varsayılan ANAFOR_CODEX_BIN veya PATH'teki `codex`. */
   bin?: string;
   maxConcurrency?: number;
   /** Yalnızca Windows: Codex `windows.sandbox` ayarını Anafor işleri için ezer. */
   windowsSandbox?: CodexWindowsSandbox;
+  userConfig?: 'isolate' | 'inherit';
   /** Test için platform ezmesi. */
   platform?: NodeJS.Platform;
 }
@@ -133,12 +230,14 @@ export class CodexAdapter implements WorkerAdapter {
   private readonly maxConcurrency: number;
   private readonly windowsSandbox: CodexWindowsSandbox | undefined;
   private readonly platform: NodeJS.Platform;
+  private readonly userConfig: 'isolate' | 'inherit';
 
   constructor(opts: CodexAdapterOptions = {}) {
     this.bin = opts.bin ?? process.env.ANAFOR_CODEX_BIN ?? 'codex';
     this.maxConcurrency = opts.maxConcurrency ?? 2;
     this.windowsSandbox = opts.windowsSandbox;
     this.platform = opts.platform ?? process.platform;
+    this.userConfig = opts.userConfig ?? 'isolate';
   }
 
   /** Windows'ta Anafor ezmesi varsa `-c windows.sandbox=...`. */
@@ -167,7 +266,8 @@ export class CodexAdapter implements WorkerAdapter {
       this.platform === 'win32'
         ? windowsSandboxWarning(this.windowsSandbox ?? readCodexWindowsSandbox())
         : null;
-    const reasons = [auth.status === 0 ? null : m().adapters.codexLogin, warn];
+    const providerWarning = codexProviderWarning(readCodexUserConfig(process.env), this.userConfig);
+    const reasons = [auth.status === 0 ? null : m().adapters.codexLogin, warn, providerWarning];
     const reason = reasons.filter(Boolean).join(' · ');
     return {
       available: true,
@@ -190,6 +290,10 @@ export class CodexAdapter implements WorkerAdapter {
   }
 
   start(job: JobSpec, ctx: JobContext): RunHandle {
+    return this.run(this.startArgs(job, ctx), job, ctx);
+  }
+
+  startArgs(job: JobSpec, ctx: JobContext): string[] {
     const args = [
       'exec',
       '--json',
@@ -200,21 +304,31 @@ export class CodexAdapter implements WorkerAdapter {
       '-s',
       job.sandbox,
       '--skip-git-repo-check',
+      ...(this.userConfig !== 'inherit' ? ['--ignore-user-config'] : []),
+      ...(this.userConfig !== 'inherit' ? this.isolationArgs() : []),
+      ...this.inheritedSafeConfigArgs(job, ctx),
       ...this.sandboxArgs(),
       ...this.tuningArgs(job),
       ...(job.model ? ['-m', job.model] : []),
       '-',
     ];
-    return this.run(args, job, ctx);
+    return args;
   }
 
   resume(job: JobSpec, ctx: JobContext): RunHandle {
+    return this.run(this.resumeArgs(job, ctx), job, ctx);
+  }
+
+  resumeArgs(job: JobSpec, ctx: JobContext): string[] {
     if (!job.resumeSessionRef) throw new Error('resume için oturum gerekli');
     // F0: `exec resume` -s/-C almaz; sandbox config ile, dizin cwd ile verilir.
     const args = [
       'exec',
       'resume',
       job.resumeSessionRef,
+      ...(this.userConfig !== 'inherit' ? ['--ignore-user-config'] : []),
+      ...(this.userConfig !== 'inherit' ? this.isolationArgs() : []),
+      ...this.inheritedSafeConfigArgs(job, ctx),
       '--json',
       '--output-schema',
       job.outputSchemaPath,
@@ -227,7 +341,33 @@ export class CodexAdapter implements WorkerAdapter {
       ...(job.model ? ['-m', job.model] : []),
       '-',
     ];
-    return this.run(args, job, ctx);
+    return args;
+  }
+
+  private inheritedSafeConfigArgs(job: JobSpec, ctx: JobContext): string[] {
+    if (this.userConfig === 'inherit') return [];
+    const cfg = readCodexUserConfig(ctx.env);
+    const args: string[] = [];
+    const hasCustomProvider = Boolean(cfg.model_provider && cfg.model_provider !== 'openai');
+    const model = job.model || hasCustomProvider ? undefined : cfg.model;
+    const effort = job.effort ? undefined : cfg.model_reasoning_effort;
+    const sandbox = this.windowsSandbox ? undefined : cfg.windowsSandbox;
+    if (model) args.push('-c', `model=${JSON.stringify(model)}`);
+    if (effort) args.push('-c', `model_reasoning_effort=${JSON.stringify(effort)}`);
+    if (this.platform === 'win32' && sandbox)
+      args.push('-c', `windows.sandbox=${JSON.stringify(sandbox)}`);
+    return args;
+  }
+
+  private isolationArgs(): string[] {
+    return [
+      '-c',
+      'features.apps=false',
+      '-c',
+      'features.image_generation=false',
+      '-c',
+      'web_search="disabled"',
+    ];
   }
 
   private lastMessagePath(ctx: JobContext): string {

@@ -119,6 +119,10 @@ npm run build
 
 Contribution guidelines: [CONTRIBUTING.md](CONTRIBUTING.md)
 
+## Security: worker config isolation
+
+Codex isolate mode keeps personal MCP/plugin/skill configuration out of the worker. claude-lite only disables slash commands/skills (`--disable-slash-commands`) and external MCP configuration (`--strict-mcp-config`); user hooks and other settings remain active. Set `workers.<id>.user_config: "inherit"` to remove Codex isolation or claude-lite's slash-command disabling for that worker. See the [usage guide](docs/en/usage.md) for details.
+
 ## License, forks and attribution
 
 Anafor is licensed under [AGPL-3.0-only](LICENSE). You are free to fork it, modify it and develop it along your own roadmap, under these conditions:

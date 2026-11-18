@@ -422,6 +422,12 @@ Policy: HIGH/CRITICAL and scan errors are blocked; CAUTION only with --accept-ri
       'so tests will not run. Suggestion: anafor.config.json → workers.codex.windows_sandbox = "elevated"',
     sandboxDefault: 'default',
     codexLogin: 'codex is not logged in: `codex login`',
+    codexProviderNeedsInherit:
+      'A custom Codex model provider was detected; workers.codex.user_config: "inherit" may be required.',
+    invalidUserConfig: (worker: string, value: string) =>
+      `workers.${worker}.user_config must be "isolate" or "inherit" (received: ${value}).`,
+    projectInheritIgnored: (worker: string) =>
+      `Ignored workers.${worker}.user_config = "inherit" in anafor.config.json for security; use .anafor/config.json to opt in.`,
     geminiKey:
       'Gemini CLI works only with an API key (GEMINI_API_KEY); personal account sign-in ended on 2026-06-18',
     geminiMissing: 'gemini CLI is not installed',

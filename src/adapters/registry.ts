@@ -27,6 +27,7 @@ export function defaultAdapters(
         bin: w.codex?.bin,
         maxConcurrency: w.codex?.max_concurrency,
         windowsSandbox: w.codex?.windows_sandbox,
+        userConfig: w.codex?.user_config,
       }),
     ),
     new ClaudeLiteAdapter(
@@ -35,6 +36,7 @@ export function defaultAdapters(
         model: w['claude-lite']?.model,
         maxConcurrency: w['claude-lite']?.max_concurrency,
         allowedTools: w['claude-lite']?.allowed_tools,
+        userConfig: w['claude-lite']?.user_config,
       }),
     ),
     new GeminiAdapter(

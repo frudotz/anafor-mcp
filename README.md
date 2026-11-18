@@ -119,6 +119,10 @@ npm run build
 
 Katkı kuralları: [CONTRIBUTING.md](CONTRIBUTING.md)
 
+## Güvenlik: işçi yapılandırma yalıtımı
+
+Codex isolate modunda kullanıcı MCP/plugin/skill yapılandırmalarından yalıtılır. claude-lite yalnızca slash komutlarını/skill'leri kapatır (`--disable-slash-commands`) ve dış MCP yapılandırmasını yüklemez (`--strict-mcp-config`); kullanıcının hook ve diğer ayarları etkin kalır. `workers.<id>.user_config: "inherit"`, ilgili işçi için Codex yalıtımını veya claude-lite slash komutu kapatmasını kaldırır. Ayrıntılar için [kullanım kılavuzuna](docs/kullanim.md) bakın.
+
 ## Lisans, çatallar ve atıf
 
 Anafor [AGPL-3.0-only](LICENSE) lisanslıdır. Çatallamak (fork), değiştirmek ve kendi yol haritanızla geliştirmek serbesttir. Bunu yaparken uymanız gereken koşullar:
