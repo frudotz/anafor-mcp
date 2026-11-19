@@ -54,6 +54,35 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
   const f = t.fields;
 
   server.registerTool(
+    'loop_start',
+    {
+      description: t.loop_start,
+      inputSchema: {
+        goal: z.string().min(1).optional(),
+        backlog: z.string().optional(),
+        auto_resume: z.boolean().optional(),
+        max_cycles: z.number().int().positive().optional(),
+        until: z.string().datetime().optional(),
+        accept: z.boolean().optional(),
+        merge: z.boolean().optional(),
+        profile: z.enum(['saver', 'balanced', 'quality']).optional(),
+      },
+    },
+    (a) => wrap(() => svc().loopStart(a)),
+  );
+  server.registerTool('loop_status', { description: t.loop_status }, () =>
+    wrap(() => svc().loopStatus()),
+  );
+  server.registerTool(
+    'loop_stop',
+    {
+      description: t.loop_stop,
+      inputSchema: { mode: z.enum(['pause', 'stop']) },
+    },
+    (a) => wrap(() => svc().loopStop(a.mode)),
+  );
+
+  server.registerTool(
     'workers_list',
     {
       description: t.workers_list,

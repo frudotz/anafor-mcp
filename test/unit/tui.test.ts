@@ -4,6 +4,7 @@ import { stripVTControlCharacters as strip } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import {
   healthSignals,
+  loopStatusText,
   recentFailures,
   statusLine,
   statuslineWorkers,
@@ -20,6 +21,7 @@ import { writeSetupState } from '../../src/setup/setup.js';
 import { Store } from '../../src/store/store.js';
 import { ANAFOR_VERSION } from '../../src/version.js';
 import { tempDir } from '../helpers.js';
+import { writeLoopState } from '../../src/loop/state.js';
 
 describe('sürüm denetimi (F28)', () => {
   it('sürüm karşılaştırma ve mevcut güncelleme', () => {
@@ -55,6 +57,38 @@ describe('sürüm denetimi (F28)', () => {
 });
 
 describe('statusline ve sağlık sinyalleri (F28)', () => {
+  it('döngü göstergesi running, auto-resume paused ve manuel paused', () => {
+    const t = tempDir();
+    try {
+      mkdirSync(join(t.dir, '.anafor'));
+      const base = {
+        cycle: 3,
+        session_id: null,
+        started_at: new Date().toISOString(),
+        paused_reason: null,
+        resume_at: null,
+        auto_resume: false,
+        max_cycles: null,
+        until: null,
+        last_task: null,
+        completed_items: [],
+      };
+      writeLoopState(t.dir, { ...base, state: 'running', goal: 'x' });
+      expect(loopStatusText(t.dir)).toContain('↻');
+      writeLoopState(t.dir, {
+        ...base,
+        state: 'paused',
+        goal: 'x',
+        auto_resume: true,
+        resume_at: '2026-11-19T12:00:00.000Z',
+      });
+      expect(loopStatusText(t.dir)).toContain('⏸');
+      writeLoopState(t.dir, { ...base, state: 'paused', goal: 'x' });
+      expect(loopStatusText(t.dir)).toContain('anafor loop resume');
+    } finally {
+      t.cleanup();
+    }
+  });
   it('geçersiz proje configinde Codex varsayılanına düşer ve satır üretir', () => {
     const t = tempDir();
     try {

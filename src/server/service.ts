@@ -56,6 +56,8 @@ import {
 import { ensurePolicy } from '../governance/policy.js';
 import { activeGrants, createGrant, endGrant } from '../hooks/grants.js';
 import { m } from '../i18n/index.js';
+import { spawnSync } from 'node:child_process';
+import { readLoopState, writeLoopState } from '../loop/state.js';
 
 /** Servis mesaj kataloğu (geçerli dil). */
 const s = () => m().service;
@@ -104,6 +106,10 @@ export class ServiceError extends Error {
 
 /** İşin nasıl yürütüleceği: ayrık süreç (varsayılan) veya süreç içi (testler). */
 export type Launcher = (store: Store, job: Job) => void;
+export type LoopStarter = (
+  root: string,
+  args: string[],
+) => { status: number | null; stderr: string };
 
 export const detachedLauncher: Launcher = (store, job) => {
   const pid = spawnDetachedRunner(store.paths.root, job.id, store.paths.jobDir(job.id));
@@ -176,7 +182,89 @@ export class AnaforService {
     private routing: Partial<Record<Role, string[]>> = {},
     private routingMode: 'static' | 'adaptive' = 'static',
     private maxParallelJobs = 4,
+    private readonly startDetachedLoop: LoopStarter = (root, args) => {
+      const script = process.argv[1];
+      if (!script) return { status: 1, stderr: 'Anafor CLI entry point is unavailable' };
+      const result = spawnSync(process.execPath, [script, ...args], {
+        cwd: root,
+        encoding: 'utf8',
+        timeout: 10_000,
+      });
+      return { status: result.status, stderr: result.stderr ?? '' };
+    },
   ) {}
+
+  loopStatus() {
+    const state = readLoopState(this.store.paths.root);
+    if (!state)
+      return { state: 'idle', cycle: 0, paused_reason: null, resume_at: null, backlog: null };
+    let total: number | null = null;
+    if (state.backlog) {
+      try {
+        total = readFileSync(join(this.store.paths.root, state.backlog), 'utf8')
+          .split(/\r?\n/)
+          .filter((line) => /^\s*(?:-\s*\[ \]|\d+[.)])\s+/.test(line)).length;
+      } catch {
+        total = null;
+      }
+    }
+    return {
+      state: state.state,
+      cycle: state.cycle,
+      paused_reason: state.paused_reason,
+      resume_at: state.resume_at,
+      backlog: state.backlog ? { completed: state.completed_items.length, total } : null,
+    };
+  }
+
+  loopStop(mode: 'pause' | 'stop') {
+    const state = readLoopState(this.store.paths.root);
+    if (!state || !['running', 'paused'].includes(state.state))
+      throw new ServiceError('INVALID_STATE', 'No active development loop');
+    writeLoopState(this.store.paths.root, {
+      ...state,
+      state: mode === 'stop' ? 'stopped' : 'paused',
+      paused_reason: mode === 'stop' ? 'stopped' : 'manual',
+    });
+    return {
+      state: mode === 'stop' ? 'stopped' : 'paused',
+      note: 'Stops after the current turn completes.',
+    };
+  }
+
+  loopStart(input: {
+    goal?: string;
+    backlog?: string;
+    auto_resume?: boolean;
+    max_cycles?: number;
+    until?: string;
+    accept?: boolean;
+    merge?: boolean;
+    profile?: string;
+  }) {
+    const current = readLoopState(this.store.paths.root);
+    if (current && ['running', 'paused'].includes(current.state))
+      throw new ServiceError('CONFLICT', s().loopAlreadyActive);
+    if (!input.goal === !input.backlog)
+      throw new ServiceError('VALIDATION_FAILED', 'Provide exactly one of goal or backlog');
+    const args = [
+      'loop',
+      'start',
+      ...(input.goal ? [input.goal] : []),
+      ...(input.backlog ? ['--backlog', input.backlog] : []),
+      '--detach',
+      ...(input.auto_resume ? ['--auto-resume'] : []),
+      ...(input.max_cycles ? ['--max-cycles', String(input.max_cycles)] : []),
+      ...(input.until ? ['--until', input.until] : []),
+      ...(input.accept ? ['--accept'] : []),
+      ...(input.merge ? ['--merge'] : []),
+      ...(input.profile ? ['--profile', input.profile] : []),
+    ];
+    const result = this.startDetachedLoop(this.store.paths.root, args);
+    if (result.status !== 0) throw new ServiceError('CONFLICT', s().loopStartFailed(result.stderr));
+    const state = readLoopState(this.store.paths.root);
+    return { pid: state?.pid ?? null, ...this.loopStatus() };
+  }
 
   /** Apply config edits for subsequent tool calls; already-started runners keep their own adapter. */
   reloadConfig(): void {

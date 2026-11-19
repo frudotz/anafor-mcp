@@ -42,6 +42,10 @@ export function createLoopShutdownHandler(
   };
 }
 
+export function loopSignals(platform = process.platform): readonly string[] {
+  return platform === 'win32' ? ['SIGINT', 'SIGTERM', 'SIGBREAK'] : ['SIGINT', 'SIGTERM', 'SIGHUP'];
+}
+
 export async function runLoopCommand(root: string, args: string[]): Promise<number> {
   const action = args[0];
   let state = readLoopState(root);
@@ -162,13 +166,12 @@ async function execute(root: string, state: LoopState, lockHeld = false): Promis
   let activeBrain: BrainSession | null = null;
   const shutdown = createLoopShutdownHandler(root, () => activeBrain?.kill());
   const onExit = () => shutdown('process exit');
-  const signals =
-    process.platform === 'win32'
-      ? (['SIGINT', 'SIGTERM', 'SIGBREAK'] as const)
-      : (['SIGINT', 'SIGTERM'] as const);
+  const signals = loopSignals();
   const onSignal = (signal: (typeof signals)[number]) => {
     shutdown(`signal: ${signal}`);
-    process.exit(128 + (signal === 'SIGINT' ? 2 : signal === 'SIGTERM' ? 15 : 21));
+    process.exit(
+      128 + (signal === 'SIGINT' ? 2 : signal === 'SIGTERM' ? 15 : signal === 'SIGHUP' ? 1 : 21),
+    );
   };
   for (const signal of signals) process.on(signal, onSignal);
   process.on('exit', onExit);

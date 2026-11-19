@@ -37,6 +37,7 @@ Claude Code (yönetici) ──MCP──▶ anafor-mcp sunucusu ──▶ runner 
 npm install -g https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz   # Node 24+, git, Claude Code ve en az bir işçi gerekir
 cd /projen && anafor setup                   # sihirbaz: işçiler, kalıcı plugin, statusline, proje
 anafor chat                                  # beyin ajanla terminalden konuş
+anafor loop start "hedef"                   # geliştirme döngüsü; anafor loop status/pause/resume/stop
 ```
 
 Ayrıntı: **[docs/kurulum.md](docs/kurulum.md)**.
@@ -62,6 +63,7 @@ Claude Code içinde örnek istek: *"Anafor ile görev aç, bir işçiye dağıt,
 | `intervene`, `intervene_end` | Pürüz istisnası: süreli ve yol kısıtlı, audit'li doğrudan düzenleme izni |
 | `checkpoint`, `operation_authorize`, `operation_record` | Yönetişim: git durumu kaydı, politika ve kanıt kapısı, append-only audit |
 | `memory_lock`, `memory_metrics` | Lat.md hafızası için münhasır yazma kirası ve ölçümler |
+| `loop_start`, `loop_status`, `loop_stop` | Limit uyumlu geliştirme döngüsünü başlatma, izleme ve duraklatma |
 
 Uzun işler için `anafor job wait <id>` komutunu Claude Code'da Bash `run_in_background` ile çalıştırın; iş bitince harness yöneticiyi uyandırır. `job_wait` MCP aracı kısa kontroller içindir.
 
@@ -108,7 +110,7 @@ claude --plugin-dir /path/to/anafor-mcp/plugin
 
 - **PreToolUse hook:** Anafor projelerinde Claude'un kod dosyalarını doğrudan düzenlemesini ve dosya değiştiren shell komutlarını engeller, işi `job_dispatch`'e yönlendirir. Dokümantasyon ve hafıza yolları serbesttir. Mod: `anafor.config.json` → `"director_mode": "enforce" | "warn" | "off"`.
 - **SessionStart hook:** oturum başında rol hatırlatması ve görev panosu.
-- **Komutlar:** `/anafor:plan`, `/anafor:run`, `/anafor:status`, `/anafor:accept`.
+- **Komutlar:** `/anafor:plan`, `/anafor:run`, `/anafor:loop`, `/anafor:status`, `/anafor:accept`.
 
 Ayrıntılı kılavuz: **[docs/kullanim.md](docs/kullanim.md)**. Eski `software-orchestrator` durumundan göç: `anafor migrate`.
 
