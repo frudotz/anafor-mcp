@@ -1,10 +1,12 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { defaultAdapters } from '../adapters/registry.js';
+import { AntigravityAdapter } from '../adapters/google.js';
 import { findAnaforRoot, loadConfig } from '../core/config.js';
 import { currentLimits, formatWindows, limitAccount } from '../limits/limits.js';
 import {
   buildUserPlugin,
+  enableAntigravity,
   installHints,
   installPluginToClaude,
   installStatusline,
@@ -91,6 +93,7 @@ export async function runSetup(opts: SetupOptions): Promise<number> {
     ]),
     t.envTitle,
   );
+
   if (!envOk) {
     p.cancel(t.envMissing);
     return 1;
@@ -158,6 +161,16 @@ export async function runSetup(opts: SetupOptions): Promise<number> {
       p.log.success(t.subsApplied);
     } else if (!root) {
       p.log.info(t.subsLater(subs.join(',')));
+    }
+  }
+
+  const antigravitySelected = subs.includes('antigravity');
+  const agyInstalled = (await new AntigravityAdapter({ acknowledged: true }).detect()).available;
+  if (antigravitySelected || agyInstalled) {
+    p.note(`${m().adapters.agyTerms}\n\n${m().adapters.agyDisclaimer}`, 'Antigravity');
+    if (await ask(t.antigravityAsk, false, opts.yes)) {
+      if (enableAntigravity(root ?? undefined)) p.log.success(t.antigravityEnabled);
+      else p.log.info(t.antigravityProjectRequired);
     }
   }
 

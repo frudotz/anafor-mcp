@@ -1,8 +1,9 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   buildUserPlugin,
+  enableAntigravity,
   installStatusline,
   readSetupState,
   writeSetupState,
@@ -10,6 +11,38 @@ import {
 import { tempDir } from '../helpers.js';
 
 describe('kurulum', () => {
+  it('does not create local config without a project root', () => {
+    expect(enableAntigravity()).toBe(false);
+  });
+  it('Antigravity onayını yalnızca yerel config dosyasına yazar ve diğer ayarları korur', () => {
+    const t = tempDir();
+    try {
+      writeFileSync(
+        join(t.dir, 'anafor.config.json'),
+        JSON.stringify({ workers: { antigravity: { enabled: false } } }),
+      );
+      mkdirSync(join(t.dir, '.anafor'));
+      writeFileSync(
+        join(t.dir, '.anafor', 'config.json'),
+        JSON.stringify({ workers: { codex: { enabled: true } } }),
+      );
+      enableAntigravity(t.dir);
+      expect(JSON.parse(readFileSync(join(t.dir, '.anafor', 'config.json'), 'utf8'))).toMatchObject(
+        {
+          workers: {
+            codex: { enabled: true },
+            antigravity: { enabled: true, accept_terms_risk: true },
+          },
+        },
+      );
+      expect(
+        JSON.parse(readFileSync(join(t.dir, 'anafor.config.json'), 'utf8')).workers.antigravity
+          .enabled,
+      ).toBe(false);
+    } finally {
+      t.cleanup();
+    }
+  });
   it('kullanıcı düzeyi plugin + yerel marketplace: mutlak yollar, komutlar, manifest', () => {
     const t = tempDir();
     try {
