@@ -19,7 +19,7 @@ Anafor kişisel ve yerel kullanım içindir: kendi hesabınızda ve makinenizde,
 - İletişim, tipli **MCP araçlarıyla** kurulur. Kurallar (düzenleme yasağı, kabul kapıları, yetki politikası) prompt'ta değil, kodda uygulanır.
 - Yeni bir yapay zekâ eklemek, bir `WorkerAdapter` yazmak kadar kolaydır.
 
-> **Durum:** v0.6. Yönetici ve işçi ajan rolleri; worktree paralelliği, kabul ve yönetişim kapıları, kapasite modeli ve yük dengeleyici, işçi yalıtımı, olay tabanlı bekleme, durum satırında işçi limitleri, eklenti kapısı, Türkçe/İngilizce arayüz, `anafor update`.
+> **Durum:** v0.7. Yönetici ve işçi ajan rolleri; worktree paralelliği, kabul ve yönetişim kapıları, kapasite modeli ve yük dengeleyici, limit uyumlu geliştirme döngüsü, marka kimliği, Türkçe/İngilizce arayüz, `anafor update`.
 
 ## Mimari (özet)
 
