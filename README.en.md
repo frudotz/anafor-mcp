@@ -1,137 +1,87 @@
 🇹🇷 [Türkçe](README.md)
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/brand/svg/anafor-lockup-horizontal-dark-transparent.svg">
-  <source media="(prefers-color-scheme: light)" srcset="assets/brand/svg/anafor-lockup-horizontal-light-transparent.svg">
-  <img alt="Anafor" src="assets/brand/svg/anafor-lockup-horizontal-dark-transparent.svg" width="360">
-</picture>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/svg/anafor-lockup-horizontal-dark-transparent.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/brand/svg/anafor-lockup-horizontal-light-transparent.svg">
+    <img alt="Anafor" src="assets/brand/svg/anafor-lockup-horizontal-dark-transparent.svg" width="360">
+  </picture>
+  <br>
+  <a href="https://github.com/frudotz/anafor-mcp/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/frudotz/anafor-mcp/ci.yml?branch=main&label=CI"></a>
+  <a href="https://github.com/frudotz/anafor-mcp/actions/workflows/contribution-guard.yml"><img alt="Contribution Guard" src="https://img.shields.io/github/actions/workflow/status/frudotz/anafor-mcp/contribution-guard.yml?branch=main&label=Contribution%20Guard"></a>
+  <a href="https://github.com/frudotz/anafor-mcp/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/frudotz/anafor-mcp"></a>
+  <img alt="License: AGPL-3.0-only" src="https://img.shields.io/badge/license-AGPL--3.0--only-blue">
+  <img alt="Node.js >=24" src="https://img.shields.io/badge/node-%3E%3D24-339933?logo=node.js&logoColor=white">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-blue?logo=typescript&logoColor=white">
+  <img alt="MCP" src="https://img.shields.io/badge/MCP-supported-6f42c1">
+</p>
 
 # anafor-mcp
 
-**Anafor** is an orchestration MCP server for frontier AI models: a manager agent plans work, dispatches it to worker agents, and checks results through acceptance gates. You can configure which models take which roles.
+An orchestration MCP server for frontier AI models: dispatch work, run it in isolation, and check results through acceptance gates.
 
-## Usage boundary
+## Features
 
-Anafor is for personal, local use: it runs with your own account and on your own machine, using official, unmodified CLI binaries; it does not read, store, or transmit credentials or session tokens, and does not bypass limits. Do not offer Anafor as a hosted service to others through your subscription. High parallelism may trigger provider restrictions. See the [usage guide](docs/en/usage.md#8b-workers-and-terms-of-use) for provider terms.
+- Acceptance gates check tests, requirements, findings and evidence.
+- Git worktrees isolate worker tasks.
+- A traceable, limit-aware development loop.
+- Automatic, schema-based result validation.
+- Worker capacity and limit visibility with load balancing.
+- Contribution protection and governance audit records.
 
-- Claude plans, splits the work, dispatches it to workers, reviews the result and accepts it.
-- Workers run tasks in isolated workspaces and return a structured result **validated against a JSON Schema**.
-- Communication happens through typed **MCP tools**. The rules (edit ban, acceptance gates, permission policy) are enforced in code, not in the prompt.
-- Adding a new AI is as easy as writing a `WorkerAdapter`.
+## Quick start
 
-> **Status:** v0.7. Manager and worker agent roles; worktree parallelism, acceptance and governance gates, capacity model and load balancer, limit-aware development loop, brand identity, Turkish/English UI, `anafor update`.
-
-## Architecture (overview)
-
+```bash
+npm install -g https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz
+cd /your-project && anafor setup
+anafor chat
+anafor loop start "goal"
 ```
-Claude Code (manager) ──MCP──▶ anafor-mcp server ──▶ runner (detached process) ──▶ adapter ──▶ Codex / other workers
-        ▲   plugin: hooks,             │  state machine, schema validation,            │
-        └── commands, instructions     └─ SQLite (.anafor/state.db)                     └─ git worktree
+
+Requires Node.js 24+, git, Claude Code and at least one worker. See the [installation guide](docs/en/installation.md) for details. From Claude Code, create a task, dispatch it to a worker, review the result and accept it.
+
+## How it works
+
+Claude Code plans as the manager and dispatches jobs through MCP tools. The Anafor server enforces the state machine, acceptance gates and governance rules; a detached runner starts the worker in its own git worktree. Results are validated against JSON Schema and accepted by the manager.
+
+```text
+Claude Code → MCP server → detached runner → worker adapter
+                  ├─ SQLite state store
+                  └─ isolated git worktree
 ```
 
 ## Requirements
 
-- Node.js 24+
+- Node.js 24 or later
+- Git
 - Claude Code
-- At least one worker: [Codex CLI](https://github.com/openai/codex)
+- At least one compatible worker CLI
 
-> **AI agents:** to install or repair Anafor for a user, follow [docs/agent-install.md](docs/agent-install.md) (step by step, with `anafor doctor --json` codes).
+## Usage boundary and provider terms
 
-## Quick start (new machine)
+Anafor is for personal, local use: it runs with your own account and on your own machine, using official, unmodified CLI binaries; it does not read, store, or transmit credentials or session tokens, and does not bypass limits. Do not offer Anafor as a hosted service to others through your subscription. High parallelism may trigger provider restrictions. See the [usage guide](docs/en/usage.md#8b-workers-and-terms-of-use) for provider terms.
 
-```bash
-npm install -g https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz   # requires Node 24+, git, Claude Code and at least one worker
-cd /your-project && anafor setup             # wizard: workers, persistent plugin, statusline, project
-anafor chat                                  # talk to the brain agent from the terminal
-anafor loop start "goal"                    # development loop; anafor loop status/pause/resume/stop
-```
+## Documentation
 
-Details: **[docs/en/installation.md](docs/en/installation.md)**.
-
-Example request inside Claude Code: _"Open a task with Anafor, dispatch it to a worker, and review the result when it's done."_
-
-### MCP tools (v0.1)
-
-| Tool | Purpose |
+| Document | Description |
 |---|---|
-| `workers_list`, `project_status` | Workers and project board |
-| `task_create`, `task_status` | Task with acceptance criteria |
-| `job_dispatch` | Hands a job to a worker; returns `job_id` immediately, the job runs in a detached process |
-| `job_wait`, `job_status`, `job_events` | Short wait (up to 50 s), status, event log |
-| `job_result` | Schema-validated result, token usage, artifact paths |
-| `job_request_changes` | Fix-up with findings, in the same worker session (at most 5 per task) |
-| `job_cancel` | Cancel and kill the process tree |
-| `job_diff` | Diff against the HEAD at job start and mismatches with the worker report |
-| `task_accept` | Acceptance gates (tests, missing requirements, critical findings, evidence; independent review in deep mode) |
-| `task_close` | Close a task without accepting it |
-| `task_merge` | Merge an accepted task branch into the branch of the working tree (clean tree required, rolled back on conflict) |
-| `workspace_cleanup` | Safely clean up worktrees and merged branches of finished jobs |
-| `intervene`, `intervene_end` | Snag exception: time-boxed, path-restricted, audited direct edit permission |
-| `checkpoint`, `operation_authorize`, `operation_record` | Governance: git state snapshot, policy and evidence gate, append-only audit |
-| `memory_lock`, `memory_metrics` | Exclusive write lease and metrics for Lat.md memory |
-| `loop_start`, `loop_status`, `loop_stop` | Start, monitor and pause a limit-aware development loop |
+| [Installation](docs/en/installation.md) | Installation and project setup |
+| [Usage](docs/en/usage.md) | Tools, jobs, workers and provider terms |
+| [Contribution Guard](docs/contribution-guard.md) | Contribution checks |
+| [Agent installation](docs/agent-install.md) | Agent setup and diagnostics |
+| [Sharing fixes](docs/sharing-fixes.md) | Sending fixes from a fork upstream |
 
-For long jobs, run `anafor job wait <id>` with Claude Code Bash `run_in_background`; the harness wakes the director when the job finishes. The MCP `job_wait` tool is for short checks.
-
-### Parallel work: git worktree
-
-In a git repository, `implementation` and `test` jobs run in **their own worktrees** by default:
-
-```
-main (your working tree: untouched)
- └─ anafor/<task>              task branch
-     ├─ anafor/<task>-<job1>   .anafor/worktrees/<job1>
-     └─ anafor/<task>-<job2>   .anafor/worktrees/<job2>
-```
-
-- Fix-up and follow-up jobs continue in the same worktree, in the same worker session.
-- A `review` job inspects the target job's worktree read-only via `target_job_id`.
-- `task_accept` commits the changes to the job branch and merges them into the task branch; `task_merge` brings the task branch into your branch.
-- To install dependencies in a new worktree: `anafor.config.json` → `"worktree_setup": "npm ci"`. Faster: `"worktree_cache": { "paths": ["node_modules"], "key_files": ["package-lock.json"] }` (if the lock file is identical, a hardlink copy is made and installation is skipped).
-
-### Workers and routing
-
-| Worker | Invocation | Note |
-|---|---|---|
-| `codex` | `codex exec --json --output-schema` | Default implementation worker |
-| `cirak` | `claude -p --model haiku --json-schema` | Cheap analysis, tests and cross-review; no MCP loaded, no permission bypass |
-| `fake` | deterministic script | Testing and dry runs |
-
-If no worker is specified, `job_dispatch` picks the first available worker from the role's preference order. For review jobs, a worker **different** from the one that did the target job is preferred. Settings:
-
-```json
-{
-  "routing": { "implementation": ["codex", "cirak"], "review": ["codex", "cirak"] },
-  "workers": { "cirak": { "model": "haiku", "max_concurrency": 3 }, "codex": { "enabled": true } }
-}
-```
-
-Adding a new worker: a class implementing `WorkerAdapter` + one line in `src/adapters/registry.ts`. Conformance test: `test/integration/conformance.test.ts`.
-
-### Claude Code plugin (manager discipline)
-
-```bash
-claude --plugin-dir /path/to/anafor-mcp/plugin
-```
-
-- **PreToolUse hook:** in Anafor projects, blocks Claude from editing code files directly and from running file-modifying shell commands, redirecting the work to `job_dispatch`. Documentation and memory paths are allowed. Mode: `anafor.config.json` → `"director_mode": "enforce" | "warn" | "off"`.
-- **SessionStart hook:** role reminder and task board at session start.
-- **Commands:** `/anafor:plan`, `/anafor:run`, `/anafor:loop`, `/anafor:status`, `/anafor:accept`.
-
-Detailed guide: **[docs/en/usage.md](docs/en/usage.md)**. Migrating from the old `software-orchestrator` state: `anafor migrate`.
-
-## Development
+## Development and contributing
 
 ```bash
 npm install
-npm run check   # format + types + build + test
-ANAFOR_E2E_CODEX=1 ANAFOR_E2E_CLAUDE=1 npx vitest run test/integration/conformance.test.ts   # conformance with real workers (optional)
+npm run check
 npm run build
 ```
 
-Contribution guidelines: [CONTRIBUTING.md](CONTRIBUTING.md)
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines. Conformance testing with real workers is optional: `ANAFOR_E2E_CODEX=1 ANAFOR_E2E_CLAUDE=1 npx vitest run test/integration/conformance.test.ts`.
 
-## Security: worker config isolation
+## Security
 
 Codex isolate mode keeps personal MCP/plugin/skill configuration out of the worker. cirak only disables slash commands/skills (`--disable-slash-commands`) and external MCP configuration (`--strict-mcp-config`); user hooks and other settings remain active. Set `workers.<id>.user_config: "inherit"` to remove Codex isolation or cirak's slash-command disabling for that worker. See the [usage guide](docs/en/usage.md) for details.
 
