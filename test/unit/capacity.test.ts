@@ -165,6 +165,17 @@ describe('meta profili: önerilen rol dağılımı', () => {
     expect(r.warnings).toEqual([]);
   });
 
+  it('eşit kademede uzmanlık ipuçlarını uygular ve kaynak notlarını içerir', () => {
+    const ids = ['claude-max', 'chatgpt-plus'];
+    const normal = recommend(ids);
+    const frontend = recommend(ids, ['Build UI']);
+    expect(normal.routing.implementation[0]).toBe('codex');
+    expect(normal.routing.analysis[0]).toBe('cirak');
+    expect(frontend.routing.implementation[0]).toBe('cirak');
+    expect(frontend.rationale.join('\n')).toMatch(/META_PERIOD 2026-Q4.*F33/);
+    expect(recommend(ids, ['guide', 'quiet']).routing.implementation[0]).toBe('codex');
+  });
+
   it('yalnızca Claude Pro: Sonnet beyin, tek aile uyarısı', () => {
     const r = recommend(['claude-pro']);
     expect(r.brain).toMatch(/^Sonnet/);
