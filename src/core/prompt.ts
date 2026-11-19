@@ -18,6 +18,11 @@ const P = {
         'Kodu DEĞİŞTİRME. Depoyu incele; yapı, riskler ve önerilen plan hakkında öz bir analiz üret.',
       test: 'Uygulama kodunu değiştirmeden testleri çalıştır veya eksik testleri ekle; sonuçları raporla.',
     },
+    completion:
+      '- Kabul ölçütlerinin hepsini bu turda bitir. Yalnız gerçek engel varsa partial bildir ve engeli blockers alanına yaz; zaman veya işin büyüklüğü partial nedeni değildir.',
+    reviewRule:
+      '- Her kabul ölçütüne karşılandı/kısmen/karşılanmadı kararı ver. Kısmen veya karşılanmadı varsa status completed olsa bile findings içine medium+ bulgu ekle.',
+    reportLanguage: '- Raporu iş emrinin dilinde yaz (tr ise Türkçe).',
     sandboxRules: `## Sandbox kuralları
 - Geçici dosyalar için repo dışı yollar veya /tmp yerine çalışma alanındaki .anafor-tmp/ dizinini kullan. İş sonunda temizlemeyi dene; silinemezse bırak ve rapora yaz.
 - Bir komut sandbox nedeniyle reddedilirse (izin, erişim veya kilit), farklı kabuk biçimi, Node betiği ya da çalışma alanı içi yol gibi en az bir alternatif dene. Yalnızca tüm alternatifler tükenince failed bildir.
@@ -66,6 +71,11 @@ Son mesajın YALNIZCA WorkerResult v1 şemasına uyan tek bir JSON nesnesi olmal
         'Do NOT modify code. Study the repository and produce a concise analysis of structure, risks and a proposed plan.',
       test: 'Run the tests or add missing ones without changing application code; report the results.',
     },
+    completion:
+      '- Complete every acceptance criterion this turn. Report partial only for a real blocker and put it in blockers; time or task size is not a reason for partial.',
+    reviewRule:
+      '- Decide met/partly met/not met for every acceptance criterion. If any is partly met or not met, add a medium+ finding even when status is completed.',
+    reportLanguage: '- Write the report in the job order language (if tr, use Turkish).',
     sandboxRules: `## Sandbox rules
 - Use .anafor-tmp/ in the workspace for temporary files instead of /tmp or paths outside the repository. Try to clean it up at the end; if you cannot, leave it and report that.
 - If a command is denied by the sandbox (permission, access, or lock), try at least one alternative such as a different shell form, a Node script, or a workspace-local path. Report failed only after all alternatives are exhausted.
@@ -139,7 +149,9 @@ export function compilePrompt(task: Task, job: Job, extras: PromptExtras = {}): 
   const t: Texts = P[extras.lang ?? lang()];
   if (extras.resumed) return compileResumePrompt(task, job, extras, t);
   const parts: string[] = [];
-  parts.push(`${t.header}\n- ${t.role[job.role]}`);
+  parts.push(`${t.header}\n- ${t.role[job.role]}\n${t.reportLanguage}`);
+  if (job.role === 'implementation' || job.role === 'test') parts.push(t.completion);
+  if (job.role === 'review') parts.push(t.reviewRule);
   if (job.role === 'implementation' || job.role === 'test')
     parts.push(`${t.header}\n- ${t.role[job.role]}\n\n${t.sandboxRules}`);
   else parts.push(`${t.header}\n- ${t.role[job.role]}`);
