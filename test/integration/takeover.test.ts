@@ -104,6 +104,34 @@ describe('görev devralma (takeover)', () => {
     expect(store.mustGetJob(tk.job_id).state).toBe('running');
   });
 
+  it('needs_review işindeki failed worker sonucu başarısız deneme sayılır', async () => {
+    const task = svc.taskCreate({ title: 'Raporlanan hata', objective: 'x' });
+    const d = await svc.jobDispatch({
+      taskId: task.task_id,
+      role: 'implementation',
+      instructions: '[fake:ok]',
+      newSession: true,
+    });
+    await svc.jobWait([d.job_id], 30);
+    const original = store.listJobs.bind(store);
+    store.listJobs = ((filter) =>
+      original(filter).map((job) =>
+        job.id === d.job_id ? { ...job, result: { ...job.result!, status: 'failed' } } : job,
+      )) as typeof store.listJobs;
+    for (let i = 0; i < 2; i++) {
+      const next = await svc.jobDispatch({
+        taskId: task.task_id,
+        role: 'implementation',
+        instructions: '[fake:fail]',
+        newSession: true,
+      });
+      await svc.jobWait([next.job_id], 30);
+    }
+    expect(svc.takeoverStatus(task.task_id).failed_jobs).toHaveLength(3);
+    expect(svc.takeoverStatus(task.task_id).eligible).toBe(true);
+    store.listJobs = original;
+  });
+
   it('worktree dosyaları allow_paths ile açılamaz (yalnızca izinle)', () => {
     const wtFile = join(t.dir, '.anafor', 'worktrees', 'J-x', 'src', 'a.ts');
     expect(write(wtFile)).not.toBe('');

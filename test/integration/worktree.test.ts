@@ -1,10 +1,10 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeAdapter } from '../../src/adapters/fake.js';
 import type { AdapterRegistry } from '../../src/adapters/registry.js';
 import { git } from '../../src/git/git.js';
-import { branchExists } from '../../src/git/worktree.js';
+import { branchExists, commitWorktree } from '../../src/git/worktree.js';
 import { AnaforService, inProcessLauncher } from '../../src/server/service.js';
 import { Store } from '../../src/store/store.js';
 import { tempDir } from '../helpers.js';
@@ -39,6 +39,18 @@ describe('worktree paralelliği (F3)', () => {
     expect(r.failed_gates).toEqual([]);
     return r;
   };
+
+  it('.anafor-tmp dosyaları iş commitine alınmaz', () => {
+    mkdirSync(join(t.dir, '.anafor-tmp'), { recursive: true });
+    writeFileSync(join(t.dir, '.anafor-tmp', 'scratch.txt'), 'temporary');
+    writeFileSync(join(t.dir, 'result.txt'), 'result');
+
+    expect(commitWorktree(t.dir, 'test temporary exclusion')).not.toBeNull();
+    const committed = git(t.dir, ['ls-tree', '-r', '--name-only', 'HEAD']).stdout;
+    expect(committed).toContain('result.txt');
+    expect(committed).not.toContain('.anafor-tmp');
+    expect(existsSync(join(t.dir, '.anafor-tmp', 'scratch.txt'))).toBe(true);
+  });
 
   it('iki işçi aynı anda ayrı worktree’lerde çalışır, kullanıcı ağacı temiz kalır, çakışmasız birleşir', async () => {
     const a = svc.taskCreate({ title: 'A', objective: 'a.txt' });

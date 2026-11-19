@@ -46,6 +46,41 @@ describe('token profili (F22)', () => {
 });
 
 describe('önbellek dostu iş emri (F22)', () => {
+  it('implementation and test prompts include localized sandbox rules only for those roles', () => {
+    const t = tempDir();
+    const store = new Store(t.dir);
+    try {
+      const task = store.createTask({ title: 'T', objective: 'O' });
+      for (const role of ['implementation', 'test', 'review'] as const) {
+        const job = store.createJob({
+          taskId: task.id,
+          role,
+          worker: 'codex',
+          workspaceMode: 'shared',
+          workdir: t.dir,
+          instructions: 'I',
+          timeoutS: 30,
+        });
+        for (const language of ['tr', 'en'] as const) {
+          const prompt = compilePrompt(task, job, { lang: language });
+          if (role === 'review') {
+            expect(prompt).not.toContain('## Sandbox');
+          } else {
+            expect(prompt).toContain(
+              `## ${language === 'tr' ? 'Sandbox kuralları' : 'Sandbox rules'}`,
+            );
+            expect(prompt).toContain('.anafor-tmp/');
+            expect(prompt).toContain('failed');
+            expect(prompt).toContain(language === 'tr' ? 'sandbox dışında' : 'outside the sandbox');
+          }
+        }
+      }
+    } finally {
+      store.close();
+      t.cleanup();
+    }
+  });
+
   it('prompt environment and focused review context are included', () => {
     const t = tempDir();
     const store = new Store(t.dir);
