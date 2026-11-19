@@ -1433,9 +1433,14 @@ export class AnaforService {
     const evidenceDir = join(this.store.paths.anaforDir, 'evidence');
     const integ = join(this.store.paths.worktreesDir, `_task-${taskId}`);
     const hasBranch = branchExists(root, taskBranchName(taskId));
-    const cwd = existsSync(integ) ? integ : root;
     const jobs = this.store.listJobs({ taskId }).filter((j) => j.baseSha);
-    const base = jobs[0]?.baseSha ?? headSha(root);
+    const latestImpl = jobs.filter((j) => j.role === 'implementation').at(-1);
+    const unmergedWorktree =
+      latestImpl?.workspaceMode === 'worktree' &&
+      latestImpl.state !== 'merged' &&
+      existsSync(latestImpl.workdir);
+    const cwd = unmergedWorktree ? latestImpl.workdir : existsSync(integ) ? integ : root;
+    const base = unmergedWorktree ? latestImpl.baseSha! : (jobs[0]?.baseSha ?? headSha(root));
     if (!base) throw new ServiceError('VALIDATION_FAILED', s().noBaseCommit);
 
     let tests: ReturnType<typeof generateTestEvidence> | null = null;
@@ -1451,10 +1456,12 @@ export class AnaforService {
       evidenceDir,
       taskId,
       base,
-      hasBranch ? taskBranchName(taskId) : null,
+      unmergedWorktree ? null : hasBranch ? taskBranchName(taskId) : null,
+      cwd,
     );
     return {
       task_id: task.id,
+      workdir: cwd,
       tests: tests ? { evidence: tests.path, passed: tests.passed, summary: tests.summary } : null,
       scan: {
         evidence: scan.path,

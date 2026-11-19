@@ -21,6 +21,7 @@ Requirements: Node 24+, git, Claude Code and at least one worker:
 ```bash
 cd /your-project                   # a git repository with at least one commit
 node /path/anafor-mcp/dist/cli/main.js init      # .anafor/, policy.json, .gitignore, .mcp.json
+node /path/anafor-mcp/dist/cli/main.js init --exclude-local  # add .anafor/ to the common git info/exclude
 node /path/anafor-mcp/dist/cli/main.js doctor    # node, git, sqlite, workers
 claude --plugin-dir /path/anafor-mcp/plugin      # manager hooks + /anafor:* commands
 ```

@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { deepReviewCompleted, onlyMissingChecks } from '../../src/core/accept.js';
+import { resolve } from 'node:path';
+import { deepReviewCompleted, onlyMissingChecks, resolveEvidence } from '../../src/core/accept.js';
 
 describe('deep review partial sonucu', () => {
+  it('satır aralığı ve worktree göreli kanıtını çözer, dış yolu reddeder', () => {
+    const root = 'C:/repo';
+    const worktree = 'C:/repo/.anafor/worktrees/job';
+    expect(resolveEvidence(root, worktree, 'lat.md/tasks.md:148-150')).toBe(
+      resolve(worktree, 'lat.md/tasks.md'),
+    );
+    expect(resolveEvidence(root, worktree, '.anafor/evidence/T-tests.txt:1')).toBe(
+      resolve(root, '.anafor/evidence/T-tests.txt'),
+    );
+    expect(resolveEvidence(root, worktree, '../../../../outside.txt')).toBeNull();
+  });
   it.each([
     'npm run check çalıştırılamadı (onay gerektirdi)',
     'vitest could not run: approval required',
