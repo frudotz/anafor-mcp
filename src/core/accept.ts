@@ -27,10 +27,14 @@ export interface AcceptInput {
  * son eki atılır; sonuç proje kökünün içinde olmalıdır (worktree'ler `.anafor/` altında, içeride).
  */
 export function resolveEvidence(root: string, workdir: string, p: string): string | null {
-  const clean = p.trim().replace(/:\d+(:\d+)?$/, '');
-  const abs = isAbsolute(clean) ? clean : resolve(workdir, clean);
+  const clean = p.trim().replace(/:\d+(?:-\d+)?(?::\d+)?$/, '');
+  const generatedEvidence = clean.replace(/\\/g, '/').startsWith('.anafor/evidence/');
+  const abs = isAbsolute(clean) ? clean : resolve(generatedEvidence ? root : workdir, clean);
   const rel = relative(root, abs);
-  return !rel.startsWith('..') && !isAbsolute(rel) ? abs : null;
+  const workRel = relative(workdir, abs);
+  const inRoot = !rel.startsWith('..') && !isAbsolute(rel);
+  const inWorktree = !workRel.startsWith('..') && !isAbsolute(workRel);
+  return inRoot || inWorktree ? abs : null;
 }
 
 /** Partial review is acceptable only when every missing item clearly concerns running checks. */

@@ -194,6 +194,7 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
     pluginMcp:
       'The Anafor plugin is installed persistently: the MCP server comes from the plugin, .mcp.json was not written.',
     mcpCreated: '.mcp.json created (anafor server).',
+    gitignoreUpdated: 'Added .anafor/ to .gitignore.',
     mcpExists: '.mcp.json already exists; add the anafor entry manually:',
     ready: (dir: string) => `Anafor ready: ${dir}`,
     migrateFailed: (e: string) => `migration failed: ${e}`,

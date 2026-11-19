@@ -21,6 +21,7 @@ Gereksinimler: Node 24+, git, Claude Code ve en az bir işçi:
 ```bash
 cd /projen                         # en az bir commit'i olan bir git deposu
 node /yol/anafor-mcp/dist/cli/main.js init      # .anafor/, policy.json, .gitignore, .mcp.json
+node /yol/anafor-mcp/dist/cli/main.js init --exclude-local  # .anafor/ öğesini ortak git info/exclude dosyasına ekler
 node /yol/anafor-mcp/dist/cli/main.js doctor    # node, git, sqlite, işçiler
 claude --plugin-dir /yol/anafor-mcp/plugin      # yönetici hook'ları + /anafor:* komutları
 ```

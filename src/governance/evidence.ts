@@ -116,10 +116,18 @@ export function generateScanEvidence(
   taskId: string,
   base: string,
   target: string | null,
+  cwd = root,
 ): EvidenceResult & { findings: SecretFinding[]; scanner: string } {
   mkdirSync(evidenceDir, { recursive: true });
   const range = target ? `${base}..${target}` : base; // hedef yoksa çalışma ağacı
-  const patch = git(root, ['diff', '--unified=0', range, '--', '.', ':(exclude).anafor']).stdout;
+  const patch = git(cwd, [
+    'diff',
+    '--unified=0',
+    target ? range : base,
+    '--',
+    '.',
+    ':(exclude).anafor',
+  ]).stdout;
   const findings = scanDiffForSecrets(patch);
   let scanner = 'anafor-builtin';
   const gl = spawnSync('gitleaks', ['version'], { encoding: 'utf8', windowsHide: true });
@@ -142,7 +150,7 @@ export function generateScanEvidence(
         `--log-opts=${logRange}`,
         '.',
       ],
-      { cwd: root, encoding: 'utf8', windowsHide: true },
+      { cwd, encoding: 'utf8', windowsHide: true },
     );
     gitleaksNote = `gitleaks çıkış kodu: ${g.status}`;
     if (g.status === 1) {
