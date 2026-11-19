@@ -39,6 +39,8 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
   ui: { yes: 'Yes', no: 'No', cancelled: 'Cancelled.' },
 
   setup: {
+    opusAdvice:
+      'For medium-sized jobs where quality matters, a direct single-agent Opus run gave better results (F32); Anafor is for large parallel jobs, Claude-limit bottlenecks, and governed workflows.',
     title: (v: string) => ` Anafor setup · v${v} `,
     language: 'Dil / Language',
     envCheck: 'Checking environment',
@@ -276,6 +278,13 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
   },
 
   meta: {
+    orderingHints: {
+      implementation:
+        'F33: Codex speed/cost 75, medium confidence; F32: Codex worker quality varies',
+      review: 'F33: Sonnet for Claude review; cross-family review reduces blind spots',
+      analysis: 'F33: Prefer Claude for analysis and planning',
+      test: '',
+    },
     tiers: {
       K1: 'frontier (Opus, Codex high)',
       K2: 'mid-strong (Sonnet, Codex medium, Gemini Flash)',

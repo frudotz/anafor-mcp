@@ -155,7 +155,10 @@ export async function runSetup(opts: SetupOptions): Promise<number> {
   }
   if (!subs.length) p.log.info(t.subsSkipped);
   else {
-    p.note(formatRecommendation(recommend(subs)).join('\n'), subs.join(' + '));
+    p.note(
+      `${t.opusAdvice}\n\n${formatRecommendation(recommend(subs)).join('\n')}`,
+      subs.join(' + '),
+    );
     if (root && (await ask(t.subsApplyAsk, true, opts.yes))) {
       runRecommend(root, subs, true);
       p.log.success(t.subsApplied);
