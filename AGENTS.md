@@ -3,7 +3,7 @@
 > Bu dosya kısa tutulur (token tasarrufu). Ayrıntı için ilgili dosyayı **ihtiyaç olduğunda** açın; tüm repoyu taramayın.
 
 ## Proje
-Anafor: Claude Code'u yönetici, diğer yapay zekâ ajanlarını (önce Codex CLI) işçi yapan MCP sunucusu + Claude Code plugin'i. TypeScript, Node 24+, ESM.
+Anafor: frontier yapay zekâ modelleri için orkestrasyon MCP sunucusu + Claude Code plugin'i. TypeScript, Node 24+, ESM.
 
 ## Komutlar
 - `npm run check`: biçim + tip + test (PR öncesi zorunlu)
