@@ -201,14 +201,16 @@ describe('deneysel işçi ayrıştırıcıları', () => {
 });
 
 describe('politika kuralları', () => {
-  it('antigravity varsayılan kayıtlı değil; açılsa da onaysız kullanılamaz', async () => {
+  it('antigravity varsayılan kapalı ve iki anahtar olmadan kayıtlı değil', async () => {
     expect(defaultAdapters({ workers: {} }).has('antigravity')).toBe(false);
     expect(
-      defaultAdapters({ workers: { antigravity: { enabled: true } } }).has('antigravity'),
-    ).toBe(true);
+      defaultAdapters({ workers: { antigravity: { enabled: true, acknowledge_terms: true } } }).has(
+        'antigravity',
+      ),
+    ).toBe(false);
     const d = await new AntigravityAdapter({}).detect();
     expect(d.available).toBe(false);
-    expect(d.reason).toContain('acknowledge_terms');
+    expect(d.reason).toContain('accept_terms_risk');
   });
 
   it('opencode yalnızca model yapılandırılınca; anthropic/* reddedilir', async () => {

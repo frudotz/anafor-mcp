@@ -39,6 +39,24 @@ export function writeSetupState(s: SetupState, env?: NodeJS.ProcessEnv): void {
   writeFileSync(stateFile(env), JSON.stringify(s, null, 2));
 }
 
+/** Persist the explicit Antigravity opt-in only in the uncommitted local config. */
+export function enableAntigravity(root?: string): boolean {
+  if (!root) return false;
+  const dir = join(root, '.anafor');
+  const file = join(dir, 'config.json');
+  mkdirSync(dir, { recursive: true });
+  let config: Record<string, any> = {};
+  if (existsSync(file)) config = JSON.parse(readFileSync(file, 'utf8')) as Record<string, any>;
+  config.workers ??= {};
+  config.workers.antigravity = {
+    ...config.workers.antigravity,
+    enabled: true,
+    accept_terms_risk: true,
+  };
+  writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
+  return true;
+}
+
 /**
  * Kullanıcı düzeyi plugin + yerel marketplace üretir. Komutlar bu kurulumun node ve dist
  * yollarını MUTLAK olarak kullanır; böylece plugin Claude Code önbelleğine kopyalansa da çalışır.

@@ -80,6 +80,11 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
     subsApplied: 'Role split applied (anafor.config.json → subscriptions + routing).',
     subsLater: (ids: string) =>
       `To apply it in a project: anafor capacity recommend ${ids} --apply`,
+    antigravityAsk:
+      'Enable optional Antigravity consumer subscription use in this project at your own responsibility?',
+    antigravityEnabled: 'Antigravity enabled only in .anafor/config.json.',
+    antigravityProjectRequired:
+      'Consent recorded; first connect this project with anafor init. The setting can then be written to .anafor/config.json.',
   },
 
   doctor: {
@@ -253,7 +258,8 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
     notes: {
       claudeMax: 'The cirak worker can use Sonnet (workers.cirak.model).',
       geminiApi: 'Personal account sign-in is not supported by Gemini CLI; an API key is required.',
-      antigravity: 'Terms are a grey area; off by default, requires acknowledge_terms.',
+      antigravity:
+        "Google's Antigravity Additional Terms §6 and official FAQ do not support wrapping consumer AI Pro/Ultra access in a third-party agent/app and say it may violate the terms; your account may be suspended. Google recommends Gemini Enterprise or an AI Studio API key. https://antigravity.google/terms · https://antigravity.google/docs/faq",
       opencodeApi: 'Qwen Coding Plan forbids automation; prefer pay-as-you-go API.',
       localGpu: 'Short jobs only: docs, test scaffolding, single files. Never brain/plan/review.',
     },
@@ -414,7 +420,7 @@ Policy: HIGH/CRITICAL and scan errors are blocked; CAUTION only with --accept-ri
         'https://opencode.ai  →  anafor.config.json: workers.opencode.model (API key, local model or ChatGPT plan)',
       local: 'Ollama (https://ollama.com) or LM Studio  →  anafor.config.json: workers.local.model',
       antigravity:
-        'Terms are a grey area: only with workers.antigravity.enabled + acknowledge_terms; an API key is recommended',
+        'Google does not support third-party agent/app wrapping on consumer AI Pro/Ultra; it may violate the terms and your account may be suspended. Gemini Enterprise or an AI Studio API key is recommended.',
     },
   },
 
@@ -437,7 +443,13 @@ Policy: HIGH/CRITICAL and scan errors are blocked; CAUTION only with --accept-ri
     geminiAuth:
       'No auth method selected in Gemini settings: ~/.gemini/settings.json → "security": { "auth": { "selectedType": "gemini-api-key" } }',
     agyTerms:
-      'Antigravity terms are a grey area: workers.antigravity.acknowledge_terms=true required (an API key is recommended)',
+      'Antigravity requires workers.antigravity.enabled=true and workers.antigravity.accept_terms_risk=true. Google does not support wrapping consumer-plan access; your account may be suspended.',
+    agyNeedsRiskKey:
+      'Legacy acknowledge_terms alone is insufficient; workers.antigravity.accept_terms_risk=true is required in .anafor/config.json only.',
+    agyDisclaimer:
+      'This option is used at the user’s own discretion and responsibility. Anafor and its developers are not responsible for any outcome, including restriction or termination of your Google account. This information is not legal advice.',
+    projectAntigravityAckIgnored:
+      'Ignored workers.antigravity.accept_terms_risk in anafor.config.json; acceptance is only honored in .anafor/config.json.',
     agyMissing: 'agy is not installed',
     opencodeModel: 'workers.opencode.model must be set (provider/model)',
     opencodeAnthropic:

@@ -317,13 +317,14 @@ node /yol/anafor-mcp/dist/cli/main.js migrate /projen
 | `local` | OpenAI uyumlu API (Ollama, LM Studio) | ✅ sahte sunucuyla test | Yalnızca `analysis`/`review` (dosya düzenlemez) |
 | `opencode` | `opencode run --format json` | ✅ doğrulandı (gerçek opencode 1.19.5 + OpenAI uyumlu sağlayıcı) | API anahtarı, yerel model veya ChatGPT planı. **Claude aboneliği OpenCode ile kullanılamaz**; `anthropic/*` modelleri yalnızca `allow_anthropic_api` ile |
 | `gemini` | `gemini -p --output-format stream-json --approval-mode auto_edit\|plan` | ✅ doğrulandı (gerçek gemini-cli 0.68 + Gemini API uyumlu sahte sunucu) | Google AI Pro/Ultra girişi 2026-06-18'de kapandı; yalnızca API anahtarı, Vertex veya Code Assist Standard/Enterprise |
-| `antigravity` | `agy -p --output-format stream-json --json-schema <dosya> --mode accept-edits\|plan` | ✅ doğrulandı (gerçek agy 1.5.9 + gerçek hesap, uyum testi), **varsayılan kapalı** | AI Pro/Ultra aboneliğinde üçüncü taraf ajan/uygulamada sarma desteklenmez ve hesap askıya alma riski taşır; Gemini Enterprise veya AI Studio API anahtarı kullanın |
+| `antigravity` | `agy -p --output-format stream-json --json-schema <dosya> --mode accept-edits\|plan` | ✅ doğrulandı (gerçek agy 1.5.9 + gerçek hesap, uyum testi), **varsayılan kapalı** | Google koşulları AI Pro/Ultra tüketici erişimini üçüncü taraf ajan/uygulamada sarmayı desteklemiyor; ihlal sayabilir ve hesap askıya alınabilir. İsteğe bağlı kullanım açık onay ve kullanıcı sorumluluğundadır |
 
 **Kullanım sınırı:** Anafor kişisel ve yerel kullanım içindir: kendi hesabın ve makinen, resmi ve değiştirilmemiş CLI'lar. Kimlik bilgisi/oturum token'ı okunmaz, saklanmaz veya aktarılmaz; limit atlatılmaz. Anafor'u abonelik üzerinden başkalarına barındırılmış hizmet olarak sunma. Yüksek paralellik sağlayıcı kısıtlamasına yol açabilir.
 
 - **Claude:** Anthropic [Legal & Compliance](https://code.claude.com/docs/en/legal-and-compliance) sayfasına göre kendi abonelik girişi resmi `claude` ikilisiyle ordinary, individual usage için izinlidir. Kimlik bilgisi aracılığı ve başkaları adına yönlendirme yasaktır.
 - **Codex:** resmi CLI ve kendi ChatGPT girişi. [OpenAI Kullanım Politikaları](https://openai.com/policies/usage-policies/) (2026-11-20): OpenAI çıktıları rakip model eğitimi için veri/puan/sıralama üretmekte kullanılamaz. Anafor işçi istatistikleri ve ölçümleri yalnızca değerlendirme/kıyaslama içindir; eğitim verisi olarak dışa aktarılmamalıdır. Başkalarına model erişimi sağlayan platformlar OpenAI onayı ister.
-- **Antigravity:** Google [FAQ](https://antigravity.google/docs/faq) ve [Ek Koşullar §6](https://antigravity.google/terms) uyarınca tüketici planlarında üçüncü taraf ajan/uygulama desteği yoktur. Google üçüncü taraf ajanlar için Gemini Enterprise veya [AI Studio API anahtarını](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli) önerir; abonelik girişi için aşağıdaki `enabled` + `acknowledge_terms` örneğini kullanmayın.
+- **Antigravity:** Google [FAQ](https://antigravity.google/docs/faq) ve [Ek Koşullar §6](https://antigravity.google/terms), tüketici AI Pro/Ultra erişimini üçüncü taraf ajan/uygulamada sarmayı desteklemiyor ve ihlal sayabilir; hesap askıya alınabilir. Kullanım yalnızca açık onay ve kullanıcının kendi sorumluluğunda isteğe bağlıdır. Google Gemini Enterprise veya [AI Studio API anahtarı](https://developers.googlebloggers.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli) önerir.
+- Bu bilgi hukuki görüş değildir.
 - Bu özet hukuki görüş değildir; güncel sağlayıcı koşullarını kendin kontrol et.
 
 Örnek yapılandırma:
@@ -345,6 +346,8 @@ node /yol/anafor-mcp/dist/cli/main.js migrate /projen
 ```json
 { "test_command": "npm test", "workers": { "antigravity": { "enabled": false, "allowed_commands": ["npm run lint"] } } }
 ```
+Antigravity isteğe bağlı tüketici aboneliği kullanımı için `anafor setup` onayını verin veya yalnızca commit edilmeyen `.anafor/config.json` içine `{ "workers": { "antigravity": { "enabled": true, "accept_terms_risk": true } } }` yazın. Bu seçenek kullanıcının kendi takdiri ve sorumluluğundadır. Anafor ve geliştiricileri, Google hesabının kısıtlanması veya kapatılması dahil hiçbir sonuçtan sorumlu değildir. Bu bilgi hukuki görüş değildir.
+
 Gerçek uyum testleri (Antigravity: `agy` ile bir kez giriş yaptıktan sonra `ANAFOR_AGY_BIN=<agy.exe yolu> ANAFOR_E2E_AGY=1`):
 - OpenCode, hesap gerektirmeden sahte sağlayıcıyla: `ANAFOR_E2E_OPENCODE_BIN=<opencode yolu> npx vitest run test/integration/opencode-real.test.ts`
 - Gemini, hesap gerektirmeden sahte API ile: `ANAFOR_E2E_GEMINI_BIN=<gemini yolu> npx vitest run test/integration/gemini-real.test.ts`

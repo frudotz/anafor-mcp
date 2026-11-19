@@ -244,7 +244,9 @@ describe('eklenti koruması (PreToolUse)', () => {
 });
 
 const realBin = findSkillspector(null, { ...process.env, ANAFOR_HOME: join(homedir(), '.anafor') });
-describe.skipIf(!realBin)('gerçek SkillSpector (kuruluysa)', () => {
+// İşçi sandbox'ında SkillSpector çalıştırılamıyor; orada atlanır (CI ve yerelde çalışır).
+const skipRealSkillspector = !realBin || process.env.ANAFOR_WORKER === '1';
+describe.skipIf(skipRealSkillspector)('gerçek SkillSpector (kuruluysa; işçide atlanır)', () => {
   it('masum skill SAFE, kötü niyetli DO_NOT_INSTALL', () => {
     const t = tempDir();
     try {
