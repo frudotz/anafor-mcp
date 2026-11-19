@@ -71,7 +71,7 @@ Wizard steps:
 4. **Statusline:** adds a status line to `~/.claude/settings.json`. An existing statusLine is left untouched; a backup is made before any change. The line shows:
 
    ```
-   anafor v0.5.0 · ⬆ v0.6.0: anafor update · ⚠ 2 jobs failed: anafor doctor · 5h %24 · 7d %33
+   anafor v0.6.0 · ⬆ v0.7.0: anafor update · ⚠ 2 jobs failed: anafor doctor · 5h %24 · 7d %33
    ```
 
    - **Version:** installed Anafor version.

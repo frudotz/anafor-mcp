@@ -19,7 +19,7 @@ Anafor is for personal, local use: it runs with your own account and on your own
 - Communication happens through typed **MCP tools**. The rules (edit ban, acceptance gates, permission policy) are enforced in code, not in the prompt.
 - Adding a new AI is as easy as writing a `WorkerAdapter`.
 
-> **Status:** v0.6. Manager and worker agent roles; worktree parallelism, acceptance and governance gates, capacity model and load balancer, worker isolation, event-based waiting, worker limits in the statusline, extension gate, Turkish/English UI, `anafor update`.
+> **Status:** v0.7. Manager and worker agent roles; worktree parallelism, acceptance and governance gates, capacity model and load balancer, limit-aware development loop, brand identity, Turkish/English UI, `anafor update`.
 
 ## Architecture (overview)
 
