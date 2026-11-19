@@ -86,15 +86,15 @@ main (senin çalışma ağacın: dokunulmaz)
 | İşçi | Çalıştırma | Not |
 |---|---|---|
 | `codex` | `codex exec --json --output-schema` | Varsayılan uygulama işçisi |
-| `claude-lite` | `claude -p --model haiku --json-schema` | Ucuz analiz, test ve çapraz inceleme; MCP yüklenmez, izin atlatma yok |
+| `cirak` | `claude -p --model haiku --json-schema` | Ucuz analiz, test ve çapraz inceleme; MCP yüklenmez, izin atlatma yok |
 | `fake` | deterministik betik | Test ve kuru çalıştırma |
 
 `job_dispatch` işçi belirtilmezse rolün tercih sırasından ilk uygun işçiyi seçer. Review işinde, hedef işi yapandan **farklı** bir işçi tercih edilir. Ayarlar:
 
 ```json
 {
-  "routing": { "implementation": ["codex", "claude-lite"], "review": ["codex", "claude-lite"] },
-  "workers": { "claude-lite": { "model": "haiku", "max_concurrency": 3 }, "codex": { "enabled": true } }
+  "routing": { "implementation": ["codex", "cirak"], "review": ["codex", "cirak"] },
+  "workers": { "cirak": { "model": "haiku", "max_concurrency": 3 }, "codex": { "enabled": true } }
 }
 ```
 
@@ -125,7 +125,7 @@ Katkı kuralları: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Güvenlik: işçi yapılandırma yalıtımı
 
-Codex isolate modunda kullanıcı MCP/plugin/skill yapılandırmalarından yalıtılır. claude-lite yalnızca slash komutlarını/skill'leri kapatır (`--disable-slash-commands`) ve dış MCP yapılandırmasını yüklemez (`--strict-mcp-config`); kullanıcının hook ve diğer ayarları etkin kalır. `workers.<id>.user_config: "inherit"`, ilgili işçi için Codex yalıtımını veya claude-lite slash komutu kapatmasını kaldırır. Ayrıntılar için [kullanım kılavuzuna](docs/kullanim.md) bakın.
+Codex isolate modunda kullanıcı MCP/plugin/skill yapılandırmalarından yalıtılır. cirak yalnızca slash komutlarını/skill'leri kapatır (`--disable-slash-commands`) ve dış MCP yapılandırmasını yüklemez (`--strict-mcp-config`); kullanıcının hook ve diğer ayarları etkin kalır. `workers.<id>.user_config: "inherit"`, ilgili işçi için Codex yalıtımını veya cirak slash komutu kapatmasını kaldırır. Ayrıntılar için [kullanım kılavuzuna](docs/kullanim.md) bakın.
 
 ## Lisans, çatallar ve atıf
 

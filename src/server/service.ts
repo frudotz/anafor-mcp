@@ -1,6 +1,6 @@
 import type { AdapterRegistry } from '../adapters/registry.js';
 import type { Finding, ReviewLevel, Role, WorkerResultV1 } from '../contracts/worker-result.js';
-import { loadConfig } from '../core/config.js';
+import { canonicalWorkerId, loadConfig } from '../core/config.js';
 import { newId, nowIso } from '../core/ids.js';
 import { isAlive, killPidTree } from '../core/process-util.js';
 import {
@@ -393,7 +393,7 @@ export class AnaforService {
         !finishedStates.has(job.state)
       )
         continue;
-      const key = `${job.worker}\0${job.role}`;
+      const key = `${canonicalWorkerId(job.worker)}\0${job.role}`;
       groups.set(key, [...(groups.get(key) ?? []), job]);
     }
     return [...groups.values()].map((jobs) => {
@@ -412,7 +412,7 @@ export class AnaforService {
       const mean = (values: number[]) =>
         values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
       return {
-        worker: jobs[0]!.worker,
+        worker: canonicalWorkerId(jobs[0]!.worker),
         role: jobs[0]!.role,
         finished: jobs.length,
         accepted,
@@ -489,7 +489,9 @@ export class AnaforService {
     }
     const target = input.targetJobId ? this.mustJob(input.targetJobId) : null;
     this.routeNotes = [];
-    const workerId = input.worker ?? (await this.route(input.role, target));
+    const workerId = input.worker
+      ? canonicalWorkerId(input.worker)
+      : await this.route(input.role, target);
     const routeNotes = this.routeNotes;
     const adapter = this.adapters.get(workerId);
     if (!adapter) {

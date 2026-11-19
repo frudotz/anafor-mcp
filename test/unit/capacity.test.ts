@@ -97,13 +97,13 @@ describe('kapasite: maliyet öğrenme', () => {
 
 describe('kapasite: rapor ve ipuçları', () => {
   const routing = {
-    implementation: ['codex', 'claude-lite'],
-    review: ['claude-lite', 'codex'],
-    analysis: ['claude-lite'],
-    test: ['claude-lite'],
+    implementation: ['codex', 'cirak'],
+    review: ['cirak', 'codex'],
+    analysis: ['cirak'],
+    test: ['cirak'],
   };
-  const accountOf = (w: string) => (w === 'claude-lite' ? 'claude' : w);
-  const accounts = { claude: ['beyin', 'claude-lite'], codex: ['codex'], local: ['local'] };
+  const accountOf = (w: string) => (w === 'cirak' ? 'claude' : w);
+  const accounts = { claude: ['beyin', 'cirak'], codex: ['codex'], local: ['local'] };
 
   it('kalan iş tahmini, rezerv uyarısı, tempo uyarısı ve yönlendirme önerisi', () => {
     const costs: CostBook = {};
@@ -134,7 +134,7 @@ describe('kapasite: rapor ve ipuçları', () => {
     expect(h).toMatch(/codex: 5s hızlı tükeniyor \(tempo ×1\.5\)/);
     expect(h).toMatch(/codex: 'implementation' için ~2 iş/);
     expect(h).toMatch(/claude: 5s penceresi rezerve ulaştı/);
-    expect(h).toMatch(/'review' rolü: claude-lite kısıtlı → codex öne alınabilir/);
+    expect(h).toMatch(/'review' rolü: cirak kısıtlı → codex öne alınabilir/);
     // local hiçbir rolde kullanılmıyor → gözlem ipucu yok
     expect(h).not.toMatch(/local/);
     const text = formatCapacity({ ...rep, recommendation: null, subscriptions: [] }).join('\n');
@@ -161,14 +161,14 @@ describe('meta profili: önerilen rol dağılımı', () => {
     const r = recommend(['claude-max', 'chatgpt-plus']);
     expect(r.brain).toMatch(/^Opus/);
     expect(r.routing.implementation[0]).toBe('codex');
-    expect(r.routing.review[0]).toBe('claude-lite');
+    expect(r.routing.review[0]).toBe('cirak');
     expect(r.warnings).toEqual([]);
   });
 
   it('yalnızca Claude Pro: Sonnet beyin, tek aile uyarısı', () => {
     const r = recommend(['claude-pro']);
     expect(r.brain).toMatch(/^Sonnet/);
-    expect(r.routing.implementation).toEqual(['claude-lite']);
+    expect(r.routing.implementation).toEqual(['cirak']);
     expect(r.warnings.join()).toMatch(/Tek model ailesi/);
   });
 

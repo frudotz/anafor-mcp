@@ -4,7 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
-import { subscriptionEnv } from '../adapters/claude-lite.js';
+import { subscriptionEnv } from '../adapters/cirak.js';
 import { parseClaudeRateLimitInfo, recordLimits, statusFrom } from '../limits/limits.js';
 import { readSetupState } from '../setup/setup.js';
 

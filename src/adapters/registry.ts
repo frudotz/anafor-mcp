@@ -1,5 +1,5 @@
 import type { AnaforConfig } from '../core/config.js';
-import { ClaudeLiteAdapter } from './claude-lite.js';
+import { CirakAdapter } from './cirak.js';
 import { CodexAdapter } from './codex.js';
 import { FakeAdapter } from './fake.js';
 import { AntigravityAdapter, GeminiAdapter } from './google.js';
@@ -19,6 +19,7 @@ export function defaultAdapters(
   config?: Pick<AnaforConfig, 'workers'> & Partial<Pick<AnaforConfig, 'test_command'>>,
 ): AdapterRegistry {
   const w = config?.workers ?? {};
+  const cirak = { ...w['claude-lite'], ...w.cirak };
   const opt = <T extends object>(o: T) =>
     Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
   const list: WorkerAdapter[] = [
@@ -30,13 +31,13 @@ export function defaultAdapters(
         userConfig: w.codex?.user_config,
       }),
     ),
-    new ClaudeLiteAdapter(
+    new CirakAdapter(
       opt({
-        bin: w['claude-lite']?.bin,
-        model: w['claude-lite']?.model,
-        maxConcurrency: w['claude-lite']?.max_concurrency,
-        allowedTools: w['claude-lite']?.allowed_tools,
-        userConfig: w['claude-lite']?.user_config,
+        bin: cirak.bin,
+        model: cirak.model,
+        maxConcurrency: cirak.max_concurrency,
+        allowedTools: cirak.allowed_tools,
+        userConfig: cirak.user_config,
       }),
     ),
     new GeminiAdapter(
@@ -88,5 +89,9 @@ export function defaultAdapters(
       ),
     );
   }
-  return new Map(list.filter((a) => w[a.id]?.enabled !== false).map((a) => [a.id, a]));
+  return new Map(
+    list
+      .filter((a) => (a.id === 'cirak' ? cirak.enabled : w[a.id]?.enabled) !== false)
+      .map((a) => [a.id, a]),
+  );
 }

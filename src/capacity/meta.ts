@@ -33,7 +33,7 @@ export const SUBSCRIPTIONS: SubscriptionProfile[] = [
   {
     id: 'claude-pro',
     label: 'Claude Pro',
-    workers: [{ id: 'claude-lite', tier: 'K4' }],
+    workers: [{ id: 'cirak', tier: 'K4' }],
     windows: ['five_hour', 'weekly'],
     relative: 1,
     observable: true,
@@ -42,7 +42,7 @@ export const SUBSCRIPTIONS: SubscriptionProfile[] = [
   {
     id: 'claude-max',
     label: 'Claude Max (5x)',
-    workers: [{ id: 'claude-lite', tier: 'K2' }],
+    workers: [{ id: 'cirak', tier: 'K2' }],
     get note() {
       return m().meta.notes.claudeMax;
     },
@@ -56,7 +56,7 @@ export const SUBSCRIPTIONS: SubscriptionProfile[] = [
     get label() {
       return m().meta.labels.claudeUltra;
     },
-    workers: [{ id: 'claude-lite', tier: 'K2' }],
+    workers: [{ id: 'cirak', tier: 'K2' }],
     windows: ['weekly'],
     relative: 10,
     observable: true,
@@ -190,7 +190,7 @@ export interface Recommendation {
 }
 
 const FAMILY: Record<string, string> = {
-  'claude-lite': 'anthropic',
+  cirak: 'anthropic',
   codex: 'openai',
   gemini: 'google',
   antigravity: 'google',

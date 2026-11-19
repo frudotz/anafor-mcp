@@ -21,7 +21,7 @@ function harness() {
       {
         id: 'b',
         state: 'running',
-        worker: 'claude-lite',
+        worker: 'cirak',
         startedAt: new Date(0).toISOString(),
         endedAt: null,
         result: null,

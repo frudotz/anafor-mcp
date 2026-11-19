@@ -76,6 +76,16 @@ export interface WorkerSettings {
   effort?: EffortSetting;
 }
 
+let legacyWorkerWarned = false;
+export function canonicalWorkerId(id: string): string {
+  if (id !== 'claude-lite') return id;
+  if (!legacyWorkerWarned) {
+    legacyWorkerWarned = true;
+    console.warn(m().adapters.legacyWorkerAlias);
+  }
+  return 'cirak';
+}
+
 export const DEFAULT_CONFIG: AnaforConfig = {
   statusline: { workers: ['codex'] },
   director_mode: 'enforce',
@@ -102,12 +112,12 @@ export const DEFAULT_CONFIG: AnaforConfig = {
   worktree_cache: null,
   escalation: { failure_threshold: 3, stall_minutes: 60, takeover_minutes: 120 },
   test_command: null,
-  workers: { codex: { user_config: 'isolate' }, 'claude-lite': { user_config: 'isolate' } },
+  workers: { codex: { user_config: 'isolate' }, cirak: { user_config: 'isolate' } },
   routing: {
-    implementation: ['codex', 'claude-lite'],
-    test: ['claude-lite', 'codex'],
-    analysis: ['claude-lite', 'codex'],
-    review: ['codex', 'claude-lite'],
+    implementation: ['codex', 'cirak'],
+    test: ['cirak', 'codex'],
+    analysis: ['cirak', 'codex'],
+    review: ['codex', 'cirak'],
   },
 };
 
@@ -123,6 +133,17 @@ export function loadConfig(root: string): AnaforConfig {
   };
   const local = read(join(root, '.anafor', 'config.json'));
   const project = read(join(root, 'anafor.config.json'));
+  for (const cfg of [local, project]) {
+    if (cfg.workers?.['claude-lite'])
+      cfg.workers.cirak = { ...cfg.workers['claude-lite'], ...cfg.workers.cirak };
+    if (cfg.routing)
+      for (const role of Object.keys(cfg.routing) as (keyof AnaforConfig['routing'])[]) {
+        const chain = cfg.routing[role];
+        if (chain) cfg.routing[role] = chain.map(canonicalWorkerId);
+      }
+    if (cfg.statusline?.workers)
+      cfg.statusline.workers = cfg.statusline.workers.map(canonicalWorkerId);
+  }
   const workerIds = new Set([
     ...Object.keys(DEFAULT_CONFIG.workers),
     ...Object.keys(local.workers ?? {}),
@@ -146,7 +167,7 @@ export function loadConfig(root: string): AnaforConfig {
     extensions: { ...DEFAULT_EXTENSIONS, ...local.extensions, ...project.extensions },
     balancer: { ...DEFAULT_BALANCER, ...local.balancer, ...project.balancer },
   };
-  for (const id of ['codex', 'claude-lite']) {
+  for (const id of ['codex', 'cirak']) {
     const localValue = local.workers?.[id]?.user_config;
     const projectValue = project.workers?.[id]?.user_config;
     if (projectValue === 'inherit') console.warn(m().adapters.projectInheritIgnored(id));

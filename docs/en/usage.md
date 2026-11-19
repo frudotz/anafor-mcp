@@ -14,7 +14,7 @@ cd anafor-mcp && npm install && npm run build
 Requirements: Node 24+, git, Claude Code and at least one worker:
 
 - Codex CLI (`codex login`)
-- Claude Code itself (no extra setup needed for the `claude-lite` worker)
+- Claude Code itself (no extra setup needed for the `cirak` worker)
 
 ## 2. Connecting a project to Anafor
 
@@ -38,7 +38,7 @@ anafor chat --once "Summarize open tasks"     # single message, non-interactive
 anafor jobs [--all]         # task and job board
 anafor watch                # live job events
 anafor roles                # brain and worker roles
-anafor roles set review codex,local,claude-lite
+anafor roles set review codex,local,cirak
 anafor limits               # worker session/usage limits
 ```
 
@@ -97,14 +97,14 @@ If the server restarts, dead jobs become `failed (orphaned)`. **No job is ever r
   "worktree_setup": "npm ci",
   "worktree_cache": { "paths": ["node_modules"], "key_files": ["package-lock.json"] },
   "routing": {
-    "implementation": ["codex", "claude-lite"],
-    "test": ["claude-lite", "codex"],
-    "analysis": ["claude-lite", "codex"],
-    "review": ["codex", "claude-lite"]
+    "implementation": ["codex", "cirak"],
+    "test": ["cirak", "codex"],
+    "analysis": ["cirak", "codex"],
+    "review": ["codex", "cirak"]
   },
   "workers": {
     "codex": { "max_concurrency": 2, "windows_sandbox": "elevated" },
-    "claude-lite": { "model": "haiku", "max_concurrency": 3 },
+    "cirak": { "model": "haiku", "max_concurrency": 3 },
     "fake": { "enabled": false }
   }
 }
@@ -120,9 +120,9 @@ In a new worktree, `worktree_cache` replicates the dependency directory from the
 
 Codex defaults to `workers.codex.user_config: "isolate"`. It starts with `--ignore-user-config`; only `model` (when there is no custom provider), `model_reasoning_effort`, and Windows `sandbox` are copied from `~/.codex/config.toml` (or `CODEX_HOME`). Job model/effort and `workers.codex.windows_sandbox` take precedence. Personal MCP servers, plugins, and project settings are not passed through. Web search, app connectors, and image generation are disabled in isolation. The user's `sandbox_workspace_write.network_access` setting is also not copied; sandbox network access is off by default. Use Codex `inherit` when a worker needs these settings or network access. In a measurement with codex-cli 0.167.2, first-turn input tokens fell by about 22% (16.8K → 13.1K) when app connectors, image generation, and web search were disabled; ignoring user config alone made no measurable difference.
 
-claude-lite uses `--disable-slash-commands` to disable slash commands/skills and `--strict-mcp-config` to keep external MCP configuration out. User hooks and other Claude Code settings remain active. `workers["claude-lite"].user_config: "inherit"` only removes the slash-command disabling flag; strict MCP configuration remains enabled.
+cirak uses `--disable-slash-commands` to disable slash commands/skills and `--strict-mcp-config` to keep external MCP configuration out. User hooks and other Claude Code settings remain active. `workers["cirak"].user_config: "inherit"` only removes the slash-command disabling flag; strict MCP configuration remains enabled.
 
-To deliberately inherit the personal CLI configuration, set `"user_config": "inherit"` for that worker, for example `"workers": { "codex": { "user_config": "inherit" } }`. This removes Codex user-config isolation or claude-lite's slash-command disabling flag, respectively.
+To deliberately inherit the personal CLI configuration, set `"user_config": "inherit"` for that worker, for example `"workers": { "codex": { "user_config": "inherit" } }`. This removes Codex user-config isolation or cirak's slash-command disabling flag, respectively.
 
 `routing_mode` stays `static` by default and uses the `routing` list as is. With `adaptive`, workers that have at least three finished jobs in the same role are moved ahead by acceptance rate; those with less history keep their position in the list. The `worker_stats` MCP tool (with an optional `role` filter) shows acceptance, failure, change requests, duration and token averages.
 
@@ -157,7 +157,7 @@ MCP tool: `workers_limits`. Sources (only information the official tools provide
 | Worker | Source |
 |---|---|
 | Codex | read-only `account/rateLimits/read` via `codex app-server`, with rollout files as fallback. `anafor limits --refresh` refreshes live; the statusline refreshes its cache in the background at most every five minutes. |
-| Claude (brain and claude-lite) | `rate_limit_event` from `claude-lite` jobs + Claude Code statusline input |
+| Claude (brain and cirak) | `rate_limit_event` from `cirak` jobs + Claude Code statusline input |
 | Antigravity, OpenCode, local | The tool does not report limits → `unknown` |
 
 To also see the brain session's limits, add this to your Claude Code settings (`~/.claude/settings.json`):
@@ -180,7 +180,7 @@ The router skips a worker whose window is 100% full (and not yet reset).
 
 **How is per-job cost learned?** When a job finishes while no other job is running on the same account, the runner compares the window's usage before and after the job. The difference is recorded in `~/.anafor/capacity-costs.json` for that account, role and window. Planning uses the p80 of these measurements. From this, a per-role "~N jobs left" estimate is derived.
 
-Note: the brain and `claude-lite` share the Claude account. Therefore the costs computed for Claude are an upper bound.
+Note: the brain and `cirak` share the Claude account. Therefore the costs computed for Claude are an upper bound.
 
 **Hints:** `anafor capacity` warns when a window reaches its reserve, is depleting fast, or a role has capacity for 2 or fewer jobs left. If a role's first worker is constrained, it suggests a healthy fallback and gives the `anafor roles set …` command to apply it. The same information is available via the `capacity_status` MCP tool.
 
@@ -219,7 +219,7 @@ The router reorders the role's preference chain (`routing`) **according to subsc
 | `cheap-first` | `balanced` + within an equal group, the cheap tier (`cost_tier`) comes first. |
 | `off` | The chain is used as is; only 100%-full limits are skipped. |
 
-When the balancer changes the order, the reason appears in the `job_dispatch` warnings and in the job's `route` event. Example (actual output): `yük dengeleyici (balanced): codex yerine claude-lite — codex: five_hour rezerve ulaştı` ("load balancer (balanced): claude-lite instead of codex — codex: five_hour reached reserve").
+When the balancer changes the order, the reason appears in the `job_dispatch` warnings and in the job's `route` event. Example (actual output): `yük dengeleyici (balanced): codex yerine cirak — codex: five_hour rezerve ulaştı` ("load balancer (balanced): cirak instead of codex — codex: five_hour reached reserve").
 
 ```json
 { "balancer": { "strategy": "protect-brain" } }
@@ -234,7 +234,7 @@ These work without any extra configuration:
 - **Summary limit:** the worker's `summary` field may be at most 2000 characters; if longer it is truncated with a warning. This keeps the manager's context small.
 - **Codex telemetry off:** `analytics.enabled=false` is passed to Codex jobs.
 
-**Token profile.** Sets the reasoning level (effort) per role. Passed to Codex as `model_reasoning_effort` and to claude-lite as `--effort`.
+**Token profile.** Sets the reasoning level (effort) per role. Passed to Codex as `model_reasoning_effort` and to cirak as `--effort`.
 
 | Profile | implementation | review | analysis | test |
 |---|---|---|---|---|
@@ -314,7 +314,7 @@ node /path/anafor-mcp/dist/cli/main.js migrate /your-project
 | Worker | How | Status | Terms note |
 |---|---|---|---|
 | `codex` | `codex exec` (your own ChatGPT login or API key) | ✅ verified | Official CLI; details below |
-| `claude-lite` | `claude -p --model haiku` | ✅ verified | Official `claude` binary; details below. `ANTHROPIC_API_KEY` is removed from the worker environment |
+| `cirak` | `claude -p --model haiku` | ✅ verified | Official `claude` binary; details below. `ANTHROPIC_API_KEY` is removed from the worker environment |
 | `local` | OpenAI-compatible API (Ollama, LM Studio) | ✅ tested with a fake server | Only `analysis`/`review` (does not edit files) |
 | `opencode` | `opencode run --format json` | ✅ verified (real opencode 1.19.5 + OpenAI-compatible provider) | API key, local model or ChatGPT plan. **A Claude subscription cannot be used with OpenCode**; `anthropic/*` models only with `allow_anthropic_api` |
 | `gemini` | `gemini -p --output-format stream-json --approval-mode auto_edit\|plan` | ✅ verified (real gemini-cli 0.68 + Gemini-API-compatible fake server) | Google AI Pro/Ultra login ended on 2026-06-18; API key, Vertex, or Code Assist Standard/Enterprise only |
@@ -337,7 +337,7 @@ Example configuration:
     "opencode": { "model": "ollama/qwen3-coder" },
     "antigravity": { "enabled": false }
   },
-  "routing": { "review": ["codex", "local", "claude-lite"] }
+  "routing": { "review": ["codex", "local", "cirak"] }
 }
 ```
 

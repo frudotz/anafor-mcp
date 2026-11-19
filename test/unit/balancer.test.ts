@@ -16,7 +16,7 @@ const acc = (
   healthy: true,
 });
 const chain: Candidate[] = [
-  { worker: 'claude-lite', account: 'claude', costTier: 'medium' },
+  { worker: 'cirak', account: 'claude', costTier: 'medium' },
   { worker: 'codex', account: 'codex', costTier: 'high' },
   { worker: 'opencode', account: 'opencode', costTier: 'low' },
 ];
@@ -24,7 +24,7 @@ const chain: Candidate[] = [
 describe('yük dengeleyici', () => {
   it('off ve tek aday: zincir aynen', () => {
     expect(balance('implementation', chain, [], 'off', 1.2).order).toEqual([
-      'claude-lite',
+      'cirak',
       'codex',
       'opencode',
     ]);
@@ -42,8 +42,8 @@ describe('yük dengeleyici', () => {
       'balanced',
       1.2,
     );
-    expect(r.order).toEqual(['opencode', 'codex', 'claude-lite']);
-    expect(r.notes[0]).toMatch(/claude-lite yerine opencode — claude: five_hour rezerve ulaştı/);
+    expect(r.order).toEqual(['opencode', 'codex', 'cirak']);
+    expect(r.notes[0]).toMatch(/cirak yerine opencode — claude: five_hour rezerve ulaştı/);
   });
 
   it('maliyeti sığmayan rol kısıtlı sayılır', () => {
@@ -64,11 +64,11 @@ describe('yük dengeleyici', () => {
 
   it('protect-brain ve cheap-first eşit grupta sıralar', () => {
     expect(balance('implementation', chain, [], 'protect-brain', 1.2)).toMatchObject({
-      order: ['codex', 'opencode', 'claude-lite'],
+      order: ['codex', 'opencode', 'cirak'],
       notes: [expect.stringMatching(/beynin hesabı korunuyor/)],
     });
     expect(balance('implementation', chain, [], 'cheap-first', 1.2)).toMatchObject({
-      order: ['opencode', 'claude-lite', 'codex'],
+      order: ['opencode', 'cirak', 'codex'],
       notes: [expect.stringMatching(/daha ucuz kademe/)],
     });
   });

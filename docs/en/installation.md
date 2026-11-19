@@ -16,7 +16,7 @@ Workers (at least one):
 | Worker | Install |
 |---|---|
 | Codex (recommended) | `npm install -g @openai/codex` → `codex login` |
-| Claude Haiku (`claude-lite`) | Nothing extra; Claude Code is enough |
+| Claude Haiku (`cirak`) | Nothing extra; Claude Code is enough |
 | Local model | Ollama (https://ollama.com) or LM Studio → `anafor.config.json` |
 | OpenCode / Gemini / Antigravity | experimental; Gemini/Antigravity subscription access is unsupported. See [usage.md](usage.md#8b-workers-and-terms-of-use) |
 
@@ -108,7 +108,7 @@ anafor chat                      # talk to the brain agent from the terminal
 claude                           # inside Claude Code: /anafor:plan <goal>
 anafor jobs | anafor watch       # watch jobs
 anafor limits                    # session/usage limits
-anafor roles set review codex,claude-lite
+anafor roles set review codex,cirak
 anafor doctor                    # sectioned checks; the result is reflected in the statusline
 ```
 

@@ -30,7 +30,7 @@ export interface SetupOptions {
   init: (dir: string) => void;
 }
 
-const WORKERS = ['codex', 'claude-lite', 'gemini', 'opencode', 'local', 'antigravity'];
+const WORKERS = ['codex', 'cirak', 'gemini', 'opencode', 'local', 'antigravity'];
 
 /** İlk kurulum sihirbazı: ortam, işçiler, kalıcı plugin, statusline, proje. */
 export async function runSetup(opts: SetupOptions): Promise<number> {

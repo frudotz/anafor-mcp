@@ -251,7 +251,7 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
       localGpu: 'Local model (24 GB+ GPU)',
     },
     notes: {
-      claudeMax: 'The claude-lite worker can use Sonnet (workers.claude-lite.model).',
+      claudeMax: 'The cirak worker can use Sonnet (workers.cirak.model).',
       geminiApi: 'Personal account sign-in is not supported by Gemini CLI; an API key is required.',
       antigravity: 'Terms are a grey area; off by default, requires acknowledge_terms.',
       opencodeApi: 'Qwen Coding Plan forbids automation; prefer pay-as-you-go API.',
@@ -408,8 +408,7 @@ Policy: HIGH/CRITICAL and scan errors are blocked; CAUTION only with --accept-ri
       gitleaks:
         'Optional secret scanner: gitleaks v8.30.1 (gh release download + checksum; docs/kurulum.md)',
       codex: 'npm install -g @openai/codex  →  codex login',
-      'claude-lite':
-        'Claude Code must be installed: https://claude.com/claude-code  →  claude auth login',
+      cirak: 'Claude Code must be installed: https://claude.com/claude-code  →  claude auth login',
       gemini: 'API key only: npm install -g @google/gemini-cli + GEMINI_API_KEY',
       opencode:
         'https://opencode.ai  →  anafor.config.json: workers.opencode.model (API key, local model or ChatGPT plan)',
@@ -420,6 +419,7 @@ Policy: HIGH/CRITICAL and scan errors are blocked; CAUTION only with --accept-ri
   },
 
   adapters: {
+    legacyWorkerAlias: 'claude-lite is deprecated; use cirak.',
     windowsSandbox: (mode: string) =>
       `Windows sandbox "${mode}": the worker may not be able to start subprocesses (spawn EPERM), ` +
       'so tests will not run. Suggestion: anafor.config.json → workers.codex.windows_sandbox = "elevated"',
@@ -441,7 +441,7 @@ Policy: HIGH/CRITICAL and scan errors are blocked; CAUTION only with --accept-ri
     agyMissing: 'agy is not installed',
     opencodeModel: 'workers.opencode.model must be set (provider/model)',
     opencodeAnthropic:
-      'anthropic/* models via OpenCode only with an API key (allow_anthropic_api); use claude-lite for a Claude subscription',
+      'anthropic/* models via OpenCode only with an API key (allow_anthropic_api); use cirak for a Claude subscription',
     opencodeMissing: 'opencode is not installed',
     localNoModel: (model: string, list: string) => `model not found: ${model} (available: ${list})`,
     localUnreachable: (url: string, e: string) => `${url} unreachable: ${e}`,

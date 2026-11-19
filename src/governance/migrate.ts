@@ -22,6 +22,42 @@ export interface MigrationReport {
   notes: string[];
 }
 
+/** Canonicalizes legacy worker names in project config files; safe to repeat. */
+export function migrateWorkerConfigs(root: string): string[] {
+  const changed: string[] = [];
+  for (const file of [join(root, '.anafor', 'config.json'), join(root, 'anafor.config.json')]) {
+    const cfg = readJson<Record<string, unknown>>(file);
+    if (!cfg) continue;
+    let dirty = false;
+    const workers = cfg.workers as Record<string, unknown> | undefined;
+    if (workers?.['claude-lite']) {
+      workers.cirak = {
+        ...(workers['claude-lite'] as object),
+        ...((workers.cirak as object) ?? {}),
+      };
+      delete workers['claude-lite'];
+      dirty = true;
+    }
+    const canonical = (v: unknown): unknown => {
+      if (v === 'claude-lite') {
+        dirty = true;
+        return 'cirak';
+      }
+      if (Array.isArray(v)) return v.map(canonical);
+      if (v && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype)
+        return Object.fromEntries(Object.entries(v).map(([key, value]) => [key, canonical(value)]));
+      return v;
+    };
+    for (const key of ['routing', 'roles', 'statusline'])
+      if (cfg[key]) cfg[key] = canonical(cfg[key]);
+    if (dirty) {
+      writeFileSync(file, JSON.stringify(cfg, null, 2) + '\n');
+      changed.push(file);
+    }
+  }
+  return changed;
+}
+
 const readJson = <T>(p: string): T | null => {
   try {
     return existsSync(p) ? (JSON.parse(readFileSync(p, 'utf8').replace(/^﻿/, '')) as T) : null;

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ClaudeLiteAdapter } from '../../src/adapters/claude-lite.js';
+import { CirakAdapter } from '../../src/adapters/cirak.js';
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -119,7 +119,7 @@ describe('Codex Windows sandbox (F16)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'anafor-invalid-config-'));
     try {
       writeFileSync(join(dir, 'schema.json'), '{"type":"object"}');
-      const claudeArgs = new ClaudeLiteAdapter({ userConfig: 'unexpected' as never }).args({
+      const claudeArgs = new CirakAdapter({ userConfig: 'unexpected' as never }).args({
         ...job,
         outputSchemaPath: join(dir, 'schema.json'),
         workdir: dir,
@@ -249,7 +249,7 @@ describe('Codex Windows sandbox (F16)', () => {
     }
   });
 
-  it('claude-lite disables slash commands by default and allows inherit', () => {
+  it('cirak disables slash commands by default and allows inherit', () => {
     const dir = mkdtempSync(join(tmpdir(), 'anafor-config-test-'));
     try {
       const schema = join(dir, 'schema.json');
@@ -264,11 +264,11 @@ describe('Codex Windows sandbox (F16)', () => {
         sandbox: 'workspace-write' as const,
         timeoutMs: 1,
       };
-      expect(new ClaudeLiteAdapter().args(job)).toContain('--disable-slash-commands');
-      expect(new ClaudeLiteAdapter({ userConfig: 'inherit' }).args(job)).not.toContain(
+      expect(new CirakAdapter().args(job)).toContain('--disable-slash-commands');
+      expect(new CirakAdapter({ userConfig: 'inherit' }).args(job)).not.toContain(
         '--disable-slash-commands',
       );
-      expect(new ClaudeLiteAdapter().args(job)).toContain('--strict-mcp-config');
+      expect(new CirakAdapter().args(job)).toContain('--strict-mcp-config');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

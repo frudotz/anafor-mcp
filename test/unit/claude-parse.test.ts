@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseClaudeLine } from '../../src/adapters/claude-lite.js';
+import { parseClaudeLine } from '../../src/adapters/cirak.js';
 
 // claude 2.1.325 `-p --output-format stream-json --verbose --json-schema` ile kaydedilen biçimler.
 describe('parseClaudeLine', () => {
@@ -63,7 +63,7 @@ describe('parseClaudeLine', () => {
 
 describe('subscriptionEnv', () => {
   it('ANTHROPIC_API_KEY çıkarılır, açık tercihle korunur', async () => {
-    const { subscriptionEnv } = await import('../../src/adapters/claude-lite.js');
+    const { subscriptionEnv } = await import('../../src/adapters/cirak.js');
     expect(subscriptionEnv({ ANTHROPIC_API_KEY: 'x', A: '1' })).toEqual({ A: '1' });
     expect(
       subscriptionEnv({ ANTHROPIC_API_KEY: 'x', ANAFOR_CLAUDE_USE_API_KEY: '1' }).ANTHROPIC_API_KEY,
