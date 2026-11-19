@@ -1,5 +1,11 @@
 🇬🇧 [English](README.en.md)
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/brand/svg/anafor-lockup-horizontal-dark-transparent.svg">
+  <source media="(prefers-color-scheme: light)" srcset="assets/brand/svg/anafor-lockup-horizontal-light-transparent.svg">
+  <img alt="Anafor" src="assets/brand/svg/anafor-lockup-horizontal-dark-transparent.svg" width="360">
+</picture>
+
 # anafor-mcp
 
 **Anafor**, frontier yapay zekâ modelleri için bir orkestrasyon MCP sunucusudur: bir yönetici ajan işi planlar, işçi ajanlara dağıtır, sonucu kabul kapılarıyla sınar. Hangi modelin hangi rolü üstleneceği yapılandırılabilir.

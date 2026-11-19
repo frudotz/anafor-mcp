@@ -1,5 +1,11 @@
 🇹🇷 [Türkçe](README.md)
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/brand/svg/anafor-lockup-horizontal-dark-transparent.svg">
+  <source media="(prefers-color-scheme: light)" srcset="assets/brand/svg/anafor-lockup-horizontal-light-transparent.svg">
+  <img alt="Anafor" src="assets/brand/svg/anafor-lockup-horizontal-dark-transparent.svg" width="360">
+</picture>
+
 # anafor-mcp
 
 **Anafor** is an orchestration MCP server for frontier AI models: a manager agent plans work, dispatches it to worker agents, and checks results through acceptance gates. You can configure which models take which roles.
