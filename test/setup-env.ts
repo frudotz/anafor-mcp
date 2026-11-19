@@ -1,11 +1,13 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 // Testler kullanıcının gerçek ~/.anafor dizinine (limitler, iş kiraları) dokunmaz ve
 // paralel test dosyaları birbirinin runner kiralarını görmez.
 if (!process.env.ANAFOR_TEST_KEEP_HOME) {
-  process.env.ANAFOR_HOME = mkdtempSync(join(tmpdir(), 'anafor-test-home-'));
+  const base = process.env.ANAFOR_TEST_TMP ?? tmpdir();
+  mkdirSync(base, { recursive: true });
+  process.env.ANAFOR_HOME = mkdtempSync(join(base, 'anafor-test-home-'));
 }
 // Statusline/CLI testleri arka planda ağa çıkan sürüm denetimi başlatmasın.
 process.env.ANAFOR_NO_UPDATE_CHECK = '1';
