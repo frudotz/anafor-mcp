@@ -203,7 +203,7 @@ const FAMILY: Record<string, string> = {
  * Sıralama: her rol için tercih edilen kademeler önce, sonra yedekler; inceleme için
  * uygulayıcıdan farklı model ailesi öne alınır.
  */
-export function recommend(subscriptionIds: string[]): Recommendation {
+export function recommend(subscriptionIds: string[], taskLabels: string[] = []): Recommendation {
   const subs = SUBSCRIPTIONS.filter((s) => subscriptionIds.includes(s.id));
   const unknown = subscriptionIds.filter((id) => !SUBSCRIPTIONS.some((s) => s.id === id));
   const t = m().meta;
@@ -229,6 +229,7 @@ export function recommend(subscriptionIds: string[]): Recommendation {
   rationale.push(t.brainFrontier);
 
   const brainShare = (w: string) => (FAMILY[w] === 'anthropic' ? 1 : 0);
+  const frontend = taskLabels.some((label) => /\b(frontend|front-end|ui|ux)\b/i.test(label));
   const order = (role: AnaforRole): string[] => {
     const r = ROLE_RULES[role];
     const rank = (t: Tier) => {
@@ -241,10 +242,23 @@ export function recommend(subscriptionIds: string[]): Recommendation {
       [...tierOf.entries()]
         .filter(([, t]) => !r.never?.includes(t) && rank(t) < 100)
         // Eşit kademede beynin hesabını paylaşmayan işçi öne (beyin kapasitesi korunur).
-        .sort((a, b) => rank(a[1]) - rank(b[1]) || brainShare(a[0]) - brainShare(b[0]))
+        .sort(
+          (a, b) =>
+            rank(a[1]) - rank(b[1]) ||
+            hintRank(role, a[0], frontend) - hintRank(role, b[0], frontend) ||
+            brainShare(a[0]) - brainShare(b[0]),
+        )
         .map(([id]) => id)
     );
   };
+
+  function hintRank(role: AnaforRole, worker: string, isFrontend: boolean): number {
+    if (worker !== 'cirak' && worker !== 'codex') return 0;
+    if (isFrontend) return worker === 'cirak' ? 0 : 1;
+    if (role === 'implementation') return worker === 'codex' ? 0 : 1;
+    if (role === 'analysis') return worker === 'cirak' ? 0 : 1;
+    return 0;
+  }
 
   const routing = {
     implementation: order('implementation'),
@@ -267,6 +281,10 @@ export function recommend(subscriptionIds: string[]): Recommendation {
   if (tierOf.get('local')) {
     routing.implementation = routing.implementation.filter((w) => w !== 'local');
     rationale.push(t.localOnly);
+  }
+  for (const role of Object.keys(routing) as AnaforRole[]) {
+    const hint = t.orderingHints[role];
+    if (hint) rationale.push(`${role} · META_PERIOD ${META_PERIOD} · ${hint}`);
   }
   for (const role of Object.keys(routing) as AnaforRole[]) {
     if (!routing[role].length) warnings.push(t.noWorker(role));
