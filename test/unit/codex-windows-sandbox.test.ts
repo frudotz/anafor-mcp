@@ -16,20 +16,24 @@ describe('Codex Windows sandbox (F16)', () => {
   it('environment probe uses injected executor and refreshes expired cache', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'anafor-probe-'));
     let calls = 0;
+    let receivedInput = '';
+    let receivedArgs: string[] = [];
     const cache = join(dir, 'project', '.anafor');
     const response = () =>
       JSON.stringify({
         type: 'item.completed',
         item: {
           type: 'agent_message',
-          text: JSON.stringify({ lat: { ok: true, preferred: 'lat.cmd' }, bun: { ok: false } }),
+          text: `Probe result:\n\`\`\`json\n${JSON.stringify({ lat: { ok: true, preferred: 'lat.cmd' }, bun: { ok: false } })}\n\`\`\``,
         },
       });
     try {
       const adapter = new CodexAdapter({
         platform: 'win32',
-        probeRunner: () => {
+        probeRunner: (_bin, args, _workdir, input) => {
           calls++;
+          receivedInput = input;
+          receivedArgs = args;
           return {
             status: 0,
             stdout: response(),
@@ -40,6 +44,9 @@ describe('Codex Windows sandbox (F16)', () => {
       expect(fresh).not.toBeNull();
       if (!fresh) throw new Error('expected probe data');
       expect(fresh.tools.lat?.preferred).toBe('lat.cmd');
+      expect(receivedArgs.at(-1)).toBe('-');
+      expect(receivedInput).toContain('Get-Command');
+      expect(receivedInput).toContain('$r | ConvertTo-Json -Compress -Depth 3');
       await adapter.probeEnvironment(dir, ['lat', 'bun'], cache);
       expect(calls).toBe(1);
       writeFileSync(

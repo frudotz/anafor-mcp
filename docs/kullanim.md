@@ -23,6 +23,7 @@ cd /projen                         # en az bir commit'i olan bir git deposu
 node /yol/anafor-mcp/dist/cli/main.js init      # .anafor/, policy.json, .gitignore, .mcp.json
 node /yol/anafor-mcp/dist/cli/main.js init --exclude-local  # .anafor/ öğesini ortak git info/exclude dosyasına ekler
 node /yol/anafor-mcp/dist/cli/main.js doctor    # node, git, sqlite, işçiler
+# Windows'ta Codex işi MCP `job_dispatch` ile başlatıldıktan sonra doğrula: `anafor job wait <job-id>; Get-Content .anafor/env-probe.json | ConvertFrom-Json` JSON döndürmelidir.
 claude --plugin-dir /yol/anafor-mcp/plugin      # yönetici hook'ları + /anafor:* komutları
 ```
 
