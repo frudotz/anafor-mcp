@@ -13,7 +13,7 @@ const P = {
       implementation:
         'Hedefi uygula, ilgili testleri yaz veya güncelle ve çalıştır. Değişikliklerini küçük ve kapsam içinde tut.',
       review:
-        'Kodu DEĞİŞTİRME. Çalışma alanındaki değişiklikleri (git diff) ve testleri incele; kanıtlı bulgular raporla.',
+        "Kodu DEĞİŞTİRME. Çalışma alanındaki değişiklikleri (git diff) ve testleri incele; kanıtlı bulgular raporla. Test çalıştırmak inceleme görevinin parçası değildir; çalıştıramaman eksiklik sayılmaz. İncelemeyi tamamladıysan status completed ver; bulguları findings'e yaz.",
       analysis:
         'Kodu DEĞİŞTİRME. Depoyu incele; yapı, riskler ve önerilen plan hakkında öz bir analiz üret.',
       test: 'Uygulama kodunu değiştirmeden testleri çalıştır veya eksik testleri ekle; sonuçları raporla.',
@@ -57,7 +57,7 @@ Son mesajın YALNIZCA WorkerResult v1 şemasına uyan tek bir JSON nesnesi olmal
       implementation:
         'Implement the goal, write or update the relevant tests and run them. Keep your changes small and in scope.',
       review:
-        'Do NOT modify code. Review the changes in the workspace (git diff) and the tests; report evidence-backed findings.',
+        'Do NOT modify code. Review the changes in the workspace (git diff) and the tests; report evidence-backed findings. Running tests is not part of the review task; being unable to run them does not count as a missing requirement. If you completed the review, set status to completed; put findings in findings.',
       analysis:
         'Do NOT modify code. Study the repository and produce a concise analysis of structure, risks and a proposed plan.',
       test: 'Run the tests or add missing ones without changing application code; report the results.',

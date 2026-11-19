@@ -11,14 +11,21 @@ import { m } from '../i18n/index.js';
 import { Store } from '../store/store.js';
 import { AnaforService, ServiceError } from './service.js';
 import { createMcpServer } from './tools.js';
+import { configStamp as readConfigStamp, refreshConfigIfChanged } from './config-refresh.js';
 
 export { resolveProjectRoot };
 
 export async function startServer(projectRoot?: string): Promise<void> {
   const resolved = projectRoot ? { root: projectRoot, initialized: true } : resolveProjectRoot();
   let service: AnaforService | null = null;
+  let configStamp = '';
   const getService = (): AnaforService => {
-    if (service) return service;
+    if (service) {
+      configStamp = refreshConfigIfChanged(resolved.root, configStamp, () =>
+        service!.reloadConfig(),
+      );
+      return service;
+    }
     if (!resolved.initialized && !findAnaforRoot(resolved.root)) {
       throw new ServiceError(
         'NOT_INITIALIZED',
@@ -28,6 +35,7 @@ export async function startServer(projectRoot?: string): Promise<void> {
     }
     const store = new Store(resolved.root);
     const config = loadConfig(resolved.root);
+    configStamp = readConfigStamp(resolved.root);
     service = new AnaforService(
       store,
       defaultAdapters(config),

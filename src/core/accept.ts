@@ -33,6 +33,34 @@ export function resolveEvidence(root: string, workdir: string, p: string): strin
   return !rel.startsWith('..') && !isAbsolute(rel) ? abs : null;
 }
 
+/** Partial review is acceptable only when every missing item clearly concerns running checks. */
+export function onlyMissingChecks(missing: string[]): boolean {
+  if (!missing.length) return false;
+  return missing.every((item) => {
+    const check =
+      /\b(?:npm\s+(?:run\s+check|test)|vitest|typecheck|tsc|npx)\b/i.test(item) ||
+      /\b(?:tests?|testing|komut|command)\b|testler/i.test(item);
+    const unable =
+      /\b(?:could not run|unable to run|not run|approval required|permission required|approval|permission|denied)\b|çalıştırılamadı|çalıştırılmadı|onay gerektirdi|izin gerektirdi|reddedildi/i.test(
+        item,
+      );
+    return check && unable;
+  });
+}
+
+export function deepReviewCompleted(
+  state: Job['state'],
+  status: string | undefined,
+  missing: string[],
+  criticalCount: number | undefined,
+): boolean {
+  return (
+    state === 'needs_review' &&
+    (status === 'completed' ||
+      (status === 'partial' && onlyMissingChecks(missing) && criticalCount === 0))
+  );
+}
+
 /**
  * Kabul kapıları (eski orchestrator.ps1 `accept` kurallarının karşılığı).
  * Kapılardan geçmek gerekli ama yeterli değildir: kriterlerin karşılandığına yönetici karar verir.
@@ -116,10 +144,21 @@ export function evaluateAcceptance(input: AcceptInput): Gate[] {
         reviewJob.role === 'review' && reviewJob.taskId === task.id,
         `rol: ${reviewJob.role}`,
       );
+      const checkPartialAccepted =
+        rr?.status === 'partial' &&
+        onlyMissingChecks(rr.requirements_missing) &&
+        rr.review.critical_count === 0;
       add(
         'deep_review_done',
-        reviewJob.state === 'needs_review' && rr?.status === 'completed',
-        `durum: ${reviewJob.state}`,
+        deepReviewCompleted(
+          reviewJob.state,
+          rr?.status,
+          rr?.requirements_missing ?? [],
+          rr?.review.critical_count,
+        ),
+        checkPartialAccepted
+          ? `durum: partial; eksikler yalnızca test/komut çalıştırma, kritik bulgu yok — inceleme tamamlandı`
+          : `durum: ${reviewJob.state}/${rr?.status ?? 'sonuç yok'}`,
       );
       add(
         'deep_review_independent',
