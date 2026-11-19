@@ -242,12 +242,41 @@ export interface CodexAdapterOptions {
     bin: string,
     args: string[],
     workdir: string,
+    input: string,
   ) => { status: number | null; stdout: string };
 }
 
 export interface EnvironmentProbe {
   at: string;
   tools: Record<string, { ok: boolean; preferred?: string }>;
+}
+
+/** Extract the first complete JSON object, ignoring prose and code fences around it. */
+function firstJsonObject(text: string): string | null {
+  let start = -1;
+  let depth = 0;
+  let quoted = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]!;
+    if (start < 0) {
+      if (char === '{') {
+        start = i;
+        depth = 1;
+      }
+      continue;
+    }
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === '"') quoted = false;
+      continue;
+    }
+    if (char === '"') quoted = true;
+    else if (char === '{') depth++;
+    else if (char === '}' && --depth === 0) return text.slice(start, i + 1);
+  }
+  return null;
 }
 
 export class CodexAdapter implements WorkerAdapter {
@@ -267,12 +296,13 @@ export class CodexAdapter implements WorkerAdapter {
     this.userConfig = opts.userConfig ?? 'isolate';
     this.probeRunner =
       opts.probeRunner ??
-      ((bin, args, cwd) => {
+      ((bin, args, cwd, input) => {
         const r = spawnSync(bin, args, {
           cwd,
           encoding: 'utf8',
           windowsHide: true,
           timeout: 120_000,
+          input,
         });
         return { status: r.status, stdout: r.stdout ?? '' };
       });
@@ -295,12 +325,13 @@ export class CodexAdapter implements WorkerAdapter {
       /* cache miss */
     }
     const requested = [...new Set(tools)];
-    const script = `$r=@{}; ${requested
+    const checks = requested
       .map(
         (tool, i) =>
           `$b${i}=${JSON.stringify(tool)}; $n${i}=$b${i}; $p${i}=Get-Command $n${i} -ErrorAction SilentlyContinue; if ($p${i} -and $p${i}.Source -like '*.ps1' -and (Get-Command ($n${i}+'.cmd') -ErrorAction SilentlyContinue)) { $n${i}=$n${i}+'.cmd' }; try { & $n${i} --version *> $null; $ok${i}=($LASTEXITCODE -eq 0) } catch { $ok${i}=$false }; $r[$b${i}]=@{ok=$ok${i};preferred=$n${i}}`,
       )
-      .join('; ')}; ConvertTo-Json -Compress -Depth 3`;
+      .join('; ');
+    const script = `$r=@{}; ${checks}; $r | ConvertTo-Json -Compress -Depth 3`;
     const prompt = `Run this harmless PowerShell tool availability probe in the current sandbox and return only JSON map tool => {ok,preferred?}: ${script}`;
     const args = [
       'exec',
@@ -317,7 +348,7 @@ export class CodexAdapter implements WorkerAdapter {
       tools: Object.fromEntries(requested.map((name) => [name, { ok: false }])),
     };
     try {
-      const run = this.probeRunner(this.bin, args, workdir);
+      const run = this.probeRunner(this.bin, args, workdir, prompt);
       const message = run.stdout
         .split(/\r?\n/)
         .reverse()
@@ -336,7 +367,9 @@ export class CodexAdapter implements WorkerAdapter {
         })
         .find(Boolean);
       if (run.status !== 0 || !message) return null;
-      const parsed = JSON.parse(message) as Record<string, { ok?: boolean; preferred?: string }>;
+      const json = firstJsonObject(message);
+      if (!json) return null;
+      const parsed = JSON.parse(json) as Record<string, { ok?: boolean; preferred?: string }>;
       if (!requested.every((name) => parsed[name] && typeof parsed[name]!.ok === 'boolean'))
         return null;
       for (const name of requested)

@@ -18,6 +18,10 @@ const P = {
         'Kodu DEĞİŞTİRME. Depoyu incele; yapı, riskler ve önerilen plan hakkında öz bir analiz üret.',
       test: 'Uygulama kodunu değiştirmeden testleri çalıştır veya eksik testleri ekle; sonuçları raporla.',
     },
+    sandboxRules: `## Sandbox kuralları
+- Geçici dosyalar için repo dışı yollar veya /tmp yerine çalışma alanındaki .anafor-tmp/ dizinini kullan. İş sonunda temizlemeyi dene; silinemezse bırak ve rapora yaz.
+- Bir komut sandbox nedeniyle reddedilirse (izin, erişim veya kilit), farklı kabuk biçimi, Node betiği ya da çalışma alanı içi yol gibi en az bir alternatif dene. Yalnızca tüm alternatifler tükenince failed bildir.
+- Doğrulama komutları çalışmazsa işi bırakma: değişikliği tamamla. Anafor testleri iş sonrasında sandbox dışında çalıştıracak.`,
     none: '- (belirtilmedi)',
     summary:
       'summary en fazla ~1500 karakter: ne yapıldı + açık riskler. Ham log/diff koyma; dosya yolu ver.',
@@ -62,6 +66,10 @@ Son mesajın YALNIZCA WorkerResult v1 şemasına uyan tek bir JSON nesnesi olmal
         'Do NOT modify code. Study the repository and produce a concise analysis of structure, risks and a proposed plan.',
       test: 'Run the tests or add missing ones without changing application code; report the results.',
     },
+    sandboxRules: `## Sandbox rules
+- Use .anafor-tmp/ in the workspace for temporary files instead of /tmp or paths outside the repository. Try to clean it up at the end; if you cannot, leave it and report that.
+- If a command is denied by the sandbox (permission, access, or lock), try at least one alternative such as a different shell form, a Node script, or a workspace-local path. Report failed only after all alternatives are exhausted.
+- If verification commands cannot run, do not abandon the job: complete the change. Anafor will run tests outside the sandbox after the job.`,
     none: '- (not specified)',
     summary:
       'summary at most ~1500 characters: what was done + open risks. No raw logs/diffs; give file paths.',
@@ -132,6 +140,9 @@ export function compilePrompt(task: Task, job: Job, extras: PromptExtras = {}): 
   if (extras.resumed) return compileResumePrompt(task, job, extras, t);
   const parts: string[] = [];
   parts.push(`${t.header}\n- ${t.role[job.role]}`);
+  if (job.role === 'implementation' || job.role === 'test')
+    parts.push(`${t.header}\n- ${t.role[job.role]}\n\n${t.sandboxRules}`);
+  else parts.push(`${t.header}\n- ${t.role[job.role]}`);
   const schema = extras.schemaText
     ? `\n\n${t.schema}\n\`\`\`json\n${extras.schemaText}\n\`\`\``
     : '';

@@ -1289,8 +1289,10 @@ export class AnaforService {
     const task = this.mustTask(taskId);
     const esc = loadConfig(this.store.paths.root).escalation;
     const jobs = this.store.listJobs({ taskId }).filter((j) => j.worker !== 'director');
-    const failed = jobs.filter((j) =>
-      ['failed', 'timed_out', 'invalid_output', 'changes_requested'].includes(j.state),
+    const failed = jobs.filter(
+      (j) =>
+        ['failed', 'timed_out', 'invalid_output', 'changes_requested'].includes(j.state) ||
+        (['needs_review', 'changes_requested'].includes(j.state) && j.result?.status === 'failed'),
     );
     const stalled = jobs.filter(
       (j) =>

@@ -61,7 +61,10 @@ function identityArgs(cwd: string): string[] {
 /** Worktree'deki değişiklikleri iş dalına commit eder. Değişiklik yoksa null. */
 export function commitWorktree(path: string, message: string): string | null {
   if (!hasChanges(path)) return null;
-  must(path, ['add', '-A', '--', '.', ':(exclude).anafor']);
+  // Exclude pathspec'leri, dizin gitignore'da da varsa "ignored paths" uyarısıyla çıkış 1 verir;
+  // bu yüzden önce her şeyi ekleyip Anafor'un çalışma dizinlerini index'ten geri alırız.
+  must(path, ['add', '-A', '--', '.']);
+  must(path, ['reset', '-q', '--', '.anafor', '.anafor-tmp']);
   must(path, [...identityArgs(path), 'commit', '-q', '--no-verify', '-m', message]);
   return headSha(path);
 }
