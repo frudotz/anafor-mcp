@@ -2,7 +2,7 @@
 
 # Anafor user guide
 
-Anafor makes Claude Code the **manager**: Claude plans, splits the work, dispatches it to workers (Codex, Claude Haiku…), reviews the result and accepts it. It does not edit code files itself; this rule is enforced by a hook.
+Anafor is an orchestration MCP server for frontier AI models: a manager agent plans work, dispatches it to workers, reviews results, and accepts them. You can configure which models take which roles. The manager does not edit code files itself; this rule is enforced by a hook.
 
 ## 1. Installation
 

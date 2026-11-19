@@ -2,7 +2,7 @@
 
 # anafor-mcp
 
-**Anafor**, Claude Code'u *yönetici*, diğer yapay zekâ kodlama ajanlarını (önce OpenAI Codex CLI) *işçi* yapan bir orkestrasyon sistemidir.
+**Anafor**, frontier yapay zekâ modelleri için bir orkestrasyon MCP sunucusudur: bir yönetici ajan işi planlar, işçi ajanlara dağıtır, sonucu kabul kapılarıyla sınar. Hangi modelin hangi rolü üstleneceği yapılandırılabilir.
 
 ## Kullanım sınırı
 
@@ -41,7 +41,7 @@ anafor chat                                  # beyin ajanla terminalden konuş
 
 Ayrıntı: **[docs/kurulum.md](docs/kurulum.md)**.
 
-Claude Code içinde örnek istek: *"Anafor ile görev aç, Codex'e dağıt, bitince sonucu incele."*
+Claude Code içinde örnek istek: *"Anafor ile görev aç, bir işçiye dağıt, bitince sonucu incele."*
 
 ### MCP araçları (v0.1)
 
