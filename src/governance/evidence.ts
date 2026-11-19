@@ -1,6 +1,7 @@
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { killPidTree } from '../core/process-util.js';
 import { git } from '../git/git.js';
 
 /** Yaygın gizli bilgi desenleri (eklenen satırlarda aranır). */
@@ -62,6 +63,91 @@ export interface EvidenceResult {
   summary: string;
 }
 
+export async function generateTestEvidenceAsync(
+  root: string,
+  cwd: string,
+  evidenceDir: string,
+  taskId: string,
+  command: string,
+  timeoutMs = 20 * 60_000,
+): Promise<EvidenceResult> {
+  mkdirSync(evidenceDir, { recursive: true });
+  const started = Date.now();
+  const result = await new Promise<{
+    status: number | null;
+    stdout: string;
+    stderr: string;
+    timedOut: boolean;
+  }>((resolve) => {
+    const child = spawn(command, {
+      cwd,
+      shell: true,
+      windowsHide: true,
+      detached: process.platform !== 'win32',
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    child.stderr?.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    let timedOut = false;
+    let settled = false;
+    const finish = (value: {
+      status: number | null;
+      stdout: string;
+      stderr: string;
+      timedOut: boolean;
+    }) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const timer = setTimeout(() => {
+      timedOut = true;
+      if (child.pid) killPidTree(child.pid);
+      child.kill('SIGKILL');
+      finish({ status: null, stdout, stderr, timedOut: true });
+    }, timeoutMs);
+    child.on('close', (status) => {
+      clearTimeout(timer);
+      finish({ status, stdout, stderr, timedOut });
+    });
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      stderr += error.message;
+      finish({ status: null, stdout, stderr, timedOut });
+    });
+  });
+  const tail = (s: string) => s.split('\n').slice(-60).join('\n');
+  const file = join(evidenceDir, `${taskId}-tests.txt`);
+  const passed = result.status === 0 && !result.timedOut;
+  writeFileSync(
+    file,
+    [
+      `zaman: ${stamp()}`,
+      `komut: ${command}`,
+      `dizin: ${relative(root, cwd) || '.'}`,
+      `çıkış kodu: ${result.status ?? 'yok'}`,
+      ...(result.timedOut ? ['sonuç: zaman aşımı'] : []),
+      `süre: ${Date.now() - started} ms`,
+      '--- stdout (son 60 satır) ---',
+      tail(result.stdout),
+      '--- stderr (son 60 satır) ---',
+      tail(result.stderr),
+    ].join('\n'),
+  );
+  return {
+    path: relative(root, file).replace(/\\/g, '/'),
+    passed,
+    summary: result.timedOut
+      ? `${command} → zaman aşımı`
+      : `${command} → ${result.status ?? 'hata'}`,
+  };
+}
+
 const stamp = () => new Date().toISOString();
 
 /** Test komutunu çalıştırır ve sonucu kanıt dosyasına yazar. */
@@ -71,6 +157,7 @@ export function generateTestEvidence(
   evidenceDir: string,
   taskId: string,
   command: string,
+  timeoutMs = 20 * 60_000,
 ): EvidenceResult {
   mkdirSync(evidenceDir, { recursive: true });
   const started = Date.now();
@@ -78,13 +165,17 @@ export function generateTestEvidence(
     cwd,
     shell: true,
     encoding: 'utf8',
-    timeout: 20 * 60_000,
+    timeout: timeoutMs,
     windowsHide: true,
     maxBuffer: 32 * 1024 * 1024,
   });
+  if (r.error?.name === 'TimeoutError' && r.pid) killPidTree(r.pid);
   const tail = (s: string) => s.split('\n').slice(-60).join('\n');
   const file = join(evidenceDir, `${taskId}-tests.txt`);
-  const passed = r.status === 0;
+  const timedOut =
+    r.error?.name === 'TimeoutError' ||
+    (r.error as NodeJS.ErrnoException | undefined)?.code === 'ETIMEDOUT';
+  const passed = r.status === 0 && !timedOut;
   writeFileSync(
     file,
     [
@@ -92,6 +183,7 @@ export function generateTestEvidence(
       `komut: ${command}`,
       `dizin: ${relative(root, cwd) || '.'}`,
       `çıkış kodu: ${r.status ?? 'yok'}${r.error ? ` (${r.error.message})` : ''}`,
+      ...(timedOut ? ['sonuç: zaman aşımı'] : []),
       `süre: ${Date.now() - started} ms`,
       '--- stdout (son 60 satır) ---',
       tail(r.stdout ?? ''),
@@ -102,7 +194,7 @@ export function generateTestEvidence(
   return {
     path: relative(root, file).replace(/\\/g, '/'),
     passed,
-    summary: `${command} → ${r.status ?? 'hata'}`,
+    summary: timedOut ? `${command} → zaman aşımı` : `${command} → ${r.status ?? 'hata'}`,
   };
 }
 

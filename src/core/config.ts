@@ -31,6 +31,8 @@ export interface AnaforConfig {
   escalation: { failure_threshold: number; stall_minutes: number; takeover_minutes: number };
   /** Kanıt üretiminde kullanılacak test komutu (yoksa package.json'dan tahmin). */
   test_command: string | null;
+  auto_check: boolean;
+  auto_check_timeout_s: number;
   /** İşçi başına ayarlar. */
   workers: Record<string, WorkerSettings>;
   /** Rol → tercih edilen işçi sırası (ilk uygun olan seçilir). */
@@ -119,6 +121,8 @@ export const DEFAULT_CONFIG: AnaforConfig = {
   worktree_cache: null,
   escalation: { failure_threshold: 3, stall_minutes: 60, takeover_minutes: 120 },
   test_command: null,
+  auto_check: true,
+  auto_check_timeout_s: 900,
   workers: { codex: { user_config: 'isolate' }, cirak: { user_config: 'isolate' } },
   routing: {
     implementation: ['codex', 'cirak'],

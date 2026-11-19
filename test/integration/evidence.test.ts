@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeAdapter } from '../../src/adapters/fake.js';
@@ -135,6 +135,8 @@ describe('Anafor kanıtıyla doğrulanmış kabul', () => {
   it('işçi testleri çalıştıramadı (partial): kanıtsız red, taze kanıt + gerekçe ile kabul', async () => {
     const t = tempDir();
     initRepo(t.dir);
+    mkdirSync(join(t.dir, '.anafor'), { recursive: true });
+    writeFileSync(join(t.dir, '.anafor', 'config.json'), JSON.stringify({ auto_check: false }));
     const store = new Store(t.dir);
     const adapters: AdapterRegistry = new Map([['fake', new FakeAdapter()]]);
     const svc = new AnaforService(store, adapters, inProcessLauncher(adapters), 'fake');

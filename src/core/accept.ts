@@ -20,6 +20,7 @@ export interface AcceptInput {
    * açıkça istediyse, işçi beyanına dayanan status/gereksinim/test kapıları bu kanıtla geçer.
    */
   verifiedByEvidence?: { ok: boolean; detail: string } | null;
+  autoCheck?: { passed: boolean; summary: string } | null;
 }
 
 /**
@@ -90,8 +91,14 @@ export function evaluateAcceptance(input: AcceptInput): Gate[] {
 
   add('result_present', r !== null, r ? 'doğrulanmış sonuç var' : 'sonuç yok');
   const v = input.verifiedByEvidence;
-  if (v) add('verified_by_evidence', v.ok, v.detail);
-  const viaEvidence = v?.ok === true;
+  const auto = input.autoCheck;
+  if (v || auto?.passed)
+    add(
+      'verified_by_evidence',
+      !!auto?.passed || v!.ok,
+      auto?.passed ? `otomatik test kanıtı: ${auto.summary}` : v!.detail,
+    );
+  const viaEvidence = v?.ok === true || auto?.passed === true;
   if (r) {
     add(
       'status_completed',
@@ -110,8 +117,10 @@ export function evaluateAcceptance(input: AcceptInput): Gate[] {
     const badExit = r.tests.exit_codes.filter((c) => c !== 0);
     add(
       'tests_pass',
-      (r.tests.failed === 0 && badExit.length === 0) || viaEvidence,
-      `geçen ${r.tests.passed}, kalan ${r.tests.failed}, başarısız çıkış kodları: ${badExit.join(',') || 'yok'}`,
+      (auto ? auto.passed : r.tests.failed === 0 && badExit.length === 0) || v?.ok === true,
+      auto && !auto.passed
+        ? `auto_check başarısız: ${auto.summary}`
+        : `geçen ${r.tests.passed}, kalan ${r.tests.failed}, başarısız çıkış kodları: ${badExit.join(',') || 'yok'}`,
     );
     add(
       'no_critical_findings',
