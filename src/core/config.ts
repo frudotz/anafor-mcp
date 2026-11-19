@@ -13,6 +13,7 @@ export type DirectorMode = 'enforce' | 'warn' | 'off';
 export type RoutingMode = 'static' | 'adaptive';
 
 export interface AnaforConfig {
+  review: { require_for: 'standard' | 'deep' | 'none'; worker: string; model: string };
   /** Statusline'da limitleri gösterilecek işçiler. */
   statusline: { workers: string[] };
   /** Yönetici modunda Claude'un doğrudan düzenleme yapması: engelle / uyar / serbest. */
@@ -96,6 +97,7 @@ export function canonicalWorkerId(id: string): string {
 }
 
 export const DEFAULT_CONFIG: AnaforConfig = {
+  review: { require_for: 'standard', worker: 'cirak', model: 'sonnet' },
   statusline: { workers: ['codex'] },
   director_mode: 'enforce',
   allow_paths: [
@@ -184,6 +186,7 @@ export function loadConfig(root: string): AnaforConfig {
     ...DEFAULT_CONFIG,
     ...local,
     ...project,
+    review: { ...DEFAULT_CONFIG.review, ...local.review, ...project.review },
     statusline: { workers: ['codex'], ...local.statusline, ...project.statusline },
     workers,
     capacity: { ...DEFAULT_CAPACITY, ...local.capacity, ...project.capacity },

@@ -118,7 +118,7 @@ This is not legal advice; check providers' current terms separately.
 
 For long waits, start `anafor job wait <id>` with Claude Code Bash `run_in_background`; the harness wakes the director when it finishes. MCP `job_wait` is for short checks of at most 50 seconds.
 | Fix | `job_request_changes` (same worker session, at most 5 per task) |
-| Accept | `/anafor:accept <task> <job>`: `task_accept` gates; the worktree job is merged into the task branch. If the worker could not run tests (e.g. sandbox): `evidence_generate` → `task_accept` + `verified_by_evidence_reason` |
+| Accept | `/anafor:accept <task> <job>`: `task_accept` gates; standard/deep tasks require a current independent review. A correction after review needs no second review when `auto_check` passes. If the worker could not run tests (e.g. sandbox): `evidence_generate` → `task_accept` + `verified_by_evidence_reason` |
 | Bring into your branch | `task_merge`: task branch → branch of the working tree (clean tree required) |
 | Clean up | `workspace_cleanup` |
 | Status | `/anafor:status` |

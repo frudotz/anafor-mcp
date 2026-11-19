@@ -14,13 +14,20 @@ function initRepo(dir: string): void {
   writeFileSync(join(dir, '.gitignore'), '.anafor/\n');
   git(dir, ['add', '-A']);
   git(dir, ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init']);
+  writeFileSync(
+    join(dir, 'anafor.config.json'),
+    JSON.stringify({ review: { require_for: 'none' } }),
+  );
 }
 
 describe('job_diff ve task_accept', () => {
   let t: ReturnType<typeof tempDir>;
   let store: Store;
   let svc: AnaforService;
-  const adapters: AdapterRegistry = new Map([['fake', new FakeAdapter()]]);
+  const adapters: AdapterRegistry = new Map([
+    ['fake', new FakeAdapter()],
+    ['codex', new FakeAdapter()],
+  ]);
 
   beforeEach(() => {
     t = tempDir();
@@ -80,6 +87,10 @@ describe('job_diff ve task_accept', () => {
   });
 
   it('deep görev: review olmadan reddedilir, bağımsız review ile kabul', async () => {
+    writeFileSync(
+      join(t.dir, 'anafor.config.json'),
+      JSON.stringify({ review: { require_for: 'standard' } }),
+    );
     const task = svc.taskCreate({ title: 'deep', objective: 'x', reviewLevel: 'deep' });
     const impl = await run(task.task_id, 'implementation');
     const noReview = svc.taskAccept(task.task_id, impl);
@@ -91,6 +102,71 @@ describe('job_diff ve task_accept', () => {
     expect(ok.failed_gates).toEqual([]);
     expect(ok.accepted).toBe(true);
     expect(store.mustGetJob(review).state).toBe('approved');
+  });
+
+  it('standard review zorunlu, completed review ile kabul edilir', async () => {
+    writeFileSync(
+      join(t.dir, 'anafor.config.json'),
+      JSON.stringify({ review: { require_for: 'standard', worker: 'codex', model: 'test-model' } }),
+    );
+    const task = svc.taskCreate({ title: 'standard', objective: 'x' });
+    const impl = await run(task.task_id, 'implementation');
+    expect(svc.taskAccept(task.task_id, impl).failed_gates.map((g) => g.gate)).toContain(
+      'review_required',
+    );
+    const review = await run(task.task_id, 'review', { targetJobId: impl });
+    const accepted = svc.taskAccept(task.task_id, impl, review);
+    expect(accepted.accepted).toBe(true);
+    expect(store.mustGetJob(review).worker).toBe('codex');
+    expect(store.mustGetJob(review).model).toBe('test-model');
+  });
+
+  it('lightweight görevde review kapısı yok', async () => {
+    const task = svc.taskCreate({ title: 'light', objective: 'x', reviewLevel: 'lightweight' });
+    const impl = await run(task.task_id, 'implementation');
+    expect(svc.taskAccept(task.task_id, impl).failed_gates.map((g) => g.gate)).not.toContain(
+      'review_required',
+    );
+  });
+
+  it.each([true, false, null])(
+    'review sonrası düzeltmede auto_check=%s güncellik kararını belirler',
+    async (passed) => {
+      writeFileSync(
+        join(t.dir, 'anafor.config.json'),
+        JSON.stringify({ review: { require_for: 'standard', worker: 'codex' } }),
+      );
+      const task = svc.taskCreate({ title: 'düzeltme', objective: 'x' });
+      const impl = await run(task.task_id, 'implementation');
+      const review = await run(task.task_id, 'review', { targetJobId: impl });
+      const correction = await run(task.task_id, 'implementation');
+      if (passed !== null)
+        store.patchJob(correction, {
+          autoCheck: {
+            passed,
+            command: 'npm test',
+            summary: 'test',
+            exit_code: passed ? 0 : 1,
+            evidence: '.anafor/evidence/x-auto-tests.txt',
+            workdir: t.dir,
+          },
+        });
+      const result = svc.taskAccept(task.task_id, correction, review);
+      if (passed === true) expect(result.failed_gates).toEqual([]);
+      else expect(result.failed_gates.map((g) => g.gate)).toContain('deep_review_fresh');
+    },
+  );
+
+  it('review.require_for=none kapatır standard review kapısını', async () => {
+    writeFileSync(
+      join(t.dir, 'anafor.config.json'),
+      JSON.stringify({ review: { require_for: 'none' } }),
+    );
+    const task = svc.taskCreate({ title: 'no review', objective: 'x' });
+    const impl = await run(task.task_id, 'implementation');
+    expect(svc.taskAccept(task.task_id, impl).failed_gates.map((g) => g.gate)).not.toContain(
+      'review_required',
+    );
   });
 
   it('task_close: aktif iş varken CONFLICT, sonra kapanır', async () => {
