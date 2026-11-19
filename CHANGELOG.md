@@ -2,6 +2,26 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/) (0.x döneminde küçük sürüm kırıcı olabilir).
 
+## [0.7.0] - 2026-11-19
+
+### Eklenenler
+- **Limit uyumlu geliştirme döngüsü:** `anafor loop`; %75 uyarı, %90 duraklama, haftalık %95 sınırı, güvenli nokta, isteğe bağlı `--auto-resume`, aynı oturumda devam, backlog/hedef ve kilit (#69).
+- **Döngü araçları ve arayüzü:** MCP araçları `loop_start`/`loop_status`/`loop_stop`, `/anafor:loop`, UserPromptSubmit limit uyarısı, SessionStart döngü özeti ve durum satırında döngü göstergesi (#70).
+- **Marka kimliği:** `assets/brand` SVG varyantları, renk token'ları, kılavuz, build/verify/raster betikleri ve README logosu (#71).
+- **`anafor init --exclude-local`:** `.anafor/` girdisini `.gitignore` yerine ortak `.git/info/exclude` dosyasına yazar (#72).
+
+### Değişenler
+- Antigravity yalnızca açık onayla isteğe bağlıdır (`enabled` + `accept_terms_risk`, yalnızca yerel config); uyarı ve sorumluluk reddi eklendi (#67).
+- MCP sunucusu config değişince yeniden yükler (#68).
+
+### Düzeltilenler
+- Deep inceleme kapısı, salt okunur inceleyicinin “test çalıştırılamadı” kısmi sonucunu kabul eder; TOML satır içi tablo kenar durumları düzeltildi (#68).
+- `evidence_generate` birleştirilmemiş iş worktree'sinde çalışır; kabul kapısı `yol:N-M` kanıt konumlarını çözer (#72).
+- İşçi sandbox'ında geçici dizin temizliği `EPERM` hatası düzeltildi (#66).
+
+### Geçiş notu
+- Antigravity kullananlar yerel `.anafor/config.json` dosyasında `enabled` ve `accept_terms_risk` vermelidir.
+
 ## [0.6.0] - 2026-11-19
 
 ### Eklenenler

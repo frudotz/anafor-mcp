@@ -1,6 +1,6 @@
 {
   "name": "anafor-mcp",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Frontier yapay zekâ modelleri için orkestrasyon MCP sunucusu",
   "license": "AGPL-3.0-only",
   "type": "module",
