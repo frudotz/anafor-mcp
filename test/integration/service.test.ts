@@ -85,7 +85,7 @@ describe('AnaforService', () => {
     expect(ev.workdir).toBe(job.workdir);
     expect(readFileSync(join(job.workdir, 'test-cwd.txt'), 'utf8')).toBe(job.workdir);
     expect(readFileSync(join(t.dir, ev.tests!.evidence), 'utf8')).toContain(
-      `dizin: .anafor\\worktrees\\${job.id}`,
+      `dizin: ${join('.anafor', 'worktrees', job.id)}`,
     );
 
     expect(svc.taskAccept(task.task_id, dispatched.job_id).accepted).toBe(true);
