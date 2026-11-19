@@ -121,6 +121,57 @@ describe('job_diff ve task_accept', () => {
     expect(store.mustGetJob(review).model).toBe('test-model');
   });
 
+  it('review bulguları kabulü engeller, low bulgular yanıtta listelenir', async () => {
+    writeFileSync(
+      join(t.dir, 'anafor.config.json'),
+      JSON.stringify({ review: { require_for: 'standard', worker: 'codex' } }),
+    );
+    const task = svc.taskCreate({ title: 'bulgular', objective: 'x' });
+    const impl = await run(task.task_id, 'implementation');
+    const review = await run(task.task_id, 'review', { targetJobId: impl });
+    const reviewResult = store.mustGetJob(review).result!;
+    store.db.prepare('UPDATE jobs SET result_json = ? WHERE id = ?').run(
+      JSON.stringify({
+        ...reviewResult,
+        requirements_missing: ['kabul ölçütü X'],
+        review: {
+          ...reviewResult.review,
+          findings: [
+            { severity: 'medium', title: 'Orta bulgu', file: null, line: null, evidence: 'kanıt' },
+            { severity: 'low', title: 'Düşük bulgu', file: null, line: null, evidence: 'kanıt' },
+          ],
+        },
+      }),
+      review,
+    );
+    const accepted = svc.taskAccept(task.task_id, impl, review);
+    expect(accepted.failed_gates.map((g) => g.gate)).toContain('review_findings_open');
+    expect(accepted.failed_gates.find((g) => g.gate === 'review_findings_open')?.detail).toContain(
+      'Orta bulgu',
+    );
+    expect(accepted.open_low_findings).toEqual(['Düşük bulgu']);
+  });
+
+  it('inceleyicinin yalnız "test çalıştırılamadı" eksiği kapıyı kilitlemez', async () => {
+    writeFileSync(
+      join(t.dir, 'anafor.config.json'),
+      JSON.stringify({ review: { require_for: 'standard', worker: 'codex' } }),
+    );
+    const task = svc.taskCreate({ title: 'salt okunur', objective: 'x' });
+    const impl = await run(task.task_id, 'implementation');
+    const review = await run(task.task_id, 'review', { targetJobId: impl });
+    const reviewResult = store.mustGetJob(review).result!;
+    store.db.prepare('UPDATE jobs SET result_json = ? WHERE id = ?').run(
+      JSON.stringify({
+        ...reviewResult,
+        requirements_missing: ['npm test çalıştırılamadı (izin gerektirdi)'],
+      }),
+      review,
+    );
+    const accepted = svc.taskAccept(task.task_id, impl, review);
+    expect(accepted.failed_gates.map((g) => g.gate)).not.toContain('review_findings_open');
+  });
+
   it('lightweight görevde review kapısı yok', async () => {
     const task = svc.taskCreate({ title: 'light', objective: 'x', reviewLevel: 'lightweight' });
     const impl = await run(task.task_id, 'implementation');
