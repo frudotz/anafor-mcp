@@ -105,6 +105,9 @@ export interface ChatOptions {
   once?: string;
   model?: string;
   permissionMode?: string;
+  lean?: boolean;
+  effort?: import('../adapters/types.js').Effort;
+  merge?: boolean;
 }
 
 /**
@@ -135,6 +138,9 @@ export async function runChat(opts: ChatOptions): Promise<number> {
       ...(opts.newSession ? { newSession: true } : {}),
       ...(opts.model ? { model: opts.model } : {}),
       ...(opts.permissionMode ? { permissionMode: opts.permissionMode } : {}),
+      ...(opts.lean !== undefined ? { lean: opts.lean } : {}),
+      ...(opts.effort ? { effort: opts.effort } : {}),
+      ...(opts.merge ? { merge: true } : {}),
     },
     (e) => {
       const line = renderBrainEvent(e);

@@ -17,6 +17,17 @@ afterEach(() => {
 });
 
 describe('cirak legacy alias', () => {
+  it('merges brain config with project values taking precedence', () => {
+    const d = root();
+    mkdirSync(join(d, '.anafor'));
+    writeFileSync(
+      join(d, '.anafor', 'config.json'),
+      JSON.stringify({ brain: { lean: false, effort: 'low', model: 'local' } }),
+    );
+    writeFileSync(join(d, 'anafor.config.json'), JSON.stringify({ brain: { model: 'project' } }));
+    expect(loadConfig(d).brain).toEqual({ lean: false, effort: 'low', model: 'project' });
+    expect(loadConfig(join(d, 'missing')).brain).toEqual({ lean: true });
+  });
   it('merges worker config and canonicalizes routing', () => {
     const d = root();
     mkdirSync(join(d, '.anafor'));
