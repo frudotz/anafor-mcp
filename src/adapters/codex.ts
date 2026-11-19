@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { runLineProcess } from './process.js';
@@ -238,6 +238,16 @@ export interface CodexAdapterOptions {
   userConfig?: 'isolate' | 'inherit';
   /** Test için platform ezmesi. */
   platform?: NodeJS.Platform;
+  probeRunner?: (
+    bin: string,
+    args: string[],
+    workdir: string,
+  ) => { status: number | null; stdout: string };
+}
+
+export interface EnvironmentProbe {
+  at: string;
+  tools: Record<string, { ok: boolean; preferred?: string }>;
 }
 
 export class CodexAdapter implements WorkerAdapter {
@@ -247,6 +257,7 @@ export class CodexAdapter implements WorkerAdapter {
   private readonly windowsSandbox: CodexWindowsSandbox | undefined;
   private readonly platform: NodeJS.Platform;
   private readonly userConfig: 'isolate' | 'inherit';
+  private readonly probeRunner: NonNullable<CodexAdapterOptions['probeRunner']>;
 
   constructor(opts: CodexAdapterOptions = {}) {
     this.bin = opts.bin ?? process.env.ANAFOR_CODEX_BIN ?? 'codex';
@@ -254,6 +265,91 @@ export class CodexAdapter implements WorkerAdapter {
     this.windowsSandbox = opts.windowsSandbox;
     this.platform = opts.platform ?? process.platform;
     this.userConfig = opts.userConfig ?? 'isolate';
+    this.probeRunner =
+      opts.probeRunner ??
+      ((bin, args, cwd) => {
+        const r = spawnSync(bin, args, {
+          cwd,
+          encoding: 'utf8',
+          windowsHide: true,
+          timeout: 120_000,
+        });
+        return { status: r.status, stdout: r.stdout ?? '' };
+      });
+  }
+
+  async probeEnvironment(
+    workdir: string,
+    tools: string[],
+    cacheDir: string,
+  ): Promise<EnvironmentProbe | null> {
+    const file = join(cacheDir, 'env-probe.json');
+    try {
+      const cached = JSON.parse(readFileSync(file, 'utf8')) as EnvironmentProbe;
+      if (
+        Date.now() - Date.parse(cached.at) < 24 * 60 * 60_000 &&
+        tools.every((t) => cached.tools[t])
+      )
+        return cached;
+    } catch {
+      /* cache miss */
+    }
+    const requested = [...new Set(tools)];
+    const script = `$r=@{}; ${requested
+      .map(
+        (tool, i) =>
+          `$b${i}=${JSON.stringify(tool)}; $n${i}=$b${i}; $p${i}=Get-Command $n${i} -ErrorAction SilentlyContinue; if ($p${i} -and $p${i}.Source -like '*.ps1' -and (Get-Command ($n${i}+'.cmd') -ErrorAction SilentlyContinue)) { $n${i}=$n${i}+'.cmd' }; try { & $n${i} --version *> $null; $ok${i}=($LASTEXITCODE -eq 0) } catch { $ok${i}=$false }; $r[$b${i}]=@{ok=$ok${i};preferred=$n${i}}`,
+      )
+      .join('; ')}; ConvertTo-Json -Compress -Depth 3`;
+    const prompt = `Run this harmless PowerShell tool availability probe in the current sandbox and return only JSON map tool => {ok,preferred?}: ${script}`;
+    const args = [
+      'exec',
+      '--json',
+      '-s',
+      'read-only',
+      '--skip-git-repo-check',
+      ...(this.userConfig !== 'inherit' ? ['--ignore-user-config', ...this.isolationArgs()] : []),
+      ...this.sandboxArgs(),
+      '-',
+    ];
+    let result: EnvironmentProbe = {
+      at: new Date().toISOString(),
+      tools: Object.fromEntries(requested.map((name) => [name, { ok: false }])),
+    };
+    try {
+      const run = this.probeRunner(this.bin, args, workdir);
+      const message = run.stdout
+        .split(/\r?\n/)
+        .reverse()
+        .map((line) => {
+          try {
+            const event = JSON.parse(line) as {
+              type?: string;
+              item?: { type?: string; text?: string };
+            };
+            return event.type === 'item.completed' && event.item?.type === 'agent_message'
+              ? event.item.text
+              : undefined;
+          } catch {
+            return undefined;
+          }
+        })
+        .find(Boolean);
+      if (run.status !== 0 || !message) return null;
+      const parsed = JSON.parse(message) as Record<string, { ok?: boolean; preferred?: string }>;
+      if (!requested.every((name) => parsed[name] && typeof parsed[name]!.ok === 'boolean'))
+        return null;
+      for (const name of requested)
+        result.tools[name] = {
+          ok: parsed[name]!.ok!,
+          ...(parsed[name]!.preferred ? { preferred: parsed[name]!.preferred } : {}),
+        };
+      mkdirSync(cacheDir, { recursive: true });
+      writeFileSync(file, JSON.stringify(result, null, 2));
+    } catch {
+      return null;
+    }
+    return result;
   }
 
   get configuredWindowsSandbox(): CodexWindowsSandbox | undefined {

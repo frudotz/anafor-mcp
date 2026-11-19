@@ -137,6 +137,16 @@ describe('worktree paralelliği (F3)', () => {
       { severity: 'low', title: 't', file: null, line: null, evidence: 'e' },
     ]);
     await svc.jobWait([c.job_id], 30);
+    store.patchJob(c.job_id, {
+      autoCheck: {
+        command: 'npm test',
+        passed: true,
+        exit_code: 0,
+        summary: 'npm test → 0',
+        evidence: '.anafor/evidence/check.txt',
+        workdir: store.mustGetJob(c.job_id).workdir,
+      },
+    });
     expect(store.mustGetJob(c.job_id).workdir).toBe(store.mustGetJob(j1.job_id).workdir);
     const r = await svc.jobDispatch({
       taskId: a.task_id,
@@ -148,6 +158,8 @@ describe('worktree paralelliği (F3)', () => {
     const rj = store.mustGetJob(r.job_id);
     expect(rj.workspaceMode).toBe('readonly');
     expect(rj.workdir).toBe(store.mustGetJob(c.job_id).workdir);
+    expect(rj.inputs.reviewContext?.diffSummary).toContain('FAKE_OUTPUT.txt');
+    expect(rj.inputs.reviewContext?.autoCheck?.command).toBe('npm test');
     await svc.jobWait([r.job_id], 30);
   });
 

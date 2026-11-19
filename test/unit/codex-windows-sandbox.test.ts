@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CirakAdapter } from '../../src/adapters/cirak.js';
-import { writeFileSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdtempSync, rmSync, mkdirSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -13,6 +13,56 @@ import {
 import { DEFAULT_CONFIG, loadConfig } from '../../src/core/config.js';
 
 describe('Codex Windows sandbox (F16)', () => {
+  it('environment probe uses injected executor and refreshes expired cache', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'anafor-probe-'));
+    let calls = 0;
+    const cache = join(dir, 'project', '.anafor');
+    const response = () =>
+      JSON.stringify({
+        type: 'item.completed',
+        item: {
+          type: 'agent_message',
+          text: JSON.stringify({ lat: { ok: true, preferred: 'lat.cmd' }, bun: { ok: false } }),
+        },
+      });
+    try {
+      const adapter = new CodexAdapter({
+        platform: 'win32',
+        probeRunner: () => {
+          calls++;
+          return {
+            status: 0,
+            stdout: response(),
+          };
+        },
+      });
+      const fresh = await adapter.probeEnvironment(dir, ['lat', 'bun'], cache);
+      expect(fresh).not.toBeNull();
+      if (!fresh) throw new Error('expected probe data');
+      expect(fresh.tools.lat?.preferred).toBe('lat.cmd');
+      await adapter.probeEnvironment(dir, ['lat', 'bun'], cache);
+      expect(calls).toBe(1);
+      writeFileSync(
+        join(cache, 'env-probe.json'),
+        JSON.stringify({ at: '2000-01-01T00:00:00.000Z', tools: fresh.tools }),
+      );
+      await adapter.probeEnvironment(dir, ['lat', 'bun'], cache);
+      expect(calls).toBe(2);
+      expect(existsSync(join(dir, '.anafor', 'env-probe.json'))).toBe(false);
+      for (const output of [
+        { status: 1, stdout: response() },
+        { status: 0, stdout: '{bad json' },
+        { status: null, stdout: '' },
+      ]) {
+        const failing = new CodexAdapter({ platform: 'win32', probeRunner: () => output });
+        const failedCache = join(dir, `failed-${calls++}`);
+        expect(await failing.probeEnvironment(dir, ['node'], failedCache)).toBeNull();
+        expect(existsSync(join(failedCache, 'env-probe.json'))).toBe(false);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
   it('isolate forwards only safe top-level settings and windows sandbox', () => {
     const config = parseCodexUserConfig(
       `model = "user # model" # comment\nmodel_provider='vendor'\nmodel_reasoning_effort = "high"\nmcp_servers = { private = true }\nplugins = ["personal"]\n[windows]\nsandbox = "elevated" # safe\n[projects]\nfoo = "bar"`,
@@ -208,6 +258,17 @@ describe('Codex Windows sandbox (F16)', () => {
       expect(DEFAULT_CONFIG.workers).toEqual(before);
       expect(first.workers).not.toBe(DEFAULT_CONFIG.workers);
       expect(second.workers).not.toBe(DEFAULT_CONFIG.workers);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('env_probe is disabled by explicit false and enabled by default', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'anafor-config-'));
+    try {
+      expect(DEFAULT_CONFIG.env_probe).toBe(true);
+      writeFileSync(join(dir, 'anafor.config.json'), JSON.stringify({ env_probe: false }));
+      expect(loadConfig(dir).env_probe).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
