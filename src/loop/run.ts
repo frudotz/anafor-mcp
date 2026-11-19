@@ -144,6 +144,11 @@ export async function runLoop(deps: LoopDeps): Promise<LoopState> {
     while (true) {
       while (deps.now() < resumeMs) {
         state = readState(deps.root, state);
+        if (state.until && deps.now() >= Date.parse(state.until)) {
+          state = { ...state, state: 'done', paused_reason: null, resume_at: null };
+          persistRespectingControl();
+          return false;
+        }
         if (
           state.state === 'stopped' ||
           (state.state === 'paused' && (state.paused_reason ?? '').startsWith('manual'))

@@ -4,6 +4,7 @@ import { Store } from '../store/store.js';
 import { checkExtensions } from '../extensions/registry.js';
 import { activeGrants } from './grants.js';
 import { m } from '../i18n/index.js';
+import { readLoopState } from '../loop/state.js';
 
 /** SessionStart: yöneticiye kısa rol hatırlatması + proje panosu (token dostu). */
 export function runSessionStart(
@@ -27,6 +28,14 @@ export function runSessionStart(
       t.role,
       t.board(tasks.length, active.length, review.length, grants.length),
     ];
+    const loop = readLoopState(root);
+    if (loop && ['running', 'paused'].includes(loop.state)) {
+      const detail =
+        loop.paused_reason?.startsWith('blocked:') || loop.paused_reason?.startsWith('error:')
+          ? loop.paused_reason
+          : (loop.resume_at ?? '');
+      lines.push(t.loopSummary(loop.state, loop.cycle, detail));
+    }
     for (const t of tasks.slice(0, 5)) lines.push(`- ${t.id} [${t.state}] ${t.title}`);
     for (const j of review.slice(0, 5)) lines.push(t.awaitingReview(j.id, j.worker, j.role));
     if (config.extensions.enforce !== 'off') {

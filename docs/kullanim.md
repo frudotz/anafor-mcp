@@ -55,9 +55,53 @@ anafor run "Stack sınıfına clear() ekle ve testini yaz" --accept --merge --wo
 
 Beyin hedefi kullanıcı olmadan baştan sona yürütür: plan → dağıt → incele → (isteğe bağlı) kabul → kanıt → yetki → birleştirme → audit → temizlik. İzin isteyen her şey reddedilir. `--accept` olmadan kabul edilmez, `--merge` olmadan birleştirilmez. Agent SDK gerekmez; resmi `claude` ikilisi kullanılır.
 
-### Limit uyumlu geliştirme döngüsü
+### Geliştirme döngüsü (`anafor loop`)
 
-`anafor loop start "hedef"` veya `anafor loop start --backlog backlog.md` döngüyü başlatır. `anafor loop status`, `pause`, `resume` ve `stop` döngü durumunu yönetir. `stop` çalışan beyin turuna sinyal göndermez; mevcut tur bitince yeni tur başlatılmaz.
+Döngü, resmi `claude` ikilisiyle tek bir beyin oturumu açar. Her turda yöneticiye
+hedefi veya sıradaki backlog maddesini prompt olarak verir; `ANAFOR_LOOP` işaretiyle
+tamamlanma, devam veya engel bildirilir. Limit yaklaşınca yeni büyük iş açmak yerine
+mevcut işi güvenli noktaya getirmesi istenir.
+
+```bash
+anafor loop start "hedef" [--auto-resume] [--max-cycles N] [--until ISO]
+anafor loop start --backlog backlog.md [--profile saver|balanced|quality]
+anafor loop status
+anafor loop pause | resume | stop
+```
+
+Ek başlangıç bayrakları: `--accept`, `--merge`, `--model M`; `--detach` döngüyü
+ayrık süreçte başlatır. `--accept` ve `--merge` açıkça verilmedikçe kabul veya
+birleştirme yapılmaz. MCP'de `loop_start` hedef ya da backlog ile aynı seçenekleri
+alır; `loop_status` durumu ve backlog ilerlemesini, `loop_stop` duraklatma veya
+durdurmayı sağlar. Claude Code'da `/anafor:loop <hedef>` komutu da `loop_start`
+kullanır.
+
+Limit eşikleri `anafor.config.json` içindeki `limits.brain` ile ayarlanır:
+varsayılan `warn_at: 75`, `pause_at: 90`, `pause_at_weekly: 95` (yüzde). Eşik
+aşılınca döngü tur sonunda duraklar, checkpoint oluşturur ve `resume_at` zamanını
+durum dosyasına yazar. `--auto-resume` kullanıcı tercihidir; verilmezse otomatik
+devam etmez. Duraklamış işi `anafor loop resume` ile elle sürdürün. `pause` ve
+`stop` isteği mevcut tur bitince geçerli olur.
+
+Backlog dosyası proje kökünden okunur; tamamlanan satırlar `- [ ] madde` biçiminde
+olmalıdır. Örnek:
+
+```markdown
+- [ ] Kullanıcı kayıt akışını incele
+- [ ] Testleri ekle ve sonucu doğrula
+```
+
+Her turun son yanıtı bir `ANAFOR_LOOP` işareti taşımalıdır:
+`ANAFOR_LOOP: DONE`, `ANAFOR_LOOP: CONTINUE` veya `ANAFOR_LOOP: BLOCKED <neden>`.
+Durum satırında çalışan döngü `↻ döngü #N`, otomatik devamı bekleyen döngü
+`⏸ döngü: <saat>'te devam`, elle devam bekleyen döngü ise
+`⏸ döngü durakladı: anafor loop resume` olarak görünür. UserPromptSubmit hook'u
+Claude limiti uyarı eşiğini aşınca işi güvenli noktaya getirmesi için kısa not ekler.
+
+Öneri: sonraki adımları önceden bir belge, kasa (checkpoint) veya backlog dosyasında
+belirleyin. Döngü limitlere uyar ve bunları atlatmaz; paralel beyin başlatmaz, tek
+beyin oturumunu sürdürür ve resmi `claude` ikilisini kullanır. Bu hukuki görüş
+değildir; sağlayıcıların güncel koşullarını ayrıca inceleyin.
 
 ## 3. Günlük akış
 

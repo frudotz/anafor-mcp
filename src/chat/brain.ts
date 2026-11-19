@@ -204,6 +204,7 @@ export class BrainSession {
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
       shell: shim,
+      detached: process.platform !== 'win32' && this.opts.isolated,
     });
     this.child = child;
     createInterface({ input: child.stdout! }).on('line', (l) => {

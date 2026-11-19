@@ -21,7 +21,8 @@ import { runExt } from './ext-cmd.js';
 import { m, parseLang } from '../i18n/index.js';
 import { runDoctor } from './doctor-cmd.js';
 import { runLoopCommand } from './loop-cmd.js';
-import { healthSignals, statusLine, statuslineWorkers } from './health.js';
+import { healthSignals, loopStatusText, statusLine, statuslineWorkers } from './health.js';
+import { runUserPromptSubmit } from '../hooks/user-prompt-submit.js';
 import {
   availableUpdate,
   readUpdateCache,
@@ -462,6 +463,10 @@ switch (cmd) {
         windows,
         update: availableUpdate(readUpdateCache()),
         signals,
+        loop: loopStatusText(
+          (input.workspace as { current_dir?: string } | undefined)?.current_dir ??
+            (input.cwd as string | undefined),
+        ),
         workers: (() => {
           const configured = statuslineWorkers(
             (input.workspace as { current_dir?: string } | undefined)?.current_dir ??
@@ -501,6 +506,7 @@ async function hook(event: string): Promise<void> {
     let out = '';
     if (event === 'pre-tool-use') out = runPreToolUse(input);
     else if (event === 'session-start') out = runSessionStart(input as { cwd?: string });
+    else if (event === 'user-prompt-submit') out = runUserPromptSubmit(input as { cwd?: string });
     if (out) process.stdout.write(out);
   } catch (e) {
     process.stderr.write(`[anafor hook] ${(e as Error).message}\n`);
