@@ -1,0 +1,15 @@
+{
+  "brand": {
+    "lime": "#C9F36B",
+    "void": "#0B1016",
+    "surface": "#121C25",
+    "white": "#F2F5F7",
+    "steel": "#93A4B2"
+  },
+  "ui": {
+    "success": "#39C98A",
+    "info": "#65B9F5",
+    "warning": "#F2B84B",
+    "error": "#F07178"
+  }
+}
