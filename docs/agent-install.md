@@ -50,6 +50,7 @@ Exit code is `1` when `problems` is non-empty. `off` means "not configured" and 
 | `GIT_REPO` / `NOT_GIT_REPO` | Current dir is a git repo | agent (ask first) | `git init && git commit --allow-empty -m init` only if the user wants this directory as a project |
 | `PROJECT_NOT_INIT` | Directory not connected to Anafor | agent | `anafor init` inside the project |
 | `STORE_OK` / `STORE_ERROR` | `.anafor/state.db` opens | user | Usually locked by another process: close other Claude Code sessions and retry. Never delete the database |
+| `PERMISSION_DENIALS` | Permission denials observed in the last seven days | info | Run `anafor permissions` to inspect session, tool, reason and narrow allow suggestions |
 | `JOBS_OK` / `JOBS_FAILING` | ≥3 failed jobs in 24 h | agent | `anafor jobs --all`, read the error column; common causes are the worker codes below |
 | `EXTENSIONS_OK` / `EXTENSIONS_BLOCKED` | Skills/MCP servers not scanned or changed | agent + user | `anafor ext check`; for each: `anafor ext adopt <name> [--user]`. If the result is CAUTION, show the findings and let the **user** run the command with `--accept-risk` |
 | `SKILLSPECTOR_OK` / `SKILLSPECTOR_MISSING` | NVIDIA SkillSpector for the extension gate | agent (ask first) | Optional. Python 3.12/3.13: `python3.13 -m venv ~/.anafor/tools/skillspector` then `~/.anafor/tools/skillspector/bin/python -m pip install git+https://github.com/NVIDIA/skillspector.git` (Windows: `Scripts\python`) |
