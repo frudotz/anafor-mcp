@@ -63,6 +63,23 @@ export interface EvidenceResult {
   summary: string;
 }
 
+export function canReuseAutoCheck(
+  check: { command: string; head_sha?: string; workdir: string } | null | undefined,
+  command: string,
+  head: string | null,
+  workdir: string,
+  status: string[],
+): boolean {
+  return (
+    !!check &&
+    check.command === command &&
+    !!head &&
+    check.head_sha === head &&
+    check.workdir === workdir &&
+    status.length === 0
+  );
+}
+
 export async function generateTestEvidenceAsync(
   root: string,
   cwd: string,

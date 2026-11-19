@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeAdapter } from '../../src/adapters/fake.js';
 import type { AdapterRegistry } from '../../src/adapters/registry.js';
 import { git } from '../../src/git/git.js';
-import { scanDiffForSecrets } from '../../src/governance/evidence.js';
+import { canReuseAutoCheck, scanDiffForSecrets } from '../../src/governance/evidence.js';
 import { AnaforService, inProcessLauncher } from '../../src/server/service.js';
 import { Store } from '../../src/store/store.js';
 import { tempDir } from '../helpers.js';
@@ -53,6 +53,12 @@ describe('gizli bilgi taraması', () => {
 });
 
 describe('evidence_generate', () => {
+  it('reuses only same command/head/workdir with clean status', () => {
+    const check = { command: 'npm test', head_sha: 'abc', workdir: 'wt' };
+    expect(canReuseAutoCheck(check, 'npm test', 'abc', 'wt', [])).toBe(true);
+    expect(canReuseAutoCheck(check, 'npm test', 'def', 'wt', [])).toBe(false);
+    expect(canReuseAutoCheck(check, 'npm test', 'abc', 'wt', [' M file.ts'])).toBe(false);
+  });
   let t: ReturnType<typeof tempDir>;
   let store: Store;
   let svc: AnaforService;
