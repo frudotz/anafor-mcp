@@ -13,6 +13,8 @@ cd anafor-mcp && npm install && npm run build
 
 Gereksinimler: Node 24+, git, Claude Code ve en az bir işçi:
 
+Kalitenin önemli olduğu orta ölçekli işlerde doğrudan Opus tek ajan daha iyi sonuç verdi (F32); Anafor paralel büyük işler, Claude limiti darboğazı ve yönetişimli akış için.
+
 - Codex CLI (`codex login`)
 - Claude Code'un kendisi (`cirak` işçisi için ek kurulum gerekmez)
 

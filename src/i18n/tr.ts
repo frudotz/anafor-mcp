@@ -37,6 +37,8 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
   ui: { yes: 'Evet', no: 'Hayır', cancelled: 'İptal edildi.' },
 
   setup: {
+    opusAdvice:
+      'Kalitenin önemli olduğu orta ölçekli işlerde doğrudan Opus tek ajan daha iyi sonuç verdi (F32); Anafor paralel büyük işler, Claude limiti darboğazı ve yönetişimli akış için.',
     title: (v: string) => ` Anafor kurulumu · v${v} `,
     language: 'Dil / Language',
     envCheck: 'Ortam denetleniyor',
@@ -272,6 +274,12 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
   },
 
   meta: {
+    orderingHints: {
+      implementation: 'F33: Sol hız/maliyet 75 orta güven; F32: Codex işçi kalitesi değişken',
+      review: 'F33: Claude incelemede Sonnet; farklı aile kör noktayı azaltır',
+      analysis: 'F33: Claude analiz/planlamada önce',
+      test: '',
+    },
     tiers: {
       K1: 'öncü (Opus, Codex üst)',
       K2: 'orta-güçlü (Sonnet, Codex orta, Gemini Flash)',
