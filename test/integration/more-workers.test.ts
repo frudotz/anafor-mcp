@@ -221,7 +221,7 @@ describe('politika kuralları', () => {
       model: 'anthropic/claude-x',
     }).detect();
     expect(d.available).toBe(false);
-    expect(d.reason).toContain('claude-lite');
+    expect(d.reason).toContain('cirak');
   });
 
   it('gemini API anahtarı olmadan kullanılamaz', async () => {

@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ClaudeLiteAdapter } from '../../src/adapters/claude-lite.js';
+import { CirakAdapter } from '../../src/adapters/cirak.js';
 import { CodexAdapter } from '../../src/adapters/codex.js';
 import { FakeAdapter } from '../../src/adapters/fake.js';
 import { AntigravityAdapter, GeminiAdapter } from '../../src/adapters/google.js';
@@ -21,7 +21,7 @@ const cases: { adapter: () => WorkerAdapter; enabled: boolean; marker: string }[
   { adapter: () => new FakeAdapter(), enabled: true, marker: '[fake-file:conformance.txt]' },
   { adapter: () => new CodexAdapter(), enabled: process.env.ANAFOR_E2E_CODEX === '1', marker: '' },
   {
-    adapter: () => new ClaudeLiteAdapter(),
+    adapter: () => new CirakAdapter(),
     enabled: process.env.ANAFOR_E2E_CLAUDE === '1',
     marker: '',
   },

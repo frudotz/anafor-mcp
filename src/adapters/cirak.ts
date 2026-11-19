@@ -121,8 +121,8 @@ const READ_TOOLS = [
  * Claude Code'u (varsayılan: haiku) işçi olarak çalıştırır. Anafor MCP'si yüklenmez
  * (--strict-mcp-config), izin atlatma yok: yazma işlerinde acceptEdits + sınırlı araç listesi.
  */
-export class ClaudeLiteAdapter implements WorkerAdapter {
-  readonly id = 'claude-lite';
+export class CirakAdapter implements WorkerAdapter {
+  readonly id = 'cirak';
   private readonly bin: string;
   private readonly model: string;
   private readonly maxConcurrency: number;

@@ -179,7 +179,7 @@ ${r.stderr ?? ''}`,
     resumeSessionRef: job.sessionRef ?? undefined,
     effort: resolveEffort(config.token_profile, job.role, config.workers[job.worker]?.effort),
   };
-  // ANAFOR_WORKER: işçi süreci (ör. claude-lite) yönetici hook'larına takılmasın.
+  // ANAFOR_WORKER: işçi süreci (ör. cirak) yönetici hook'larına takılmasın.
   const ctx = { artifactsDir, env: { ...(opts.env ?? process.env), ANAFOR_WORKER: '1' } };
 
   // Kapasite ölçümü (F20): işten önceki limit gözlemi.

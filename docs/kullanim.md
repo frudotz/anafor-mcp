@@ -14,7 +14,7 @@ cd anafor-mcp && npm install && npm run build
 Gereksinimler: Node 24+, git, Claude Code ve en az bir işçi:
 
 - Codex CLI (`codex login`)
-- Claude Code'un kendisi (`claude-lite` işçisi için ek kurulum gerekmez)
+- Claude Code'un kendisi (`cirak` işçisi için ek kurulum gerekmez)
 
 ## 2. Bir projeyi Anafor'a bağlama
 
@@ -38,7 +38,7 @@ anafor chat --once "Açık görevleri özetle"     # tek mesaj, etkileşimsiz
 anafor jobs [--all]         # görev ve iş panosu
 anafor watch                # canlı iş olayları
 anafor roles                # beyin ve işçi rolleri
-anafor roles set review codex,local,claude-lite
+anafor roles set review codex,local,cirak
 anafor limits               # işçi oturum/kullanım limitleri
 ```
 
@@ -97,14 +97,14 @@ Sunucu yeniden başlarsa ölü işler `failed (orphaned)` olur. **Hiçbir iş ot
   "worktree_setup": "npm ci",
   "worktree_cache": { "paths": ["node_modules"], "key_files": ["package-lock.json"] },
   "routing": {
-    "implementation": ["codex", "claude-lite"],
-    "test": ["claude-lite", "codex"],
-    "analysis": ["claude-lite", "codex"],
-    "review": ["codex", "claude-lite"]
+    "implementation": ["codex", "cirak"],
+    "test": ["cirak", "codex"],
+    "analysis": ["cirak", "codex"],
+    "review": ["codex", "cirak"]
   },
   "workers": {
     "codex": { "max_concurrency": 2, "windows_sandbox": "elevated" },
-    "claude-lite": { "model": "haiku", "max_concurrency": 3 },
+    "cirak": { "model": "haiku", "max_concurrency": 3 },
     "fake": { "enabled": false }
   }
 }
@@ -120,9 +120,9 @@ Sunucu yeniden başlarsa ölü işler `failed (orphaned)` olur. **Hiçbir iş ot
 
 Codex varsayılan olarak `workers.codex.user_config: "isolate"` kullanır. `--ignore-user-config` ile başlar; kişisel `~/.codex/config.toml` (veya `CODEX_HOME`) içinden yalnızca `model` (özel provider yoksa), `model_reasoning_effort` ve Windows `sandbox` ayarları aktarılır. İş emrindeki model/effort ve `workers.codex.windows_sandbox` bu değerleri ezer. Kişisel MCP, plugin ve proje ayarları aktarılmaz. İzolasyonda web arama, uygulama bağlayıcıları ve görsel üretim kapalıdır. Kullanıcının `sandbox_workspace_write.network_access` ayarı da taşınmaz; sandbox ağ erişimi varsayılan olarak kapalıdır. Bu ayarları ve ağ erişimini işçiye açmanız gerekiyorsa Codex için `inherit` kullanın. codex-cli 0.167.2 ile yapılan ölçümde yaklaşık %22 daha az ilk tur girdi token'ı (16,8K → 13,1K), `--ignore-user-config` tek başına değil, uygulama bağlayıcıları, görsel üretim ve web arama kapatıldığında görüldü; tek başına config yoksayma ölçümünde fark yoktu.
 
-claude-lite varsayılan olarak `--disable-slash-commands` ile slash komutlarını/skill'leri kapatır, `--strict-mcp-config` ile harici MCP yapılandırmasını yüklemez. Kullanıcının hook'ları ve diğer Claude Code ayarları etkin kalır. `workers["claude-lite"].user_config: "inherit"` yalnızca slash komutlarını kapatma bayrağını kaldırır; strict MCP yapılandırması korunur.
+cirak varsayılan olarak `--disable-slash-commands` ile slash komutlarını/skill'leri kapatır, `--strict-mcp-config` ile harici MCP yapılandırmasını yüklemez. Kullanıcının hook'ları ve diğer Claude Code ayarları etkin kalır. `workers["cirak"].user_config: "inherit"` yalnızca slash komutlarını kapatma bayrağını kaldırır; strict MCP yapılandırması korunur.
 
-Kişisel CLI yapılandırmasını bilinçli olarak devralmak için ilgili işçide `"user_config": "inherit"` ayarlayın; örneğin `"workers": { "codex": { "user_config": "inherit" } }`. Bu ayar Codex için kullanıcı config yalıtımını, claude-lite için slash komutlarını kapatma bayrağını kaldırır.
+Kişisel CLI yapılandırmasını bilinçli olarak devralmak için ilgili işçide `"user_config": "inherit"` ayarlayın; örneğin `"workers": { "codex": { "user_config": "inherit" } }`. Bu ayar Codex için kullanıcı config yalıtımını, cirak için slash komutlarını kapatma bayrağını kaldırır.
 
 `routing_mode` varsayılan olarak `static` kalır ve `routing` listesini aynen kullanır. `adaptive` seçildiğinde, aynı rolde en az üç bitmiş işi olan işçiler kabul oranına göre öne alınır; daha az geçmişi olanlar listede bulundukları konumu korur. `worker_stats` MCP aracı (isteğe bağlı `role` filtresiyle) kabul, hata, değişiklik isteği, süre ve token ortalamalarını gösterir.
 
@@ -157,7 +157,7 @@ MCP aracı: `workers_limits`. Kaynaklar (yalnızca resmi araçların kendi verdi
 | İşçi | Kaynak |
 |---|---|
 | Codex | `codex app-server` içindeki salt okunur `account/rateLimits/read`; erişilemezse rollout yedeği. `anafor limits --refresh` canlı yeniler, statusline önbelleği en fazla 5 dakikada bir arka planda yeniler. |
-| Claude (beyin ve claude-lite) | `claude-lite` işlerindeki `rate_limit_event` + Claude Code statusline girdisi |
+| Claude (beyin ve cirak) | `cirak` işlerindeki `rate_limit_event` + Claude Code statusline girdisi |
 | Antigravity, OpenCode, yerel | Araç limit bildirmiyor → `unknown` |
 
 Beyin oturumunun limitlerini de görmek için Claude Code ayarlarına (`~/.claude/settings.json`) ekleyin:
@@ -180,7 +180,7 @@ Router, bir penceresi %100 dolmuş (ve henüz sıfırlanmamış) işçiyi atlar.
 
 **İş başına maliyet nasıl öğrenilir?** Bir iş, aynı hesapta başka iş çalışmazken bittiğinde, runner pencerenin işten önceki ve sonraki kullanımını karşılaştırır. Aradaki fark ilgili hesap, rol ve pencere için `~/.anafor/capacity-costs.json` dosyasına kaydedilir. Planlamada bu ölçümlerin p80 değeri kullanılır. Bu değerden rol başına "~N iş kaldı" tahmini çıkarılır.
 
-Not: Claude hesabını beyin ile `claude-lite` paylaşır. Bu yüzden Claude için çıkan maliyetler bir üst sınırdır.
+Not: Claude hesabını beyin ile `cirak` paylaşır. Bu yüzden Claude için çıkan maliyetler bir üst sınırdır.
 
 **İpuçları:** Bir pencere rezerve ulaştığında, hızlı tükendiğinde ya da bir rolde 2 veya daha az iş kapasitesi kaldığında `anafor capacity` uyarır. Rolün ilk işçisi kısıtlıysa sağlıklı bir yedek önerir ve bunun için kullanılacak `anafor roles set …` komutunu da verir. Aynı bilgi MCP aracı `capacity_status` ile de alınabilir.
 
@@ -219,7 +219,7 @@ Router, rolün tercih zincirini (`routing`) **abonelik kapasitesine göre** yeni
 | `cheap-first` | `balanced` + eşit grupta ucuz kademe (`cost_tier`) önce gelir. |
 | `off` | Zincir olduğu gibi kullanılır; yalnızca %100 dolu limitler atlanır. |
 
-Dengeleyici sırayı değiştirdiğinde gerekçesi `job_dispatch` uyarılarında ve işin `route` olayında görünür. Örnek: `yük dengeleyici (balanced): codex yerine claude-lite — codex: five_hour rezerve ulaştı`.
+Dengeleyici sırayı değiştirdiğinde gerekçesi `job_dispatch` uyarılarında ve işin `route` olayında görünür. Örnek: `yük dengeleyici (balanced): codex yerine cirak — codex: five_hour rezerve ulaştı`.
 
 ```json
 { "balancer": { "strategy": "protect-brain" } }
@@ -234,7 +234,7 @@ Bunlar ek ayar gerektirmeden çalışır:
 - **Özet sınırı:** İşçinin `summary` alanı en fazla 2000 karakter olabilir; aşarsa kırpılır ve uyarı verilir. Böylece yöneticinin bağlamı küçük kalır.
 - **Codex telemetrisi kapalı:** Codex işlerine `analytics.enabled=false` geçirilir.
 
-**Token profili.** Her rol için akıl yürütme düzeyini (effort) belirler. Codex'e `model_reasoning_effort`, claude-lite'a `--effort` olarak geçirilir.
+**Token profili.** Her rol için akıl yürütme düzeyini (effort) belirler. Codex'e `model_reasoning_effort`, cirak'a `--effort` olarak geçirilir.
 
 | Profil | implementation | review | analysis | test |
 |---|---|---|---|---|
@@ -313,7 +313,7 @@ node /yol/anafor-mcp/dist/cli/main.js migrate /projen
 | İşçi | Nasıl | Durum | Koşul notu |
 |---|---|---|---|
 | `codex` | `codex exec` (kendi ChatGPT girişin veya API anahtarı) | ✅ doğrulandı | Resmi CLI; ayrıntılar aşağıda |
-| `claude-lite` | `claude -p --model haiku` | ✅ doğrulandı | Resmi `claude` ikilisi; ayrıntılar aşağıda. `ANTHROPIC_API_KEY` işçi ortamından çıkarılır |
+| `cirak` | `claude -p --model haiku` | ✅ doğrulandı | Resmi `claude` ikilisi; ayrıntılar aşağıda. `ANTHROPIC_API_KEY` işçi ortamından çıkarılır |
 | `local` | OpenAI uyumlu API (Ollama, LM Studio) | ✅ sahte sunucuyla test | Yalnızca `analysis`/`review` (dosya düzenlemez) |
 | `opencode` | `opencode run --format json` | ✅ doğrulandı (gerçek opencode 1.19.5 + OpenAI uyumlu sağlayıcı) | API anahtarı, yerel model veya ChatGPT planı. **Claude aboneliği OpenCode ile kullanılamaz**; `anthropic/*` modelleri yalnızca `allow_anthropic_api` ile |
 | `gemini` | `gemini -p --output-format stream-json --approval-mode auto_edit\|plan` | ✅ doğrulandı (gerçek gemini-cli 0.68 + Gemini API uyumlu sahte sunucu) | Google AI Pro/Ultra girişi 2026-06-18'de kapandı; yalnızca API anahtarı, Vertex veya Code Assist Standard/Enterprise |
@@ -335,7 +335,7 @@ node /yol/anafor-mcp/dist/cli/main.js migrate /projen
     "opencode": { "model": "ollama/qwen3-coder" },
     "antigravity": { "enabled": false }
   },
-  "routing": { "review": ["codex", "local", "claude-lite"] }
+  "routing": { "review": ["codex", "local", "cirak"] }
 }
 ```
 
