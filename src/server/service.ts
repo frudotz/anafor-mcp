@@ -772,6 +772,7 @@ export class AnaforService {
       reviewJob,
       projectRoot: this.store.paths.root,
       verifiedByEvidence: verify ? this.evidenceVerdict(taskId, job, verify.reason) : null,
+      autoCheck: job.autoCheck,
     });
     // Worktree işi: değişiklikleri iş dalına commit et ve görev dalına birleştir.
     let integration: { task_branch: string; commit: string | null } | null = null;
@@ -1046,9 +1047,12 @@ export class AnaforService {
   jobResult(jobId: string) {
     const j = this.mustJob(jobId);
     const dir = this.store.paths.jobDir(jobId);
+    const diff = this.jobDiffSummary(jobId);
     return {
       ...jobBrief(j),
       result: j.result,
+      auto_check: j.autoCheck,
+      diff,
       warnings: j.warnings,
       usage: j.usage,
       artifacts: {
@@ -1059,6 +1063,18 @@ export class AnaforService {
         stderr: `${dir}/stderr.log`,
       },
     };
+  }
+
+  private jobDiffSummary(jobId: string) {
+    const job = this.mustJob(jobId);
+    if (!isGitRepo(job.workdir))
+      return {
+        changed_files: [],
+        stat: '',
+        mismatch: { changed_but_not_reported: [], reported_but_unchanged: [] },
+      };
+    const d = this.jobDiff(jobId, true);
+    return { changed_files: d.changed_files, stat: d.stat, mismatch: d.mismatch };
   }
 
   jobEvents(jobId: string, sinceSeq = 0, limit = 50) {

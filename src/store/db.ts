@@ -70,6 +70,7 @@ const MIGRATIONS: string[] = [
   `,
   // 2: iş başlangıcındaki git tabanı (job_diff ve kabul için)
   `ALTER TABLE jobs ADD COLUMN base_sha TEXT;`,
+  `ALTER TABLE jobs ADD COLUMN auto_check_json TEXT;`,
 ];
 
 export function openDatabase(file: string): DatabaseSync {
