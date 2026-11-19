@@ -55,6 +55,7 @@ export interface AnaforConfig {
   token_profile: TokenProfile;
   limits: { brain: { warn_at: number; pause_at: number; pause_at_weekly: number } };
   loop: { turn_timeout_min: number; min_turn_gap_sec: number };
+  brain: { lean: boolean; model?: string; effort?: import('../adapters/types.js').Effort };
 }
 
 export interface WorkerSettings {
@@ -117,6 +118,7 @@ export const DEFAULT_CONFIG: AnaforConfig = {
   token_profile: 'balanced',
   limits: { brain: { warn_at: 75, pause_at: 90, pause_at_weekly: 95 } },
   loop: { turn_timeout_min: 60, min_turn_gap_sec: 30 },
+  brain: { lean: true },
   worktree_setup: null,
   worktree_cache: null,
   escalation: { failure_threshold: 3, stall_minutes: 60, takeover_minutes: 120 },
@@ -189,6 +191,7 @@ export function loadConfig(root: string): AnaforConfig {
       brain: { ...DEFAULT_CONFIG.limits.brain, ...local.limits?.brain, ...project.limits?.brain },
     },
     loop: { ...DEFAULT_CONFIG.loop, ...local.loop, ...project.loop },
+    brain: { ...DEFAULT_CONFIG.brain, ...local.brain, ...project.brain },
   };
   for (const id of ['codex', 'cirak']) {
     const localValue = local.workers?.[id]?.user_config;
