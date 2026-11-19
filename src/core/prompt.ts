@@ -111,6 +111,12 @@ export interface PromptExtras {
   memory?: { method: string; text: string };
   /** İş emri dili (varsayılan: arayüz dili). */
   lang?: Lang;
+  /** Worker sandbox environment discovery and focused review context. */
+  environment?: { working: string[]; unavailable: string[]; note?: string };
+  reviewContext?: {
+    diffSummary: string;
+    autoCheck?: { command: string; passed: boolean; summary: string } | null;
+  };
 }
 
 const list = (items: string[], none: string) =>
@@ -134,6 +140,26 @@ export function compilePrompt(task: Task, job: Job, extras: PromptExtras = {}): 
   // ---- işe özgü kısım ----
   parts.push(identity(task, job, t.identity));
   parts.push(`${t.task}\n**${task.title}**\n\n${task.objective}`);
+  if (extras.environment)
+    parts.push(
+      `## Çalışma ortamı\nÇalışan araçlar: ${extras.environment.working.join(', ') || '(yok)'}\nÇalışmayan araçlar: ${extras.environment.unavailable.join(', ') || '(yok)'}\n${extras.environment.note ?? 'Testleri Anafor iş sonrasında sandbox dışında çalıştıracak; çalışmayan araç için alternatif arama.'}`,
+    );
+  if (extras.reviewContext && (job.role === 'review' || job.role === 'analysis')) {
+    const ac = extras.reviewContext.autoCheck;
+    const acLine = ac
+      ? `${ac.command} → ${ac.passed ? 'geçti' : 'kaldı'} (${ac.summary})`
+      : 'sonuç yok';
+    parts.push(
+      [
+        '## Odaklı inceleme',
+        'Değişen dosyalar ve diff özeti:',
+        extras.reviewContext.diffSummary,
+        `Auto_check: ${acLine}`,
+        "Testleri çalıştırma, sonuç yukarıda; diff'i incele, büyük dosyaları baştan sona okuma, " +
+          'gerektiğinde aralık oku. Salt okunur incelemede komut denemeleri gerekmez; komut çalıştırma.',
+      ].join('\n'),
+    );
+  }
   parts.push(`${t.criteria}\n${list(task.acceptanceCriteria, t.none)}`);
   if (task.constraints.length) parts.push(`${t.constraints}\n${list(task.constraints, t.none)}`);
   parts.push(`${t.instructions}\n${job.instructions}`);

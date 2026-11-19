@@ -20,6 +20,7 @@ import {
 import { nowIso } from '../core/ids.js';
 import { memoryContext } from '../core/memory-context.js';
 import { applyDepCache } from '../git/dep-cache.js';
+import { git } from '../git/git.js';
 import { compilePrompt } from '../core/prompt.js';
 import { resolveEffort } from '../core/token-profile.js';
 import { recordMemoryMetric } from '../governance/memory.js';
@@ -158,11 +159,57 @@ ${r.stderr ?? ''}`,
     }
   }
   const resumed = !!(job.sessionRef && adapter.resume);
+  let environment: { working: string[]; unavailable: string[]; note: string } | undefined;
+  if (config.env_probe !== false && job.worker === 'codex' && process.platform === 'win32') {
+    try {
+      const probeAdapter = adapter as typeof adapter & {
+        probeEnvironment?: (
+          cwd: string,
+          tools: string[],
+          cacheDir: string,
+        ) => Promise<{ tools: Record<string, { ok: boolean; preferred?: string }> } | null>;
+      };
+      const command = config.test_command ?? detectTestCommand(job.workdir);
+      const names = [
+        'node',
+        'git',
+        'npm',
+        'npx',
+        'bun',
+        'lat',
+        'python',
+        'cargo',
+        ...(command ? [command.split(/\s+/)[0]!] : []),
+      ];
+      const result = await probeAdapter.probeEnvironment?.(
+        job.workdir,
+        names,
+        store.paths.anaforDir,
+      );
+      if (result) {
+        const working = Object.entries(result.tools)
+          .filter(([, v]) => v.ok)
+          .map(([n, v]) => v.preferred ?? n);
+        const unavailable = Object.entries(result.tools)
+          .filter(([, v]) => !v.ok)
+          .map(([n]) => n);
+        environment = {
+          working,
+          unavailable,
+          note: 'Testleri Anafor iş sonrasında sandbox dışında çalıştıracak; çalışmayan araç için alternatif arama.',
+        };
+      }
+    } catch {
+      /* optional discovery must not fail a job */
+    }
+  }
   const prompt = compilePrompt(task, job, {
     ...(resumed ? { resumed } : {}),
     ...(memory ? { memory } : {}),
     ...(job.inputs.findings ? { findings: job.inputs.findings } : {}),
     ...(prompted ? { schemaText: readFileSync(WORKER_RESULT_SCHEMA_PATH, 'utf8') } : {}),
+    ...(environment ? { environment } : {}),
+    ...(job.inputs.reviewContext ? { reviewContext: job.inputs.reviewContext } : {}),
   });
   writeFileSync(join(artifactsDir, 'prompt.md'), prompt);
 
@@ -284,6 +331,7 @@ ${r.stderr ?? ''}`,
         summary: checked.summary,
         evidence: checked.path,
         workdir: job.workdir,
+        head_sha: git(job.workdir, ['rev-parse', 'HEAD']).stdout.trim() || undefined,
       };
       store.patchJob(job.id, { autoCheck });
       writeFileSync(

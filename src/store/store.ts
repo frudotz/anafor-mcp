@@ -33,6 +33,10 @@ export interface JobInputs {
   priorJobIds?: string[];
   /** Düzeltme işlerinde yöneticinin istediği bulgular. */
   findings?: Finding[];
+  reviewContext?: {
+    diffSummary: string;
+    autoCheck?: { command: string; passed: boolean; summary: string } | null;
+  };
 }
 
 export interface TokenUsage {
@@ -80,6 +84,7 @@ export interface AutoCheck {
   summary: string;
   evidence: string;
   workdir: string;
+  head_sha?: string;
 }
 
 export interface JobEvent {

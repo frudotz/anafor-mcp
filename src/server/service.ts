@@ -50,6 +50,7 @@ import {
 } from '../governance/operations.js';
 import {
   detectTestCommand,
+  canReuseAutoCheck,
   generateScanEvidence,
   generateTestEvidence,
 } from '../governance/evidence.js';
@@ -698,7 +699,17 @@ export class AnaforService {
       branch,
       sessionRef,
       instructions: input.instructions,
-      inputs: input.inputs ?? {},
+      inputs: {
+        ...(input.inputs ?? {}),
+        ...(target && (input.role === 'review' || input.role === 'analysis')
+          ? {
+              reviewContext: {
+                diffSummary: `Files: ${target.result?.changed_files.join(', ') || '(none)'}\n${workDiff(target.workdir, target.baseSha).stat}`,
+                autoCheck: target.autoCheck,
+              },
+            }
+          : {}),
+      },
       timeoutS: input.timeoutS ?? DEFAULT_TIMEOUT_S[input.role],
       baseSha,
     });
@@ -1459,13 +1470,27 @@ export class AnaforService {
     const base = unmergedWorktree ? latestImpl.baseSha! : (jobs[0]?.baseSha ?? headSha(root));
     if (!base) throw new ServiceError('VALIDATION_FAILED', s().noBaseCommit);
 
-    let tests: ReturnType<typeof generateTestEvidence> | null = null;
+    let tests: (ReturnType<typeof generateTestEvidence> & { reused?: boolean }) | null = null;
     if (!opts.skipTests) {
       const cmd = opts.testCommand ?? loadConfig(root).test_command ?? detectTestCommand(cwd);
       if (!cmd) {
         throw new ServiceError('VALIDATION_FAILED', s().noTestCommand, s().noTestCommandHint);
       }
-      tests = generateTestEvidence(root, cwd, evidenceDir, taskId, cmd);
+      const status = git(cwd, ['status', '--porcelain'])
+        .stdout.split(/\r?\n/)
+        .filter(Boolean)
+        .filter((line) => !line.slice(3).replace(/\\/g, '/').startsWith('.anafor/'));
+      const currentHead = headSha(cwd);
+      const previousCheck = latestImpl?.autoCheck;
+      const reusable = canReuseAutoCheck(previousCheck, cmd, currentHead, cwd, status);
+      if (reusable && previousCheck) {
+        tests = {
+          path: previousCheck.evidence,
+          passed: previousCheck.passed,
+          summary: previousCheck.summary,
+          reused: true,
+        };
+      } else tests = generateTestEvidence(root, cwd, evidenceDir, taskId, cmd);
     }
     const scan = generateScanEvidence(
       root,
@@ -1478,7 +1503,14 @@ export class AnaforService {
     return {
       task_id: task.id,
       workdir: cwd,
-      tests: tests ? { evidence: tests.path, passed: tests.passed, summary: tests.summary } : null,
+      tests: tests
+        ? {
+            evidence: tests.path,
+            passed: tests.passed,
+            summary: tests.summary,
+            ...(tests.reused ? { reused: true } : {}),
+          }
+        : null,
       scan: {
         evidence: scan.path,
         clean: scan.passed,

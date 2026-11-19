@@ -46,6 +46,42 @@ describe('token profili (F22)', () => {
 });
 
 describe('önbellek dostu iş emri (F22)', () => {
+  it('prompt environment and focused review context are included', () => {
+    const t = tempDir();
+    const store = new Store(t.dir);
+    try {
+      const task = store.createTask({ title: 'review', objective: 'check' });
+      const job = store.createJob({
+        taskId: task.id,
+        role: 'review',
+        worker: 'codex',
+        workspaceMode: 'readonly',
+        workdir: t.dir,
+        instructions: 'review diff',
+        timeoutS: 30,
+      });
+      const prompt = compilePrompt(task, job, {
+        environment: {
+          working: ['node', 'lat.cmd'],
+          unavailable: ['bun'],
+          note: 'Testleri Anafor iş sonrasında sandbox dışında çalıştıracak; çalışmayan araç için alternatif arama.',
+        },
+        reviewContext: {
+          diffSummary: 'src/a.ts | 2 +-',
+          autoCheck: { command: 'npm test', passed: true, summary: 'npm test → 0' },
+        },
+      });
+      expect(prompt).toContain('## Çalışma ortamı');
+      expect(prompt).toContain('node, lat.cmd');
+      expect(prompt).toContain('bun');
+      expect(prompt).toContain('src/a.ts | 2 +-');
+      expect(prompt).toContain('npm test → geçti');
+      expect(prompt).toContain('Testleri çalıştırma, sonuç yukarıda');
+    } finally {
+      store.close();
+      t.cleanup();
+    }
+  });
   it('aynı roldeki işlerde önek birebir aynı; değişken kısım Kimlik ile başlar', () => {
     const t = tempDir();
     const store = new Store(t.dir);
