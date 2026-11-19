@@ -2,6 +2,27 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/) (0.x döneminde küçük sürüm kırıcı olabilir).
 
+## [0.6.0] - 2026-11-19
+
+### Eklenenler
+- **Olay tabanlı bekleme (F30):** `anafor job wait <id…> [--mode any|all] [--timeout] [--silence]`; uzun işler yoklamasız bekler, sessizlik uyarısı işi iptal etmez (ADR-0020, #55).
+- **İşçi yalıtımı (F31):** Codex varsayılan olarak kullanıcı yapılandırmasını yok sayar; uygulama bağlayıcıları, web araması ve görsel üretim kapalıdır. Yalnızca model, effort ve Windows sandbox ayarları taşınır; hafif işçi slash komutları kapatır. `workers.<id>.user_config: "inherit"` yalnızca yerel yapılandırmadan kabul edilir. İlk tur girdi token tasarrufu yaklaşık %22 (#59).
+- **Resmi Codex limitleri:** `codex app-server` üzerinden `account/rateLimits/read`; rollout yedek okumadır, `anafor limits --refresh` eklendi (#61).
+- **Durum satırında işçi limitleri:** Codex 5 saatlik ve haftalık limitler; eski veri soluk, 24 saatten eski veri gizli. `statusline.workers` ile ayarlanır (#62).
+- **Belgeler:** kullanım sınırı ve sağlayıcı koşulları bölümü (#60).
+
+### Değişenler
+- `claude-lite` işçisinin adı `cirak` oldu; eski ad takma ad olarak çalışır ve bir kez uyarır (#63).
+- Tanıtım metinleri model eşlemesi yerine “frontier modeller için orkestrasyon MCP sunucusu” der (#64).
+- MCP sunucusu, hook'lar ve CLI proje kökünü aynı sırayla bulur: `ANAFOR_PROJECT_ROOT` → `CLAUDE_PROJECT_DIR` → cwd (#55).
+
+### Düzeltilenler
+- Yönetici hook'u tırnak içindeki ve heredoc gövdesindeki `>` işaretini yönlendirme saymaz (#56).
+- mcp-e2e testinin Windows temizlik kararsızlığı giderildi (#58).
+
+### Geçiş notu
+- Config dosyalarında `claude-lite` varsa `anafor migrate` çalıştırın. Takma ad sayesinde çalıştırılmasa da bozulmaz.
+
 ## [0.5.0] - 2026-11-18
 
 ### Eklenenler
