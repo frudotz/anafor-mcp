@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { git } from '../../src/git/git.js';
 import { FakeAdapter } from '../../src/adapters/fake.js';
 import { CodexAdapter } from '../../src/adapters/codex.js';
 import type { AdapterRegistry } from '../../src/adapters/registry.js';
@@ -63,6 +65,36 @@ describe('AnaforService', () => {
       fs.readFileSync(`${store.paths.jobDir(c.job_id)}/prompt.md`, 'utf8'),
     );
     expect(prompt).toContain('Düzeltme istenen bulgular');
+  });
+
+  it('evidence_generate testleri son birleştirilmemiş worktree işinde, birleşince entegrasyon alanında çalıştırır', async () => {
+    writeFileSync(join(t.dir, 'README.md'), 'init\n');
+    git(t.dir, ['init', '-q', '-b', 'main']);
+    git(t.dir, ['add', 'README.md']);
+    git(t.dir, ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init']);
+    const task = svc.taskCreate({ title: 'Kanıt worktree', objective: 'x' });
+    const dispatched = await svc.jobDispatch({
+      taskId: task.task_id,
+      role: 'implementation',
+      instructions: '[fake-file:worktree-proof.txt]',
+    });
+    await finishedState(dispatched.job_id);
+    const job = store.mustGetJob(dispatched.job_id);
+    const cmd = `node -e "require('node:fs').writeFileSync('test-cwd.txt', process.cwd())"`;
+    const ev = svc.evidenceGenerate(task.task_id, { testCommand: cmd, skipTests: false });
+    expect(ev.workdir).toBe(job.workdir);
+    expect(readFileSync(join(job.workdir, 'test-cwd.txt'), 'utf8')).toBe(job.workdir);
+    expect(readFileSync(join(t.dir, ev.tests!.evidence), 'utf8')).toContain(
+      `dizin: ${join('.anafor', 'worktrees', job.id)}`,
+    );
+
+    expect(svc.taskAccept(task.task_id, dispatched.job_id).accepted).toBe(true);
+    expect(svc.taskMerge(task.task_id).merged).toBe(true);
+    const mergedEvidence = svc.evidenceGenerate(task.task_id, {
+      testCommand: `node -e "require('node:fs').writeFileSync('merged-cwd.txt', process.cwd())"`,
+    });
+    expect(mergedEvidence.workdir).not.toBe(job.workdir);
+    expect(existsSync(join(mergedEvidence.workdir, 'merged-cwd.txt'))).toBe(true);
   });
 
   it('aynı görevde ikinci dağıtım önceki oturumu devam ettirir', async () => {

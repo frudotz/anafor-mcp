@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** anafor CLI: init | doctor | mcp | version */
-import { spawn, spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaultAdapters } from '../adapters/registry.js';
@@ -33,6 +33,7 @@ import {
 import { formatCapacity, runRecommend } from './capacity-cmd.js';
 import { AnaforService } from '../server/service.js';
 import { readSetupState } from '../setup/setup.js';
+import { configureAnaforIgnore } from './gitignore.js';
 import {
   formatWindows,
   anaforHome,
@@ -83,11 +84,8 @@ function init(root: string): void {
   const store = new Store(root);
   ensurePolicy(store.paths.anaforDir, store.paths.projectId);
   store.close();
-  const gi = join(root, '.gitignore');
-  const content = existsSync(gi) ? readFileSync(gi, 'utf8') : '';
-  if (!/^\.anafor\/?$/m.test(content)) {
-    appendFileSync(gi, `${content.endsWith('\n') || content === '' ? '' : '\n'}.anafor/\n`);
-  }
+  if (configureAnaforIgnore(root, rest.includes('--exclude-local')))
+    console.log(m().cli.gitignoreUpdated);
   const mcp = join(root, '.mcp.json');
   if (readSetupState()?.plugin_installed) {
     console.log(m().cli.pluginMcp);
