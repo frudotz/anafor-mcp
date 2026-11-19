@@ -3,6 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isWindowsShim, runLineProcess } from './process.js';
 import { m } from '../i18n/index.js';
+import { withWorkerSafetyRules } from './codex.js';
 import type {
   JobContext,
   JobSpec,
@@ -149,7 +150,7 @@ export class OpenCodeAdapter implements WorkerAdapter {
     // İzin atlatma bayrağı (--auto vb.) kullanılmaz; OpenCode izinleri kullanıcı yapılandırmasındadır.
     // Uzun prompt dosya eki olarak verilir (Windows .cmd sarmalayıcısında çok satırlı argüman olmaz).
     const promptFile = join(ctx.artifactsDir, 'prompt-input.md');
-    writeFileSync(promptFile, job.prompt);
+    writeFileSync(promptFile, withWorkerSafetyRules(job.prompt));
     const args = [
       'run',
       '--format',

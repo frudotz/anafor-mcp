@@ -10,6 +10,8 @@ kullanım:
   anafor init [dizin]     projeyi bağlar: .anafor/, politika (.mcp.json plugin yoksa)
   anafor doctor [dizin] [--json]
                           ortam, proje ve işçi kontrolü (--json: yapay zekâ ajanları için)
+  anafor permissions [--days N] [--json]
+                          izin retlerini ve dar allow önerilerini gösterir
   anafor update [--check] son sürümü indirir, SHA256 doğrular, kurar ve plugin'i yeniler
   anafor mcp [dizin]      MCP sunucusunu stdio üzerinde başlatır
   anafor migrate [dizin]  eski .orchestrator/ durumunu .anafor/'a kopyalar (kaynak değişmez)
@@ -110,6 +112,7 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
     storeFix:
       '.anafor/state.db başka bir süreç tarafından kilitli olabilir; Claude Code oturumlarını kapatıp yeniden deneyin',
     last24: 'son 24 sa',
+    permissionDenials: (n: number) => `izin retleri: ${n} (son 7 gün)`,
     failedJobs: (n: number) => `${n} başarısız iş`,
     jobsFix: 'anafor jobs --all (hata nedenleri)',
     extensions: 'eklentiler',
@@ -144,6 +147,15 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
   hooks: {
     limitPrompt: (percent: number) =>
       `Claude limiti %${percent}; işi güvenli noktaya getir, büyük iş başlatma.`,
+  },
+  permissions: {
+    total: (n: number) => `Son dönemde ret: ${n}`,
+    sessions: 'Oturum başına ret:',
+    days: 'Gün başına ret:',
+    tools: 'En sık araçlar:',
+    reasons: 'Nedenler:',
+    suggestions: 'Olası false-positive allow önerileri (elle değerlendirin):',
+    noSuggestions: 'öneri yok',
   },
 
   update: {

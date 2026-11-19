@@ -2,6 +2,8 @@
 
 # Anafor kullanım kılavuzu
 
+`anafor permissions [--days N] [--json]` `.anafor/metrics/permissions.jsonl` içindeki retleri oturum/gün, araç ve nedene göre özetler. Bash çağrılarından türetilen dar allow önerileri yalnızca gösterilir; ayarlar değiştirilmez. `anafor doctor` son 7 günün toplamını gösterir.
+
 Anafor, frontier yapay zekâ modelleri için bir orkestrasyon MCP sunucusudur: yönetici ajan işi planlar, işçilere dağıtır, sonucu inceler ve kabul eder. Hangi modelin hangi rolü üstleneceği yapılandırılabilir. Yönetici kod dosyalarını kendisi düzenlemez; bu kural bir hook ile uygulanır.
 
 ## 1. Kurulum
@@ -176,6 +178,8 @@ Sunucu yeniden başlarsa ölü işler `failed (orphaned)` olur. **Hiçbir iş ot
 `.anafor/config.json` yerel ezmeler içindir (commit edilmez). Proje dosyası önceliklidir.
 
 ### İşçi CLI yapılandırma yalıtımı
+
+İşçi yalıtımı sandbox'ın yerini tutmaz. Codex ve OpenCode iş emirlerine şu sıkılaştırma kuralları eklenir: `git push`, `curl`/`wget` ve worktree dışına yönelik silme (özellikle `rm -rf`) yasaktır; sandbox/izinleri gevşetmek yasaktır ve onay gerektiren adımda işçi durup bildirir. Kurallar iş emrinde açıkça belirtilir ancak CLI seviyesinde zorlayıcı politika değildir. Gelecek adım: Codex `execpolicy` `.rules` ile CLI düzeyinde zorlama. OpenCode kullanıcı izin ayarlarının üzerine yazılmaz ve izin atlatma bayrağı kullanılmaz.
 
 Codex varsayılan olarak `workers.codex.user_config: "isolate"` kullanır. `--ignore-user-config` ile başlar; kişisel `~/.codex/config.toml` (veya `CODEX_HOME`) içinden yalnızca `model` (özel provider yoksa), `model_reasoning_effort` ve Windows `sandbox` ayarları aktarılır. İş emrindeki model/effort ve `workers.codex.windows_sandbox` bu değerleri ezer. Kişisel MCP, plugin ve proje ayarları aktarılmaz. İzolasyonda web arama, uygulama bağlayıcıları ve görsel üretim kapalıdır. Kullanıcının `sandbox_workspace_write.network_access` ayarı da taşınmaz; sandbox ağ erişimi varsayılan olarak kapalıdır. Bu ayarları ve ağ erişimini işçiye açmanız gerekiyorsa Codex için `inherit` kullanın. codex-cli 0.167.2 ile yapılan ölçümde yaklaşık %22 daha az ilk tur girdi token'ı (16,8K → 13,1K), `--ignore-user-config` tek başına değil, uygulama bağlayıcıları, görsel üretim ve web arama kapatıldığında görüldü; tek başına config yoksayma ölçümünde fark yoktu.
 

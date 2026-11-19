@@ -23,6 +23,8 @@ import { runDoctor } from './doctor-cmd.js';
 import { runLoopCommand } from './loop-cmd.js';
 import { healthSignals, loopStatusText, statusLine, statuslineWorkers } from './health.js';
 import { runUserPromptSubmit } from '../hooks/user-prompt-submit.js';
+import { recordPermissionDenied } from '../hooks/permission-denied.js';
+import { collectPermissionReport, formatPermissionReport } from './permissions-cmd.js';
 import {
   availableUpdate,
   readUpdateCache,
@@ -135,6 +137,12 @@ switch (cmd) {
   case 'doctor':
     process.exitCode = await runDoctor(root, rest.includes('--json'));
     break;
+  case 'permissions': {
+    const report = collectPermissionReport(projectRoot(), Number(flag('days') ?? 7));
+    if (rest.includes('--json')) console.log(JSON.stringify(report, null, 2));
+    else formatPermissionReport(report).forEach((line) => console.log(line));
+    break;
+  }
   case 'update':
     try {
       process.exitCode = await runUpdate((l) => console.log(l), rest.includes('--check'));
@@ -509,6 +517,7 @@ async function hook(event: string): Promise<void> {
     if (event === 'pre-tool-use') out = runPreToolUse(input);
     else if (event === 'session-start') out = runSessionStart(input as { cwd?: string });
     else if (event === 'user-prompt-submit') out = runUserPromptSubmit(input as { cwd?: string });
+    else if (event === 'permission-denied') recordPermissionDenied(input);
     if (out) process.stdout.write(out);
   } catch (e) {
     process.stderr.write(`[anafor hook] ${(e as Error).message}\n`);
