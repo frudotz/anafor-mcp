@@ -24,6 +24,7 @@ import { compilePrompt } from '../core/prompt.js';
 import { resolveEffort } from '../core/token-profile.js';
 import { recordMemoryMetric } from '../governance/memory.js';
 import { ACTIVE_JOB_STATES } from '../core/states.js';
+import { detectTestCommand, generateTestEvidenceAsync } from '../governance/evidence.js';
 import { StoreError, type Job, type Store, type TokenUsage } from '../store/store.js';
 
 export interface RunJobOptions {
@@ -263,9 +264,41 @@ ${r.stderr ?? ''}`,
   if (!v.ok) return invalid(v.errors.join('; '));
 
   writeFileSync(join(artifactsDir, 'result.json'), JSON.stringify(v.value, null, 2));
+  let resultWarnings = v.warnings;
+  if (config.auto_check && job.role === 'implementation' && job.workspaceMode === 'worktree') {
+    const command = config.test_command ?? detectTestCommand(job.workdir);
+    const evidenceDir = join(store.paths.root, '.anafor', 'evidence');
+    if (command) {
+      const checked = await generateTestEvidenceAsync(
+        store.paths.root,
+        job.workdir,
+        evidenceDir,
+        `${job.taskId}-${job.id}-auto`,
+        command,
+        config.auto_check_timeout_s * 1000,
+      );
+      const autoCheck = {
+        command,
+        passed: checked.passed,
+        exit_code: checked.passed ? 0 : 1,
+        summary: checked.summary,
+        evidence: checked.path,
+        workdir: job.workdir,
+      };
+      store.patchJob(job.id, { autoCheck });
+      writeFileSync(
+        join(evidenceDir, `${job.taskId}-${job.id}-auto-check.json`),
+        JSON.stringify(autoCheck, null, 2),
+      );
+      store.appendEvent(job.id, 'auto_check', `${command} → ${autoCheck.exit_code}`);
+    } else {
+      resultWarnings = [...v.warnings, 'auto_check: test komutu bulunamadı'];
+      store.appendEvent(job.id, 'auto_check', 'Test komutu bulunamadı; otomatik kontrol atlandı');
+    }
+  }
   store.transitionJob(job.id, 'needs_review', {
     result: v.value,
-    warnings: v.warnings,
+    warnings: resultWarnings,
     endedAt: nowIso(),
   });
   settleTask(store, job.taskId);

@@ -62,6 +62,7 @@ export interface Job {
   exitCode: number | null;
   error: string | null;
   result: WorkerResultV1 | null;
+  autoCheck: AutoCheck | null;
   warnings: string[];
   usage: TokenUsage | null;
   /** İş başladığında çalışma alanının git HEAD'i. */
@@ -70,6 +71,15 @@ export interface Job {
   startedAt: string | null;
   endedAt: string | null;
   updatedAt: string;
+}
+
+export interface AutoCheck {
+  command: string;
+  passed: boolean;
+  exit_code: number | null;
+  summary: string;
+  evidence: string;
+  workdir: string;
 }
 
 export interface JobEvent {
@@ -129,6 +139,7 @@ function toJob(r: Row): Job {
     exitCode: num(r.exit_code ?? null),
     error: str(r.error ?? null),
     result: parse(r.result_json ?? null, null),
+    autoCheck: parse(r.auto_check_json ?? null, null),
     warnings: parse(r.warnings_json ?? null, []),
     usage: parse(r.usage_json ?? null, null),
     baseSha: str(r.base_sha ?? null),
@@ -338,6 +349,7 @@ export class Store {
       usage: TokenUsage | null;
       startedAt: string;
       endedAt: string;
+      autoCheck: AutoCheck | null;
     }> = {},
   ): Job {
     const sources = jobSourcesFor(to);
@@ -348,6 +360,8 @@ export class Store {
     if (patch.sessionRef !== undefined) cols.session_ref = patch.sessionRef;
     if (patch.result !== undefined)
       cols.result_json = patch.result ? JSON.stringify(patch.result) : null;
+    if (patch.autoCheck !== undefined)
+      cols.auto_check_json = patch.autoCheck ? JSON.stringify(patch.autoCheck) : null;
     if (patch.warnings !== undefined) cols.warnings_json = JSON.stringify(patch.warnings);
     if (patch.usage !== undefined)
       cols.usage_json = patch.usage ? JSON.stringify(patch.usage) : null;
@@ -369,13 +383,22 @@ export class Store {
   /** Durumu değiştirmeden alan güncelleme (pid, sessionRef, usage gibi). */
   patchJob(
     id: string,
-    patch: Partial<{ pid: number | null; sessionRef: string | null; usage: TokenUsage | null }>,
+    patch: Partial<{
+      pid: number | null;
+      sessionRef: string | null;
+      usage: TokenUsage | null;
+      autoCheck: AutoCheck | null;
+      warnings: string[];
+    }>,
   ): void {
     const cols: Record<string, SQLInputValue> = {};
     if (patch.pid !== undefined) cols.pid = patch.pid;
     if (patch.sessionRef !== undefined) cols.session_ref = patch.sessionRef;
     if (patch.usage !== undefined)
       cols.usage_json = patch.usage ? JSON.stringify(patch.usage) : null;
+    if (patch.autoCheck !== undefined)
+      cols.auto_check_json = patch.autoCheck ? JSON.stringify(patch.autoCheck) : null;
+    if (patch.warnings !== undefined) cols.warnings_json = JSON.stringify(patch.warnings);
     this.updateRow('jobs', id, cols);
   }
 
