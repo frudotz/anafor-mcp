@@ -86,15 +86,15 @@ main (your working tree: untouched)
 | Worker | Invocation | Note |
 |---|---|---|
 | `codex` | `codex exec --json --output-schema` | Default implementation worker |
-| `claude-lite` | `claude -p --model haiku --json-schema` | Cheap analysis, tests and cross-review; no MCP loaded, no permission bypass |
+| `cirak` | `claude -p --model haiku --json-schema` | Cheap analysis, tests and cross-review; no MCP loaded, no permission bypass |
 | `fake` | deterministic script | Testing and dry runs |
 
 If no worker is specified, `job_dispatch` picks the first available worker from the role's preference order. For review jobs, a worker **different** from the one that did the target job is preferred. Settings:
 
 ```json
 {
-  "routing": { "implementation": ["codex", "claude-lite"], "review": ["codex", "claude-lite"] },
-  "workers": { "claude-lite": { "model": "haiku", "max_concurrency": 3 }, "codex": { "enabled": true } }
+  "routing": { "implementation": ["codex", "cirak"], "review": ["codex", "cirak"] },
+  "workers": { "cirak": { "model": "haiku", "max_concurrency": 3 }, "codex": { "enabled": true } }
 }
 ```
 
@@ -125,7 +125,7 @@ Contribution guidelines: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Security: worker config isolation
 
-Codex isolate mode keeps personal MCP/plugin/skill configuration out of the worker. claude-lite only disables slash commands/skills (`--disable-slash-commands`) and external MCP configuration (`--strict-mcp-config`); user hooks and other settings remain active. Set `workers.<id>.user_config: "inherit"` to remove Codex isolation or claude-lite's slash-command disabling for that worker. See the [usage guide](docs/en/usage.md) for details.
+Codex isolate mode keeps personal MCP/plugin/skill configuration out of the worker. cirak only disables slash commands/skills (`--disable-slash-commands`) and external MCP configuration (`--strict-mcp-config`); user hooks and other settings remain active. Set `workers.<id>.user_config: "inherit"` to remove Codex isolation or cirak's slash-command disabling for that worker. See the [usage guide](docs/en/usage.md) for details.
 
 ## License, forks and attribution
 

@@ -25,9 +25,11 @@ export interface WorkerLimits {
   note?: string;
 }
 
-/** Aynı hesabı paylaşan işçiler tek limit kaydı kullanır (claude-lite = beyin Claude hesabı). */
+/** Aynı hesabı paylaşan işçiler tek limit kaydı kullanır (cirak = beyin Claude hesabı). */
 export function limitAccount(worker: string): string {
-  return worker === 'claude-lite' || worker === 'director' ? 'claude' : worker;
+  return worker === 'cirak' || worker === 'claude-lite' || worker === 'director'
+    ? 'claude'
+    : worker;
 }
 
 /** Kullanıcı düzeyi Anafor dizini (limitler hesap genelidir). ANAFOR_HOME ile ezilebilir. */

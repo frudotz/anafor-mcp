@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseClaudeLine } from '../../src/adapters/claude-lite.js';
+import { parseClaudeLine } from '../../src/adapters/cirak.js';
 import {
   formatWindows,
   parseClaudeRateLimitInfo,

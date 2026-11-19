@@ -5,7 +5,7 @@ import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaultAdapters } from '../adapters/registry.js';
-import { migrateFromOrchestrator } from '../governance/migrate.js';
+import { migrateFromOrchestrator, migrateWorkerConfigs } from '../governance/migrate.js';
 import { ensurePolicy } from '../governance/policy.js';
 import { runPreToolUse } from '../hooks/director.js';
 import { runSessionStart } from '../hooks/session-start.js';
@@ -151,7 +151,14 @@ switch (cmd) {
     const store = new Store(root);
     try {
       ensurePolicy(store.paths.anaforDir, store.paths.projectId);
-      console.log(JSON.stringify(migrateFromOrchestrator(store), null, 2));
+      const workerConfigs = migrateWorkerConfigs(root);
+      console.log(
+        JSON.stringify(
+          { ...migrateFromOrchestrator(store), worker_configs: workerConfigs },
+          null,
+          2,
+        ),
+      );
     } catch (e) {
       console.error(m().cli.migrateFailed((e as Error).message));
       process.exitCode = 1;

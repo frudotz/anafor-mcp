@@ -248,7 +248,7 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
       localGpu: 'Yerel model (24 GB+ GPU)',
     },
     notes: {
-      claudeMax: 'claude-lite işçisinde Sonnet kullanılabilir (workers.claude-lite.model).',
+      claudeMax: 'cirak işçisinde Sonnet kullanılabilir (workers.cirak.model).',
       geminiApi: 'Kişisel hesap girişi Gemini CLI tarafından desteklenmiyor; API anahtarı gerekir.',
       antigravity: 'Koşullar gri alan; varsayılan kapalı, acknowledge_terms gerekir.',
       opencodeApi: 'Qwen Coding Plan otomasyonu yasaklar; kullandıkça öde API tercih edin.',
@@ -404,8 +404,7 @@ Politika: HIGH/CRITICAL ve tarama hatası engellenir; CAUTION yalnızca --accept
       gitleaks:
         'İsteğe bağlı gizli bilgi tarayıcısı: gitleaks v8.30.1 (gh release download + checksum; docs/kurulum.md)',
       codex: 'npm install -g @openai/codex  →  codex login',
-      'claude-lite':
-        'Claude Code kurulu olmalı: https://claude.com/claude-code  →  claude auth login',
+      cirak: 'Claude Code kurulu olmalı: https://claude.com/claude-code  →  claude auth login',
       gemini: 'Yalnızca API anahtarıyla: npm install -g @google/gemini-cli + GEMINI_API_KEY',
       opencode:
         'https://opencode.ai  →  anafor.config.json: workers.opencode.model (API anahtarı, yerel model veya ChatGPT planı)',
@@ -417,6 +416,7 @@ Politika: HIGH/CRITICAL ve tarama hatası engellenir; CAUTION yalnızca --accept
   },
 
   adapters: {
+    legacyWorkerAlias: 'claude-lite kullanımdan kaldırıldı; cirak kullanın.',
     windowsSandbox: (mode: string) =>
       `Windows sandbox "${mode}": işçi alt süreç başlatamayabilir (spawn EPERM), ` +
       'testler çalışmaz. Öneri: anafor.config.json → workers.codex.windows_sandbox = "elevated"',
@@ -438,7 +438,7 @@ Politika: HIGH/CRITICAL ve tarama hatası engellenir; CAUTION yalnızca --accept
     agyMissing: 'agy kurulu değil',
     opencodeModel: 'workers.opencode.model ayarlanmalı (provider/model)',
     opencodeAnthropic:
-      'anthropic/* modelleri OpenCode üzerinden yalnızca API anahtarıyla (allow_anthropic_api); Claude aboneliği için claude-lite kullanın',
+      'anthropic/* modelleri OpenCode üzerinden yalnızca API anahtarıyla (allow_anthropic_api); Claude aboneliği için cirak kullanın',
     opencodeMissing: 'opencode kurulu değil',
     localNoModel: (model: string, list: string) => `model yok: ${model} (mevcut: ${list})`,
     localUnreachable: (url: string, e: string) => `${url} erişilemiyor: ${e}`,

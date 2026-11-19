@@ -16,7 +16,7 @@
 | İşçi | Kurulum |
 |---|---|
 | Codex (önerilen) | `npm install -g @openai/codex` → `codex login` |
-| Claude Haiku (`claude-lite`) | Ek kurulum yok; Claude Code yeterli |
+| Claude Haiku (`cirak`) | Ek kurulum yok; Claude Code yeterli |
 | Yerel model | Ollama (https://ollama.com) veya LM Studio → `anafor.config.json` |
 | OpenCode / Gemini / Antigravity | deneysel; Gemini/Antigravity abonelik erişimi desteklenmez. Koşullar için [kullanim.md](kullanim.md#8b-işçiler-ve-kullanım-koşulları) |
 
@@ -108,7 +108,7 @@ anafor chat                      # beyin ajanla terminalden konuş
 claude                           # Claude Code içinde: /anafor:plan <hedef>
 anafor jobs | anafor watch       # işleri izle
 anafor limits                    # oturum/kullanım limitleri
-anafor roles set review codex,claude-lite
+anafor roles set review codex,cirak
 anafor doctor                    # bölümlere ayrılmış kontrol; sonuç statusline'a yansır
 ```
 
