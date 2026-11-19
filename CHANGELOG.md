@@ -2,6 +2,30 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/) (0.x döneminde küçük sürüm kırıcı olabilir).
 
+## [0.8.0] - 2026-11-19
+
+### Eklenenler
+- **Yalın headless beyin:** `anafor run/loop` varsayılan olarak yalın çalışır; araç profili ile `brain.model`/`brain.effort` yapılandırması eklendi (#74).
+- **İş sonrası otomatik doğrulama:** `auto_check` ve `job_result` diff özeti eklendi (#75).
+- **İşçi ortamı ve inceleme:** işçi ortam yoklaması ve çalışma ortamı notu, kanıtı yeniden kullanma ve odaklı inceleme emri eklendi (#77, #78).
+- **İzin analizi:** `anafor permissions` reddedilen izinleri ölçer ve dar kapsamlı allow önerileri sunar (#84).
+- **Model uzmanlık sıralaması:** yönlendirme için model uzmanlık ipuçları eklendi (#82).
+
+### Değişenler
+- Standard görevler kabulden önce bağımsız inceleme gerektirir; inceleyici `review.worker`/`review.model` ile ayarlanır (#79).
+- İnceleme bulguları varken kabul engellenir (#80).
+- İş emri tamamlama, rapor dili ve inceleyici karar kuralları netleştirildi (#81).
+- İşçi güvenlik ve sandbox kuralları güncellendi (#78, #85).
+- README yenilendi (#76).
+
+### Düzeltilenler
+- Ortam yoklamasında stdin/JSON, başarısız sonuçlu işlerde devralma ve kabul commit'inde `.anafor-tmp` dışlama düzeltildi (#78).
+- İşçi sandbox'ındaki kararsız test düzeltildi (#83).
+
+### Geçiş notu
+- Standard görevler artık kabulden önce inceleme ister; eski davranış için `review.require_for: 'none'` ayarlayın.
+- `anafor run/loop` beyni varsayılan olarak yalındır; eski davranış için `brain.lean: false` ayarlayın.
+
 ## [0.7.0] - 2026-11-19
 
 ### Eklenenler
