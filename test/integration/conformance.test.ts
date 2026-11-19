@@ -53,6 +53,10 @@ describe.each(cases.filter((c) => c.enabled).map((c) => [c.adapter().id, c] as c
       git(t.dir, ['add', '-A']);
       git(t.dir, ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init']);
       const store = new Store(t.dir);
+      writeFileSync(
+        join(t.dir, 'anafor.config.json'),
+        JSON.stringify({ review: { require_for: 'none' } }),
+      );
       const adapter = c.adapter();
       const adapters = new Map([[adapter.id, adapter]]);
       const svc = new AnaforService(store, adapters, inProcessLauncher(adapters), adapter.id);

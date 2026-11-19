@@ -15,6 +15,10 @@ function initRepo(dir: string): void {
   writeFileSync(join(dir, '.gitignore'), '.anafor/\n');
   git(dir, ['add', '-A']);
   git(dir, ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init']);
+  writeFileSync(
+    join(dir, 'anafor.config.json'),
+    JSON.stringify({ review: { require_for: 'none' } }),
+  );
 }
 
 describe('görev devralma (takeover)', () => {
