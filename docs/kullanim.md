@@ -13,6 +13,8 @@ cd anafor-mcp && npm install && npm run build
 
 Gereksinimler: Node 24+, git, Claude Code ve en az bir işçi:
 
+Kalitenin önemli olduğu orta ölçekli işlerde doğrudan Opus tek ajan daha iyi sonuç verdi (F32); Anafor paralel büyük işler, Claude limiti darboğazı ve yönetişimli akış için.
+
 - Codex CLI (`codex login`)
 - Claude Code'un kendisi (`cirak` işçisi için ek kurulum gerekmez)
 
@@ -121,7 +123,7 @@ değildir; sağlayıcıların güncel koşullarını ayrıca inceleyin.
 
 Uzun işleri beklemek için Claude Code'da Bash `run_in_background` kullanarak `anafor job wait <id>` çalıştırın; bitince harness yöneticiyi uyandırır. MCP `job_wait` aracı en fazla 50 saniyelik kısa kontroller içindir.
 | Düzelt | `job_request_changes` (aynı işçi oturumu, görev başına en fazla 5) |
-| Kabul | `/anafor:accept <görev> <iş>`: `task_accept` kapıları; worktree işi görev dalına birleşir. Standard/deep görevlerde güncel bağımsız review gerekir; review sonrası düzeltmenin `auto_check`'i geçerse review yenilenmez. İşçi testleri çalıştıramadıysa (ör. sandbox): `evidence_generate` → `task_accept` + `verified_by_evidence_reason` |
+| Kabul | `/anafor:accept <görev> <iş>`: `task_accept` kapıları; worktree işi görev dalına birleşir. Standard/deep görevlerde güncel bağımsız review gerekir; review'da medium+ bulgu veya eksik kabul ölçütü varsa, review sonrası `auto_check`'i geçen düzeltme olmadan kabul edilmez. Low/info bulgular `open_low_findings` alanında bildirilir. İşçi testleri çalıştıramadıysa (ör. sandbox): `evidence_generate` → `task_accept` + `verified_by_evidence_reason` |
 | Dalına al | `task_merge`: görev dalı → çalışma ağacındaki dal (temiz ağaç şartı) |
 | Temizle | `workspace_cleanup` |
 | Durum | `/anafor:status` |

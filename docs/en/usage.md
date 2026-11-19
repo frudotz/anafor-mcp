@@ -13,6 +13,8 @@ cd anafor-mcp && npm install && npm run build
 
 Requirements: Node 24+, git, Claude Code and at least one worker:
 
+For medium-sized jobs where quality matters, a direct single-agent Opus run gave better results (F32); Anafor is for large parallel jobs, Claude-limit bottlenecks, and governed workflows.
+
 - Codex CLI (`codex login`)
 - Claude Code itself (no extra setup needed for the `cirak` worker)
 
@@ -118,7 +120,7 @@ This is not legal advice; check providers' current terms separately.
 
 For long waits, start `anafor job wait <id>` with Claude Code Bash `run_in_background`; the harness wakes the director when it finishes. MCP `job_wait` is for short checks of at most 50 seconds.
 | Fix | `job_request_changes` (same worker session, at most 5 per task) |
-| Accept | `/anafor:accept <task> <job>`: `task_accept` gates; standard/deep tasks require a current independent review. A correction after review needs no second review when `auto_check` passes. If the worker could not run tests (e.g. sandbox): `evidence_generate` → `task_accept` + `verified_by_evidence_reason` |
+| Accept | `/anafor:accept <task> <job>`: `task_accept` gates; standard/deep tasks require a current independent review. Medium or higher findings or missing acceptance criteria block acceptance until a correction after review passes `auto_check`. Low/info findings are returned in `open_low_findings`. If the worker could not run tests (e.g. sandbox): `evidence_generate` → `task_accept` + `verified_by_evidence_reason` |
 | Bring into your branch | `task_merge`: task branch → branch of the working tree (clean tree required) |
 | Clean up | `workspace_cleanup` |
 | Status | `/anafor:status` |

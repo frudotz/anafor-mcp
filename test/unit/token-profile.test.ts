@@ -63,9 +63,20 @@ describe('önbellek dostu iş emri (F22)', () => {
         });
         for (const language of ['tr', 'en'] as const) {
           const prompt = compilePrompt(task, job, { lang: language });
+          expect(prompt).toContain(
+            language === 'tr'
+              ? 'Raporu iş emrinin dilinde yaz'
+              : 'Write the report in the job order language',
+          );
           if (role === 'review') {
             expect(prompt).not.toContain('## Sandbox');
+            expect(prompt).toContain(
+              language === 'tr' ? 'status completed olsa bile' : 'even when status is completed',
+            );
           } else {
+            expect(prompt).toContain(
+              language === 'tr' ? 'Yalnız gerçek engel varsa partial' : 'only for a real blocker',
+            );
             expect(prompt).toContain(
               `## ${language === 'tr' ? 'Sandbox kuralları' : 'Sandbox rules'}`,
             );
