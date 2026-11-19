@@ -10,6 +10,8 @@ kullanım:
   anafor init [dizin]     projeyi bağlar: .anafor/, politika (.mcp.json plugin yoksa)
   anafor doctor [dizin] [--json]
                           ortam, proje ve işçi kontrolü (--json: yapay zekâ ajanları için)
+  anafor permissions [--days N] [--json]
+                          izin retlerini ve dar allow önerilerini gösterir
   anafor update [--check] son sürümü indirir, SHA256 doğrular, kurar ve plugin'i yeniler
   anafor mcp [dizin]      MCP sunucusunu stdio üzerinde başlatır
   anafor migrate [dizin]  eski .orchestrator/ durumunu .anafor/'a kopyalar (kaynak değişmez)
@@ -37,6 +39,8 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
   ui: { yes: 'Evet', no: 'Hayır', cancelled: 'İptal edildi.' },
 
   setup: {
+    opusAdvice:
+      'Kalitenin önemli olduğu orta ölçekli işlerde doğrudan Opus tek ajan daha iyi sonuç verdi (F32); Anafor paralel büyük işler, Claude limiti darboğazı ve yönetişimli akış için.',
     title: (v: string) => ` Anafor kurulumu · v${v} `,
     language: 'Dil / Language',
     envCheck: 'Ortam denetleniyor',
@@ -108,6 +112,7 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
     storeFix:
       '.anafor/state.db başka bir süreç tarafından kilitli olabilir; Claude Code oturumlarını kapatıp yeniden deneyin',
     last24: 'son 24 sa',
+    permissionDenials: (n: number) => `izin retleri: ${n} (son 7 gün)`,
     failedJobs: (n: number) => `${n} başarısız iş`,
     jobsFix: 'anafor jobs --all (hata nedenleri)',
     extensions: 'eklentiler',
@@ -142,6 +147,15 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
   hooks: {
     limitPrompt: (percent: number) =>
       `Claude limiti %${percent}; işi güvenli noktaya getir, büyük iş başlatma.`,
+  },
+  permissions: {
+    total: (n: number) => `Son dönemde ret: ${n}`,
+    sessions: 'Oturum başına ret:',
+    days: 'Gün başına ret:',
+    tools: 'En sık araçlar:',
+    reasons: 'Nedenler:',
+    suggestions: 'Olası false-positive allow önerileri (elle değerlendirin):',
+    noSuggestions: 'öneri yok',
   },
 
   update: {
@@ -272,6 +286,12 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
   },
 
   meta: {
+    orderingHints: {
+      implementation: 'F33: Sol hız/maliyet 75 orta güven; F32: Codex işçi kalitesi değişken',
+      review: 'F33: Claude incelemede Sonnet; farklı aile kör noktayı azaltır',
+      analysis: 'F33: Claude analiz/planlamada önce',
+      test: '',
+    },
     tiers: {
       K1: 'öncü (Opus, Codex üst)',
       K2: 'orta-güçlü (Sonnet, Codex orta, Gemini Flash)',

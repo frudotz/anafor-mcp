@@ -2,6 +2,8 @@
 
 # Anafor user guide
 
+`anafor permissions [--days N] [--json]` summarizes `.anafor/metrics/permissions.jsonl` by session/day, tool, and reason. Narrow allow suggestions derived from Bash calls are displayed for review only; settings are never changed. `anafor doctor` shows the last seven days' total.
+
 Anafor is an orchestration MCP server for frontier AI models: a manager agent plans work, dispatches it to workers, reviews results, and accepts them. You can configure which models take which roles. The manager does not edit code files itself; this rule is enforced by a hook.
 
 ## 1. Installation
@@ -12,6 +14,8 @@ cd anafor-mcp && npm install && npm run build
 ```
 
 Requirements: Node 24+, git, Claude Code and at least one worker:
+
+For medium-sized jobs where quality matters, a direct single-agent Opus run gave better results (F32); Anafor is for large parallel jobs, Claude-limit bottlenecks, and governed workflows.
 
 - Codex CLI (`codex login`)
 - Claude Code itself (no extra setup needed for the `cirak` worker)

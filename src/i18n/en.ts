@@ -12,6 +12,8 @@ usage:
   anafor init [dir]       connect a project: .anafor/, policy (.mcp.json if no plugin)
   anafor doctor [dir] [--json]
                           environment, project and worker checks (--json: for AI agents)
+  anafor permissions [--days N] [--json]
+                          show permission denials and narrow allow suggestions
   anafor update [--check] download the latest release, verify SHA-256, install, refresh plugin
   anafor mcp [dir]        start the MCP server on stdio
   anafor migrate [dir]    copy legacy .orchestrator/ state into .anafor/ (source untouched)
@@ -39,6 +41,8 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
   ui: { yes: 'Yes', no: 'No', cancelled: 'Cancelled.' },
 
   setup: {
+    opusAdvice:
+      'For medium-sized jobs where quality matters, a direct single-agent Opus run gave better results (F32); Anafor is for large parallel jobs, Claude-limit bottlenecks, and governed workflows.',
     title: (v: string) => ` Anafor setup · v${v} `,
     language: 'Dil / Language',
     envCheck: 'Checking environment',
@@ -110,6 +114,7 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
     storeFix:
       '.anafor/state.db may be locked by another process; close Claude Code sessions and retry',
     last24: 'last 24 h',
+    permissionDenials: (n: number) => `permission denials: ${n} (last 7 days)`,
     failedJobs: (n: number) => `${n} failed job${n === 1 ? '' : 's'}`,
     jobsFix: 'anafor jobs --all (error reasons)',
     extensions: 'extensions',
@@ -144,6 +149,15 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
   hooks: {
     limitPrompt: (percent: number) =>
       `Claude limit ${percent}%; bring work to a safe point and avoid starting large work.`,
+  },
+  permissions: {
+    total: (n: number) => `Recent denials: ${n}`,
+    sessions: 'Denials per session:',
+    days: 'Denials per day:',
+    tools: 'Top tools:',
+    reasons: 'Reasons:',
+    suggestions: 'Possible false-positive allow suggestions (review manually):',
+    noSuggestions: 'none',
   },
 
   update: {
@@ -276,6 +290,13 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
   },
 
   meta: {
+    orderingHints: {
+      implementation:
+        'F33: Codex speed/cost 75, medium confidence; F32: Codex worker quality varies',
+      review: 'F33: Sonnet for Claude review; cross-family review reduces blind spots',
+      analysis: 'F33: Prefer Claude for analysis and planning',
+      test: '',
+    },
     tiers: {
       K1: 'frontier (Opus, Codex high)',
       K2: 'mid-strong (Sonnet, Codex medium, Gemini Flash)',
