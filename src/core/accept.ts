@@ -172,6 +172,14 @@ export function evaluateAcceptance(input: AcceptInput): Gate[] {
         afterReview.length > 0 &&
         afterReview.every((j) => j.autoCheck?.passed) &&
         afterReview[afterReview.length - 1]?.id === latestImpl?.id;
+      const findings = rr?.review.findings ?? [];
+      const openFindings = findings.filter(
+        (f) => f.severity === 'medium' || f.severity === 'high' || f.severity === 'critical',
+      );
+      // Salt okunur inceleyicinin "testleri çalıştıramadım" maddeleri kalite bulgusu değildir.
+      const missingRequirements = (rr?.requirements_missing ?? []).filter(
+        (item) => !onlyMissingChecks([item]),
+      );
       add(
         'deep_review_role',
         reviewJob.role === 'review' && reviewJob.taskId === task.id,
@@ -211,6 +219,14 @@ export function evaluateAcceptance(input: AcceptInput): Gate[] {
         'deep_review_no_critical',
         (rr?.review.critical_count ?? 1) === 0,
         `kritik: ${rr?.review.critical_count ?? '?'}`,
+      );
+      add(
+        'review_findings_open',
+        (openFindings.length === 0 && missingRequirements.length === 0) || corrected,
+        corrected
+          ? 'review sonrası düzeltmeler auto_check geçti'
+          : [...openFindings.map((f) => f.title), ...missingRequirements].join('; ') ||
+              'açık review bulgusu yok',
       );
     }
   }

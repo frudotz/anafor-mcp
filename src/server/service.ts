@@ -845,6 +845,9 @@ export class AnaforService {
       accepted: failed.length === 0,
       failed_gates: failed,
       passed_gates: gates.filter((g) => g.ok).map((g) => g.gate),
+      open_low_findings: (reviewJob?.result?.review.findings ?? [])
+        .filter((finding) => finding.severity === 'low' || finding.severity === 'info')
+        .map((finding) => finding.title),
       integration,
       note: failed.length
         ? s().gatesFailedNote
