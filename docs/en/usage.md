@@ -2,6 +2,8 @@
 
 # Anafor user guide
 
+`anafor permissions [--days N] [--json]` summarizes `.anafor/metrics/permissions.jsonl` by session/day, tool, and reason. Narrow allow suggestions derived from Bash calls are displayed for review only; settings are never changed. `anafor doctor` shows the last seven days' total.
+
 Anafor is an orchestration MCP server for frontier AI models: a manager agent plans work, dispatches it to workers, reviews results, and accepts them. You can configure which models take which roles. The manager does not edit code files itself; this rule is enforced by a hook.
 
 ## 1. Installation

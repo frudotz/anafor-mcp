@@ -12,6 +12,8 @@ usage:
   anafor init [dir]       connect a project: .anafor/, policy (.mcp.json if no plugin)
   anafor doctor [dir] [--json]
                           environment, project and worker checks (--json: for AI agents)
+  anafor permissions [--days N] [--json]
+                          show permission denials and narrow allow suggestions
   anafor update [--check] download the latest release, verify SHA-256, install, refresh plugin
   anafor mcp [dir]        start the MCP server on stdio
   anafor migrate [dir]    copy legacy .orchestrator/ state into .anafor/ (source untouched)
@@ -110,6 +112,7 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
     storeFix:
       '.anafor/state.db may be locked by another process; close Claude Code sessions and retry',
     last24: 'last 24 h',
+    permissionDenials: (n: number) => `permission denials: ${n} (last 7 days)`,
     failedJobs: (n: number) => `${n} failed job${n === 1 ? '' : 's'}`,
     jobsFix: 'anafor jobs --all (error reasons)',
     extensions: 'extensions',
@@ -144,6 +147,15 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
   hooks: {
     limitPrompt: (percent: number) =>
       `Claude limit ${percent}%; bring work to a safe point and avoid starting large work.`,
+  },
+  permissions: {
+    total: (n: number) => `Recent denials: ${n}`,
+    sessions: 'Denials per session:',
+    days: 'Denials per day:',
+    tools: 'Top tools:',
+    reasons: 'Reasons:',
+    suggestions: 'Possible false-positive allow suggestions (review manually):',
+    noSuggestions: 'none',
   },
 
   update: {
