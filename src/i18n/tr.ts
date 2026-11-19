@@ -154,6 +154,17 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
   },
 
   cli: {
+    loopUsage:
+      'loop start "<hedef>" | --backlog <dosya> [--profile saver|balanced|quality] [--model M] [--auto-resume] [--max-cycles N] [--until ISO] [--detach] | status | pause | resume | stop (mevcut tur bitince durur)',
+    loopStarted: 'Geliştirme döngüsü başlatıldı',
+    loopWarn: (percent: number) => `Limit %${percent}; işi toparla, büyük iş başlatma.`,
+    loopResumePrompt:
+      'Limit yenilendi. project_status ile kaldığın yeri bul; biten ve çalışan işleri incele; plana devam et.',
+    loopBacklogReadError: (path: string, error: string) => `Backlog okunamadı (${path}): ${error}`,
+    loopLocked:
+      'Loop kilidi veya yaşayan beyin alt süreci var; mevcut döngü bitene kadar bekleyin.',
+    loopTurnPrompt: (context: string, accept: boolean, merge: boolean, profile: string) =>
+      `${context}\nBeyin token profili: ${profile}. ${profile === 'saver' ? 'İş dağıtımında saver profili kullan; açıkça istenmedikçe deep inceleme önerme.' : ''} Bu headless Anafor geliştirme döngüsünde bu adımı ilerlet. Açık izin/intervene varsa önce tamamla. ${accept ? 'Kriterler karşılandıysa task_accept çağır.' : 'task_accept çağırma; inceleme beklesin.'} ${merge && accept ? 'Kabul edilen işi güvenli akışla birleştir.' : 'Birleştirme yapma.'}\nSon satır olarak tam bir durum etiketi yaz: ANAFOR_LOOP: DONE (adım gerçekten bitti), ANAFOR_LOOP: CONTINUE (daha fazla çalışma gerek), veya ANAFOR_LOOP: BLOCKED <neden>.`,
     notProject: 'Bu dizin bir Anafor projesi değil. Önce `anafor init` (veya `anafor setup`).',
     pluginMcp: 'Anafor plugin’i kalıcı kurulu: MCP sunucusu plugin’den gelir, .mcp.json yazılmadı.',
     mcpCreated: '.mcp.json oluşturuldu (anafor sunucusu).',

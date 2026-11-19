@@ -7,6 +7,9 @@ import { createInterface } from 'node:readline';
 import { subscriptionEnv } from '../adapters/cirak.js';
 import { parseClaudeRateLimitInfo, recordLimits, statusFrom } from '../limits/limits.js';
 import { readSetupState } from '../setup/setup.js';
+import { killTree } from '../adapters/process.js';
+import type { Effort } from '../adapters/types.js';
+import { isWindowsShim, quoteCmdArg } from '../adapters/process.js';
 
 /** Beyin oturumundan gelen, ekranda gösterilecek olaylar. */
 export type BrainEvent =
@@ -15,6 +18,7 @@ export type BrainEvent =
   | { type: 'tool'; name: string; brief: string }
   | { type: 'result'; ok: boolean; costUsd: number | null; turns: number | null; text: string }
   | { type: 'error'; message: string }
+  | { type: 'rate_limit_event'; limited: boolean; resetsAt: number | null }
   | { type: 'exit'; code: number | null };
 
 /** Araç girdisinden kısa, tek satırlık özet. */
@@ -40,12 +44,12 @@ export function parseBrainLine(line: string): BrainEvent[] {
       { type: 'init', sessionId: String(ev.session_id ?? ''), model: String(ev.model ?? '') },
     ];
   }
-  if (
-    ev.type === 'rate_limit_event' &&
-    ev.rate_limit_info &&
-    typeof ev.rate_limit_info === 'object'
-  ) {
-    const windows = parseClaudeRateLimitInfo(ev.rate_limit_info as Record<string, unknown>);
+  if (ev.type === 'rate_limit_event') {
+    const info =
+      ev.rate_limit_info && typeof ev.rate_limit_info === 'object'
+        ? (ev.rate_limit_info as Record<string, unknown>)
+        : {};
+    const windows = parseClaudeRateLimitInfo(info);
     if (windows.length) {
       recordLimits({
         worker: 'claude',
@@ -55,7 +59,18 @@ export function parseBrainLine(line: string): BrainEvent[] {
         windows,
       });
     }
-    return [];
+    const status = String(info.status ?? ev.status ?? '').toLowerCase();
+    return [
+      {
+        type: 'rate_limit_event',
+        limited: ['rejected', 'blocked', 'limited', 'rate_limit_reached'].includes(status),
+        resetsAt: windows.reduce<number | null>(
+          (min, w) =>
+            w.resets_at !== null && (min === null || w.resets_at < min) ? w.resets_at : min,
+          null,
+        ),
+      },
+    ];
   }
   if (ev.type === 'assistant' && ev.message && typeof ev.message === 'object') {
     const out: BrainEvent[] = [];
@@ -102,6 +117,11 @@ export interface BrainOptions {
   newSession?: boolean;
   /** Claude Code izin modu (varsayılan: kullanıcının kendi ayarı). */
   permissionMode?: string;
+  /** Isolated loop session id; avoids reading/writing interactive brain.json. */
+  isolated?: boolean;
+  sessionId?: string;
+  resumeSessionId?: string;
+  effort?: Effort;
 }
 
 /** Yönetici beyin için önceden izinli araçlar: Anafor MCP ve salt okuma. Diğerleri sorulur. */
@@ -131,18 +151,21 @@ export class BrainSession {
   private child: ChildProcess | null = null;
   sessionId: string;
   private readonly resume: boolean;
+  get pid(): number | null {
+    return this.child?.pid ?? null;
+  }
 
   constructor(
     private readonly opts: BrainOptions,
     private readonly onEvent: (e: BrainEvent) => void,
   ) {
     const saved =
-      !opts.newSession && existsSync(brainFile(opts.root))
+      !opts.isolated && !opts.newSession && existsSync(brainFile(opts.root))
         ? (JSON.parse(readFileSync(brainFile(opts.root), 'utf8')) as { session_id?: string })
             .session_id
         : undefined;
-    this.sessionId = saved ?? randomUUID();
-    this.resume = !!saved;
+    this.sessionId = opts.sessionId ?? opts.resumeSessionId ?? saved ?? randomUUID();
+    this.resume = opts.resumeSessionId !== undefined || !!saved;
   }
 
   args(): string[] {
@@ -164,18 +187,23 @@ export class BrainSession {
       '--allowedTools',
       ...(this.opts.allowedTools ?? DEFAULT_BRAIN_TOOLS),
       ...(this.opts.model ? ['--model', this.opts.model] : []),
+      ...(this.opts.effort ? ['--effort', this.opts.effort] : []),
       ...(this.opts.permissionMode ? ['--permission-mode', this.opts.permissionMode] : []),
       ...(this.resume ? ['--resume', this.sessionId] : ['--session-id', this.sessionId]),
     ];
   }
 
   start(): void {
-    writeFileSync(brainFile(this.opts.root), JSON.stringify({ session_id: this.sessionId }));
-    const child = spawn(this.opts.bin ?? process.env.ANAFOR_CLAUDE_BIN ?? 'claude', this.args(), {
+    if (!this.opts.isolated)
+      writeFileSync(brainFile(this.opts.root), JSON.stringify({ session_id: this.sessionId }));
+    const bin = this.opts.bin ?? process.env.ANAFOR_CLAUDE_BIN ?? 'claude';
+    const shim = isWindowsShim(bin);
+    const child = spawn(bin, shim ? this.args().map(quoteCmdArg) : this.args(), {
       cwd: this.opts.root,
       env: subscriptionEnv({ ...process.env, CLAUDE_PROJECT_DIR: this.opts.root }),
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
+      shell: shim,
     });
     this.child = child;
     createInterface({ input: child.stdout! }).on('line', (l) => {
@@ -212,6 +240,6 @@ export class BrainSession {
   }
 
   kill(): void {
-    this.child?.kill();
+    if (this.child) killTree(this.child);
   }
 }

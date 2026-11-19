@@ -51,6 +51,8 @@ export interface AnaforConfig {
   balancer: BalancerConfig;
   /** Rol başına akıl yürütme düzeyi profili (saver | balanced | quality | off). */
   token_profile: TokenProfile;
+  limits: { brain: { warn_at: number; pause_at: number; pause_at_weekly: number } };
+  loop: { turn_timeout_min: number; min_turn_gap_sec: number };
 }
 
 export interface WorkerSettings {
@@ -111,6 +113,8 @@ export const DEFAULT_CONFIG: AnaforConfig = {
   extensions: DEFAULT_EXTENSIONS,
   balancer: DEFAULT_BALANCER,
   token_profile: 'balanced',
+  limits: { brain: { warn_at: 75, pause_at: 90, pause_at_weekly: 95 } },
+  loop: { turn_timeout_min: 60, min_turn_gap_sec: 30 },
   worktree_setup: null,
   worktree_cache: null,
   escalation: { failure_threshold: 3, stall_minutes: 60, takeover_minutes: 120 },
@@ -177,6 +181,10 @@ export function loadConfig(root: string): AnaforConfig {
     capacity: { ...DEFAULT_CAPACITY, ...local.capacity, ...project.capacity },
     extensions: { ...DEFAULT_EXTENSIONS, ...local.extensions, ...project.extensions },
     balancer: { ...DEFAULT_BALANCER, ...local.balancer, ...project.balancer },
+    limits: {
+      brain: { ...DEFAULT_CONFIG.limits.brain, ...local.limits?.brain, ...project.limits?.brain },
+    },
+    loop: { ...DEFAULT_CONFIG.loop, ...local.loop, ...project.loop },
   };
   for (const id of ['codex', 'cirak']) {
     const localValue = local.workers?.[id]?.user_config;

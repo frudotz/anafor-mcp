@@ -36,6 +36,8 @@ export function renderBrainEvent(e: BrainEvent): string | null {
       );
     case 'error':
       return c.red(`! ${e.message}`);
+    case 'rate_limit_event':
+      return e.limited ? c.yellow('  ! Claude rate limit event') : null;
     case 'exit':
       return c.dim(t.closed(String(e.code ?? '?')));
   }
