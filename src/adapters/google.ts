@@ -220,9 +220,7 @@ export class GeminiAdapter implements WorkerAdapter {
 }
 
 /**
- * Antigravity CLI (`agy`). ⚠️ Koşullar gri alan: abonelikle üçüncü taraf araçlardan erişim
- * ihlal sayılabiliyor. Bu yüzden varsayılan KAPALI; `workers.antigravity.enabled: true` ve
- * `acknowledge_terms: true` ile açılır. İzin atlatma bayrağı kullanılmaz.
+ * Antigravity CLI (`agy`): consumer-plan use is optional and requires explicit risk acceptance.
  */
 export class AntigravityAdapter implements WorkerAdapter {
   readonly id = 'antigravity';

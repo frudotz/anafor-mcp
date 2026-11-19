@@ -78,6 +78,11 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
     subsApplied: 'Rol dağılımı uygulandı (anafor.config.json → subscriptions + routing).',
     subsLater: (ids: string) =>
       `Bir projede uygulamak için: anafor capacity recommend ${ids} --apply`,
+    antigravityAsk:
+      'Bu projede Antigravity tüketici aboneliğini isteğe bağlı ve kendi sorumluluğunuzda etkinleştirmek istiyor musunuz?',
+    antigravityEnabled: 'Antigravity yalnızca .anafor/config.json içinde etkinleştirildi.',
+    antigravityProjectRequired:
+      'Onay alındı; ayarları yazmak için önce bu projeyi anafor init ile bağlayın. Onay .anafor/config.json dosyasına yazılabilir.',
   },
 
   doctor: {
@@ -250,7 +255,8 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
     notes: {
       claudeMax: 'cirak işçisinde Sonnet kullanılabilir (workers.cirak.model).',
       geminiApi: 'Kişisel hesap girişi Gemini CLI tarafından desteklenmiyor; API anahtarı gerekir.',
-      antigravity: 'Koşullar gri alan; varsayılan kapalı, acknowledge_terms gerekir.',
+      antigravity:
+        'Google Antigravity Ek Koşulları §6 ve resmi FAQ, tüketici AI Pro/Ultra planında üçüncü taraf ajan/uygulama içinde kullanımı desteklemiyor ve ihlal sayabilir; hesap askıya alınabilir. Gemini Enterprise veya AI Studio API anahtarı önerilir. https://antigravity.google/terms · https://antigravity.google/docs/faq',
       opencodeApi: 'Qwen Coding Plan otomasyonu yasaklar; kullandıkça öde API tercih edin.',
       localGpu:
         'Yalnızca kısa işler: dokümantasyon, test iskeleti, tek dosya. Beyin/plan/inceleme asla.',
@@ -411,7 +417,7 @@ Politika: HIGH/CRITICAL ve tarama hatası engellenir; CAUTION yalnızca --accept
       local:
         'Ollama (https://ollama.com) veya LM Studio  →  anafor.config.json: workers.local.model',
       antigravity:
-        'Koşullar gri alan: yalnızca workers.antigravity.enabled + acknowledge_terms ile; API anahtarı önerilir',
+        'Google koşulları tüketici AI Pro/Ultra planında üçüncü taraf ajan/uygulama içinde kullanımı desteklemiyor; ihlal sayılabilir ve hesap askıya alınabilir. Gemini Enterprise veya AI Studio API anahtarı önerilir.',
     },
   },
 
@@ -434,7 +440,13 @@ Politika: HIGH/CRITICAL ve tarama hatası engellenir; CAUTION yalnızca --accept
     geminiAuth:
       'Gemini ayarlarında kimlik yöntemi seçili değil: ~/.gemini/settings.json → "security": { "auth": { "selectedType": "gemini-api-key" } }',
     agyTerms:
-      'Antigravity koşulları gri alan: workers.antigravity.acknowledge_terms=true gerekli (API anahtarı önerilir)',
+      'Antigravity: workers.antigravity.enabled=true ve workers.antigravity.accept_terms_risk=true gerekli. Google tüketici planında üçüncü taraf sarımını desteklemiyor; hesap askıya alınabilir.',
+    agyNeedsRiskKey:
+      'Eski acknowledge_terms tek başına yetmez; workers.antigravity.accept_terms_risk=true yalnızca .anafor/config.json içinde gereklidir.',
+    agyDisclaimer:
+      'Bu seçenek kullanıcının kendi takdiri ve sorumluluğundadır. Anafor ve geliştiricileri, Google hesabının kısıtlanması veya kapatılması dahil hiçbir sonuçtan sorumlu değildir. Bu bilgi hukuki görüş değildir.',
+    projectAntigravityAckIgnored:
+      'anafor.config.json içindeki workers.antigravity.accept_terms_risk yok sayıldı; onay yalnızca .anafor/config.json içinde kabul edilir.',
     agyMissing: 'agy kurulu değil',
     opencodeModel: 'workers.opencode.model ayarlanmalı (provider/model)',
     opencodeAnthropic:
