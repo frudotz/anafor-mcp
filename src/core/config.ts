@@ -7,6 +7,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { m } from '../i18n/index.js';
+import { warnOnce } from './warn-once.js';
 
 export type DirectorMode = 'enforce' | 'warn' | 'off';
 export type RoutingMode = 'static' | 'adaptive';
@@ -64,6 +65,8 @@ export interface WorkerSettings {
   api_key_env?: string;
   /** Gri alandaki işçiler (antigravity) için koşulların okunduğu onayı. */
   acknowledge_terms?: boolean;
+  /** Explicit acceptance for optional Antigravity consumer-plan use. */
+  accept_terms_risk?: boolean;
   /** OpenCode'da anthropic/* modellerine (yalnızca API anahtarıyla) izin. */
   allow_anthropic_api?: boolean;
   /** Codex, yalnızca Windows: işler için `windows.sandbox` ("elevated" testlerin alt süreç başlatabilmesi için). */
@@ -133,6 +136,8 @@ export function loadConfig(root: string): AnaforConfig {
   };
   const local = read(join(root, '.anafor', 'config.json'));
   const project = read(join(root, 'anafor.config.json'));
+  if (project.workers?.antigravity?.accept_terms_risk === true)
+    warnOnce('agy-project-ack', m().adapters.projectAntigravityAckIgnored);
   for (const cfg of [local, project]) {
     if (cfg.workers?.['claude-lite'])
       cfg.workers.cirak = { ...cfg.workers['claude-lite'], ...cfg.workers.cirak };
@@ -157,6 +162,12 @@ export function loadConfig(root: string): AnaforConfig {
       ...project.workers?.[id],
     };
   }
+  if (workers.antigravity && local.workers?.antigravity?.accept_terms_risk !== true) {
+    workers.antigravity = { ...workers.antigravity };
+    delete workers.antigravity.accept_terms_risk;
+  }
+  if (workers.antigravity && local.workers?.antigravity?.accept_terms_risk === true)
+    workers.antigravity.accept_terms_risk = true;
   const result = {
     ...DEFAULT_CONFIG,
     ...local,

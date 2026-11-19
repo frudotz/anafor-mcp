@@ -18,7 +18,7 @@
 | Codex (önerilen) | `npm install -g @openai/codex` → `codex login` |
 | Claude Haiku (`cirak`) | Ek kurulum yok; Claude Code yeterli |
 | Yerel model | Ollama (https://ollama.com) veya LM Studio → `anafor.config.json` |
-| OpenCode / Gemini / Antigravity | deneysel; Gemini/Antigravity abonelik erişimi desteklenmez. Koşullar için [kullanim.md](kullanim.md#8b-işçiler-ve-kullanım-koşulları) |
+| OpenCode / Gemini / Antigravity | deneysel; Google koşulları tüketici planında üçüncü taraf Antigravity kullanımını desteklemiyor. İsteğe bağlı kullanım kullanıcının sorumluluğunda; ayrıntılar [kullanim.md](kullanim.md#8b-işçiler-ve-kullanım-koşulları) |
 
 ### İsteğe bağlı: gitleaks (önerilen)
 
@@ -118,11 +118,14 @@ anafor doctor                    # bölümlere ayrılmış kontrol; sonuç statu
 - **Claude:** Anthropic [Legal & Compliance](https://code.claude.com/docs/en/legal-and-compliance) sayfasına göre kendi abonelik girişin resmi `claude` ikilisiyle ordinary, individual usage için izinlidir. Kimlik bilgisi aracılığı ve başkaları adına yönlendirme yasaktır. `ANTHROPIC_API_KEY` işçi ortamından çıkarılır.
 - **Codex:** resmi CLI ve kendi ChatGPT girişi kullanılır. [OpenAI Kullanım Politikaları](https://openai.com/policies/usage-policies/) (2026-11-20) uyarınca OpenAI çıktıları rakip model eğitimi için veri, puan veya sıralama üretmekte kullanılamaz. Anafor'un işçi istatistikleri ve ölçümleri yalnızca değerlendirme/kıyaslama içindir; eğitim verisi olarak dışa aktarılmamalıdır. Başkalarına model erişimi sağlayan platformlar OpenAI onayı ister.
 - **Gemini CLI:** Google AI Pro/Ultra girişi 2026-06-18'de kapandı; yalnızca API anahtarı, Vertex veya Code Assist Standard/Enterprise kullanılabilir.
-- **Antigravity:** tüketici AI Pro/Ultra planlarında `agy`'yi üçüncü taraf ajan/uygulamada sarmak Google [FAQ](https://antigravity.google/docs/faq) ve [Ek Koşullar §6](https://antigravity.google/terms) uyarınca desteklenmez ve hesabın askıya alınması riskini taşır. Üçüncü taraf ajanlar için Google Gemini Enterprise veya [AI Studio API anahtarı](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli) kullanın; abonelik girişi için `enabled` + `acknowledge_terms` açmayın.
+- **Antigravity:** Google [FAQ](https://antigravity.google/docs/faq) ve [Ek Koşullar §6](https://antigravity.google/terms), tüketici AI Pro/Ultra erişimini üçüncü taraf ajan/uygulamada sarmayı desteklemiyor ve ihlal sayabilir; hesap askıya alınabilir. Kullanım yalnızca açık onay ve kullanıcının kendi sorumluluğunda isteğe bağlıdır. Google Gemini Enterprise veya [AI Studio API anahtarı](https://developers.googlebloggers.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli) önerir.
+- Bu bilgi hukuki görüş değildir.
 - Bu özet hukuki görüş değildir; güncel sağlayıcı koşullarını kendin kontrol et.
 - Ayrıntı: [kullanim.md](kullanim.md).
 
 ## Kaldırma
+
+Antigravity kullanımı Google koşullarınca tüketici AI Pro/Ultra planında desteklenmez; isteğe bağlı kullanım yalnızca açık onay ve kullanıcının kendi sorumluluğundadır. `anafor setup` onayı etkinleştirir ve yalnızca commit edilmeyen `.anafor/config.json` içine `workers.antigravity.enabled: true` ile `workers.antigravity.accept_terms_risk: true` yazar. Anafor ve geliştiricileri Google hesabının kısıtlanması veya kapatılması dahil sonuçlardan sorumlu değildir. Bu bilgi hukuki görüş değildir.
 
 ```bash
 claude plugin uninstall anafor@anafor-local   # kalıcı kurulduysa

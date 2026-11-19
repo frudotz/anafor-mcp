@@ -18,7 +18,7 @@ Workers (at least one):
 | Codex (recommended) | `npm install -g @openai/codex` → `codex login` |
 | Claude Haiku (`cirak`) | Nothing extra; Claude Code is enough |
 | Local model | Ollama (https://ollama.com) or LM Studio → `anafor.config.json` |
-| OpenCode / Gemini / Antigravity | experimental; Gemini/Antigravity subscription access is unsupported. See [usage.md](usage.md#8b-workers-and-terms-of-use) |
+| OpenCode / Gemini / Antigravity | experimental; Google terms do not support third-party Antigravity use on consumer plans. Optional use is at the user's responsibility; see [usage.md](usage.md#8b-workers-and-terms-of-use) |
 
 ### Optional: gitleaks (recommended)
 
@@ -118,11 +118,14 @@ anafor doctor                    # sectioned checks; the result is reflected in 
 - **Claude:** Anthropic's [Legal & Compliance](https://code.claude.com/docs/en/legal-and-compliance) page permits your own subscription login through the official `claude` binary for ordinary, individual usage. Credential brokering and routing on behalf of others are prohibited. `ANTHROPIC_API_KEY` is removed from worker environments.
 - **Codex:** use the official CLI and your own ChatGPT login. Under the [OpenAI Usage Policies](https://openai.com/policies/usage-policies/) (2026-11-20), OpenAI outputs may not be used to develop data, scores, or rankings for training competing models. Anafor worker statistics and measurements are for evaluation/benchmarking only and must not be exported as training data. Platforms that provide model access to others require OpenAI approval.
 - **Gemini CLI:** Google AI Pro/Ultra login was discontinued on 2026-06-18; only an API key, Vertex, or Code Assist Standard/Enterprise is available.
-- **Antigravity:** on consumer AI Pro/Ultra plans, wrapping `agy` inside a third-party agent/app is unsupported under Google's [FAQ](https://antigravity.google/docs/faq) and [Additional Terms §6](https://antigravity.google/terms), and risks account suspension. For third-party agents, Google recommends Gemini Enterprise or an [AI Studio API key](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli); do not enable `enabled` + `acknowledge_terms` for subscription login.
+- **Antigravity:** Google's [FAQ](https://antigravity.google/docs/faq) and [Additional Terms §6](https://antigravity.google/terms) do not support wrapping consumer AI Pro/Ultra access in a third-party agent/app and say it may violate the terms; your account may be suspended. Optional use is only at the user's explicit consent and responsibility. Google recommends Gemini Enterprise or an [AI Studio API key](https://developers.googlebloggers.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli).
+- This information is not legal advice.
 - This summary is not legal advice; check the providers' current terms yourself.
 - Details: [usage.md](usage.md).
 
 ## Uninstalling
+
+Google's terms do not support consumer AI Pro/Ultra access through a third-party agent/app; optional use requires explicit consent and is at the user's own responsibility. Approving `anafor setup` writes `workers.antigravity.enabled: true` and `workers.antigravity.accept_terms_risk: true` only to the uncommitted `.anafor/config.json`. Anafor and its developers are not responsible for outcomes including restriction or termination of your Google account. This is not legal advice.
 
 ```bash
 claude plugin uninstall anafor@anafor-local   # if installed persistently

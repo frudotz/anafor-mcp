@@ -318,14 +318,15 @@ node /path/anafor-mcp/dist/cli/main.js migrate /your-project
 | `local` | OpenAI-compatible API (Ollama, LM Studio) | ✅ tested with a fake server | Only `analysis`/`review` (does not edit files) |
 | `opencode` | `opencode run --format json` | ✅ verified (real opencode 1.19.5 + OpenAI-compatible provider) | API key, local model or ChatGPT plan. **A Claude subscription cannot be used with OpenCode**; `anthropic/*` models only with `allow_anthropic_api` |
 | `gemini` | `gemini -p --output-format stream-json --approval-mode auto_edit\|plan` | ✅ verified (real gemini-cli 0.68 + Gemini-API-compatible fake server) | Google AI Pro/Ultra login ended on 2026-06-18; API key, Vertex, or Code Assist Standard/Enterprise only |
-| `antigravity` | `agy -p --output-format stream-json --json-schema <file> --mode accept-edits\|plan` | ✅ verified (real agy 1.5.9 + real account, conformance test), **disabled by default** | Wrapping it in a third-party agent/app on AI Pro/Ultra is unsupported and risks account suspension; use Gemini Enterprise or an AI Studio API key |
+| `antigravity` | `agy -p --output-format stream-json --json-schema <file> --mode accept-edits\|plan` | ✅ verified (real agy 1.5.9 + real account, conformance test), **disabled by default** | Google terms do not support wrapping consumer AI Pro/Ultra access in a third-party agent/app; it may violate the terms and risk account suspension. Optional use requires explicit consent and is the user's responsibility |
 
 **Usage boundary:** Anafor is for personal, local use: your own account and machine, official, unmodified CLIs. It does not read, store, or transmit credentials/session tokens, or bypass limits. Do not offer Anafor as a hosted service to others through your subscription. High parallelism may trigger provider restrictions.
 
 - **Claude:** Anthropic's [Legal & Compliance](https://code.claude.com/docs/en/legal-and-compliance) page permits your own subscription login with the official `claude` binary for ordinary, individual usage. Credential brokering and routing on behalf of others are prohibited.
 - **Codex:** official CLI and your own ChatGPT login. The [OpenAI Usage Policies](https://openai.com/policies/usage-policies/) (2026-11-20) prohibit using OpenAI outputs to develop data, scores, or rankings for training competing models. Anafor worker statistics and measurements are for evaluation/benchmarking only and must not be exported as training data. Platforms providing model access to others require OpenAI approval.
 - **Gemini CLI:** Google AI Pro/Ultra login ended on 2026-06-18; API key, Vertex, or Code Assist Standard/Enterprise only.
-- **Antigravity:** Google's [FAQ](https://antigravity.google/docs/faq) and [Additional Terms §6](https://antigravity.google/terms) do not support third-party agent/app wrapping on consumer plans and this risks account suspension. Google recommends Gemini Enterprise or an [AI Studio API key](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli) for third-party agents; do not use the `enabled` + `acknowledge_terms` example below for subscription login.
+- **Antigravity:** Google's [FAQ](https://antigravity.google/docs/faq) and [Additional Terms §6](https://antigravity.google/terms) do not support wrapping consumer AI Pro/Ultra access in a third-party agent/app and say it may violate the terms; your account may be suspended. Optional use is only at the user's explicit consent and responsibility. Google recommends Gemini Enterprise or an [AI Studio API key](https://developers.googlebloggers.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli).
+- This information is not legal advice.
 - This summary is not legal advice; check the providers' current terms yourself.
 
 Example configuration:
@@ -346,6 +347,8 @@ Example configuration:
 ```json
 { "test_command": "npm test", "workers": { "antigravity": { "enabled": false, "allowed_commands": ["npm run lint"] } } }
 ```
+
+For optional Antigravity consumer-plan use, accept the `anafor setup` prompt or add `{ "workers": { "antigravity": { "enabled": true, "accept_terms_risk": true } } }` only to the uncommitted `.anafor/config.json`. This option is used at the user's own discretion and responsibility. Anafor and its developers are not responsible for any outcome, including restriction or termination of your Google account. This information is not legal advice.
 
 Real conformance tests (Antigravity: after logging in once with `agy`, `ANAFOR_AGY_BIN=<path to agy.exe> ANAFOR_E2E_AGY=1`):
 - OpenCode, with a fake provider, no account needed: `ANAFOR_E2E_OPENCODE_BIN=<path to opencode> npx vitest run test/integration/opencode-real.test.ts`
