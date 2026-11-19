@@ -13,6 +13,7 @@ import {
   submitRequest,
 } from '../../src/chat/permissions.js';
 import { renderBrainEvent } from '../../src/cli/chat.js';
+import { toolAllowedForProfile } from '../../src/server/tools.js';
 import { tempDir } from '../helpers.js';
 
 describe('beyin akışı ayrıştırma', () => {
@@ -116,6 +117,49 @@ describe('beyin akışı ayrıştırma', () => {
     } finally {
       t.cleanup();
     }
+  });
+
+  it('lean beyin yalnız dar MCP ve yerleşik araçları açar', () => {
+    const args = new BrainSession({ root: 'C:/project', lean: true, merge: true }, () => {}).args();
+    expect(args).toContain('--strict-mcp-config');
+    expect(
+      args.slice(
+        args.indexOf('--permission-prompt-tool'),
+        args.indexOf('--permission-prompt-tool') + 2,
+      ),
+    ).toEqual(['--permission-prompt-tool', 'mcp__anafor__permission_prompt']);
+    expect(args.slice(args.indexOf('--tools'), args.indexOf('--tools') + 2)).toEqual([
+      '--tools',
+      'Read,Grep,Glob,Bash',
+    ]);
+    const config = JSON.parse(args[args.indexOf('--mcp-config') + 1]!);
+    expect(config.mcpServers.anafor.command).toBe(process.execPath);
+    expect(config.mcpServers.anafor.env).toEqual({
+      ANAFOR_PROJECT_ROOT: 'C:/project',
+      ANAFOR_TOOL_PROFILE: 'brain-merge',
+    });
+    const allowedTools = args.slice(
+      args.indexOf('--allowedTools') + 1,
+      args.indexOf('--session-id'),
+    );
+    expect(allowedTools).toEqual([
+      'mcp__anafor',
+      'Read',
+      'Grep',
+      'Glob',
+      'Bash(git status:*)',
+      'Bash(git diff:*)',
+      'Bash(git log:*)',
+    ]);
+    expect(allowedTools).not.toContain('Bash');
+    expect(args).not.toContain('--plugin-dir');
+  });
+
+  it('beyin araç profili filtreler; profil yokken araçların tümü kalır', () => {
+    expect(toolAllowedForProfile('task_create', 'brain')).toBe(true);
+    expect(toolAllowedForProfile('task_merge', 'brain')).toBe(false);
+    expect(toolAllowedForProfile('task_merge', 'brain-merge')).toBe(true);
+    expect(toolAllowedForProfile('loop_start', undefined)).toBe(true);
   });
 });
 

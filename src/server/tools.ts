@@ -29,6 +29,44 @@ function ok(data: unknown): CallToolResult {
   return { content: [{ type: 'text', text: JSON.stringify(data) }] };
 }
 
+const BRAIN_TOOLS = new Set([
+  'project_status',
+  'task_create',
+  'task_status',
+  'job_dispatch',
+  'job_wait',
+  'job_status',
+  'job_result',
+  'job_diff',
+  'job_request_changes',
+  'job_cancel',
+  'evidence_generate',
+  'task_accept',
+  'task_close',
+  'takeover_status',
+  'task_takeover',
+  'takeover_complete',
+  'intervene',
+  'intervene_end',
+  'permission_prompt',
+  'workers_list',
+  'loop_status',
+]);
+const BRAIN_MERGE_TOOLS = new Set([
+  'task_merge',
+  'checkpoint',
+  'operation_authorize',
+  'operation_record',
+  'workspace_cleanup',
+]);
+export function toolAllowedForProfile(name: string, profile: string | undefined): boolean {
+  return (
+    (profile !== 'brain' && profile !== 'brain-merge') ||
+    BRAIN_TOOLS.has(name) ||
+    (profile === 'brain-merge' && BRAIN_MERGE_TOOLS.has(name))
+  );
+}
+
 function fail(e: unknown): CallToolResult {
   const err =
     e instanceof ServiceError
@@ -52,8 +90,13 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
   );
   const t = m().tools;
   const f = t.fields;
+  const profile = process.env.ANAFOR_TOOL_PROFILE;
+  const registerTool = ((name: string, ...args: any[]) => {
+    if (!toolAllowedForProfile(name, profile)) return;
+    return (server as any).registerTool(name, ...args);
+  }) as McpServer['registerTool'];
 
-  server.registerTool(
+  registerTool(
     'loop_start',
     {
       description: t.loop_start,
@@ -70,10 +113,8 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     },
     (a) => wrap(() => svc().loopStart(a)),
   );
-  server.registerTool('loop_status', { description: t.loop_status }, () =>
-    wrap(() => svc().loopStatus()),
-  );
-  server.registerTool(
+  registerTool('loop_status', { description: t.loop_status }, () => wrap(() => svc().loopStatus()));
+  registerTool(
     'loop_stop',
     {
       description: t.loop_stop,
@@ -82,7 +123,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     (a) => wrap(() => svc().loopStop(a.mode)),
   );
 
-  server.registerTool(
+  registerTool(
     'workers_list',
     {
       description: t.workers_list,
@@ -90,7 +131,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     () => wrap(() => svc().workersList()),
   );
 
-  server.registerTool(
+  registerTool(
     'workers_limits',
     {
       description: t.workers_limits,
@@ -98,7 +139,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     () => wrap(() => svc().workersLimits()),
   );
 
-  server.registerTool(
+  registerTool(
     'capacity_status',
     {
       description: t.capacity_status,
@@ -106,7 +147,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     () => wrap(() => svc().capacityStatus()),
   );
 
-  server.registerTool(
+  registerTool(
     'worker_stats',
     {
       description: t.worker_stats,
@@ -115,11 +156,11 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     (a) => wrap(() => svc().workerStats(a.role)),
   );
 
-  server.registerTool('project_status', { description: t.project_status }, () =>
+  registerTool('project_status', { description: t.project_status }, () =>
     wrap(() => svc().projectStatus()),
   );
 
-  server.registerTool(
+  registerTool(
     'task_create',
     {
       description: t.task_create,
@@ -147,7 +188,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
       ),
   );
 
-  server.registerTool(
+  registerTool(
     'task_status',
     {
       description: t.task_status,
@@ -156,7 +197,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     (a) => wrap(() => svc().taskStatus(a.task_id)),
   );
 
-  server.registerTool(
+  registerTool(
     'job_dispatch',
     {
       description: t.job_dispatch,
@@ -191,7 +232,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
       ),
   );
 
-  server.registerTool(
+  registerTool(
     'job_status',
     {
       description: t.job_status,
@@ -200,7 +241,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     (a) => wrap(() => svc().jobStatus(a.job_id)),
   );
 
-  server.registerTool(
+  registerTool(
     'job_wait',
     {
       description: t.job_wait,
@@ -213,7 +254,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     (a) => wrap(() => svc().jobWait(a.job_ids, a.timeout_s ?? 45, a.mode ?? 'any')),
   );
 
-  server.registerTool(
+  registerTool(
     'job_result',
     {
       description: t.job_result,
@@ -222,7 +263,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     (a) => wrap(() => svc().jobResult(a.job_id)),
   );
 
-  server.registerTool(
+  registerTool(
     'job_events',
     {
       description: t.job_events,
@@ -235,7 +276,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     (a) => wrap(() => svc().jobEvents(a.job_id, a.since_seq ?? 0, a.limit ?? 50)),
   );
 
-  server.registerTool(
+  registerTool(
     'job_cancel',
     {
       description: t.job_cancel,
@@ -244,7 +285,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     (a) => wrap(() => svc().jobCancel(a.job_id, a.reason)),
   );
 
-  server.registerTool(
+  registerTool(
     'job_request_changes',
     {
       description: t.job_request_changes,
@@ -257,7 +298,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     (a) => wrap(() => svc().jobRequestChanges(a.job_id, a.findings, a.instructions)),
   );
 
-  server.registerTool(
+  registerTool(
     'job_diff',
     {
       description: t.job_diff,
@@ -266,7 +307,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     (a) => wrap(() => svc().jobDiff(a.job_id, a.stat_only ?? false)),
   );
 
-  server.registerTool(
+  registerTool(
     'task_accept',
     {
       description: t.task_accept,
@@ -288,7 +329,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
       ),
   );
 
-  server.registerTool(
+  registerTool(
     'task_close',
     {
       description: t.task_close,
@@ -301,7 +342,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     (a) => wrap(() => svc().taskClose(a.task_id, a.outcome, a.note)),
   );
 
-  server.registerTool(
+  registerTool(
     'task_merge',
     {
       description: t.task_merge,
@@ -310,7 +351,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     (a) => wrap(() => svc().taskMerge(a.task_id, a.target_branch)),
   );
 
-  server.registerTool(
+  registerTool(
     'workspace_cleanup',
     {
       description: t.workspace_cleanup,
@@ -372,7 +413,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     approval_evidence: z.string().optional(),
   };
 
-  server.registerTool(
+  registerTool(
     'checkpoint',
     {
       description: t.checkpoint,
@@ -381,7 +422,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     (a) => wrap(() => svc().checkpoint(a.reason, a.task_id)),
   );
 
-  server.registerTool(
+  registerTool(
     'operation_authorize',
     {
       description: t.operation_authorize,
@@ -390,7 +431,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     (a) => wrap(() => svc().operationAuthorize(a)),
   );
 
-  server.registerTool(
+  registerTool(
     'operation_record',
     {
       description: t.operation_record,
@@ -404,7 +445,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     (a) => wrap(() => svc().operationRecord(a)),
   );
 
-  server.registerTool(
+  registerTool(
     'memory_lock',
     {
       description: t.memory_lock,
@@ -423,7 +464,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
       ),
   );
 
-  server.registerTool(
+  registerTool(
     'memory_metrics',
     {
       description: t.memory_metrics,
@@ -445,7 +486,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     (a) => wrap(() => svc().memoryMetrics(a)),
   );
 
-  server.registerTool(
+  registerTool(
     'permission_prompt',
     {
       description: t.permission_prompt,
@@ -472,7 +513,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     },
   );
 
-  server.registerTool(
+  registerTool(
     'evidence_generate',
     {
       description: t.evidence_generate,
@@ -491,7 +532,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
       ),
   );
 
-  server.registerTool(
+  registerTool(
     'takeover_status',
     {
       description: t.takeover_status,
@@ -500,7 +541,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     (a) => wrap(() => svc().takeoverStatus(a.task_id)),
   );
 
-  server.registerTool(
+  registerTool(
     'task_takeover',
     {
       description: t.task_takeover,
@@ -509,7 +550,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
     (a) => wrap(() => svc().taskTakeover(a.task_id, a.reason)),
   );
 
-  server.registerTool(
+  registerTool(
     'takeover_complete',
     {
       description: t.takeover_complete,
@@ -538,7 +579,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
       ),
   );
 
-  server.registerTool(
+  registerTool(
     'intervene',
     {
       description: t.intervene,
@@ -560,7 +601,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
       ),
   );
 
-  server.registerTool(
+  registerTool(
     'intervene_end',
     {
       description: t.intervene_end,

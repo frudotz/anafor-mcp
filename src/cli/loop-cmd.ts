@@ -117,7 +117,7 @@ export async function runLoopCommand(root: string, args: string[]): Promise<numb
     accept: args.includes('--accept'),
     merge: args.includes('--merge'),
     profile: defaultLoopProfile(profileArg, setup),
-    model: value('model'),
+    model: value('model') ?? loadConfig(root).brain.model,
   };
   if (args.includes('--detach')) {
     const childArgs = args.filter((a) => a !== '--detach');
@@ -180,7 +180,7 @@ async function execute(root: string, state: LoopState, lockHeld = false): Promis
     state = { ...state, profile: defaultLoopProfile(state.profile, readSetupState()) };
     writeLoopState(root, state);
     const cfg = loadConfig(root);
-    const model = state.model;
+    const model = state.model ?? cfg.brain.model;
     const profile = defaultLoopProfile(state.profile, readSetupState());
     const final = await runLoop({
       root,
@@ -193,7 +193,9 @@ async function execute(root: string, state: LoopState, lockHeld = false): Promis
                 {
                   root,
                   model,
-                  effort: TOKEN_PROFILES[profile].implementation,
+                  effort: cfg.brain.effort ?? TOKEN_PROFILES[profile].implementation,
+                  lean: cfg.brain.lean,
+                  merge: state.merge,
                   isolated: true,
                   sessionId: options.sessionId ?? undefined,
                   resumeSessionId: options.resume ? (options.sessionId ?? undefined) : undefined,

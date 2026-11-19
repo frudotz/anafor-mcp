@@ -192,9 +192,14 @@ switch (cmd) {
       process.exit(2);
     }
     const model = flag('model');
+    const cfg = loadConfig(projectRoot());
     process.exitCode = await runChat({
       root: projectRoot(),
       newSession: true,
+      lean: cfg.brain.lean,
+      model: model ?? cfg.brain.model,
+      effort: cfg.brain.effort,
+      merge: rest.includes('--merge'),
       once: buildGoalPrompt({
         goal,
         accept: rest.includes('--accept'),
@@ -202,7 +207,6 @@ switch (cmd) {
         worker: flag('worker'),
         reviewLevel: flag('review') as RunGoalOptions['reviewLevel'],
       }),
-      ...(model ? { model } : {}),
     });
     break;
   }

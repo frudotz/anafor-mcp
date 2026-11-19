@@ -35,6 +35,7 @@ Without opening Claude Code, you can talk to the brain agent from Anafor's own t
 ```bash
 cd /your-project
 anafor chat                 # persistent session (.anafor/brain.json); --new to start fresh
+anafor run "goal"           # headless, lean brain session
 anafor chat --once "Summarize open tasks"     # single message, non-interactive
 anafor jobs [--all]         # task and job board
 anafor watch                # live job events
@@ -43,10 +44,16 @@ anafor roles set review codex,local,cirak
 anafor limits               # worker session/usage limits
 ```
 
-- The **brain** is launched as the official `claude` binary with the Anafor plugin (`claude -p --input-format stream-json`). The Anafor CLI only relays messages and displays the stream. Credentials are never touched; per Anthropic's documentation this is permitted use.
+- `anafor chat` launches the official `claude` binary with user settings. `anafor run` and `anafor loop` default to lean mode, loading only the Anafor MCP server and `Read`, `Grep`, `Glob`, and `Bash`; other MCP servers, skills, and slash commands are disabled.
 - In chat, brain messages, the tools it calls (`⚙`) and worker events (`↳`) appear **live**. In-chat commands: `/jobs`, `/limits`, `/izinler`, `/cikis`.
 - **Permissions:** when a tool that is not pre-approved is needed (e.g. `npm test`), the brain asks you through the `permission_prompt` tool: `[e]vet / [h]ayır / [d]aima` (yes / no / always). If no answer arrives, the request is denied. In `--once` mode requests are denied automatically. The permission mode from your Claude Code settings (e.g. `auto`) applies; to change it use `--permission-mode manual`.
 - The session persists: each run of `anafor chat` continues the same brain session.
+
+Headless brain settings live in the `brain` object in `anafor.config.json`. `lean` defaults to `true`; set it to `false` for the previous plugin behavior. `model` and `effort` are optional. `anafor run --model MODEL` and loop's `--model MODEL` override the configured model.
+
+```json
+{ "brain": { "lean": true, "model": "claude-sonnet-4-5", "effort": "medium" } }
+```
 
 ### Headless mode
 
