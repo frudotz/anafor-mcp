@@ -6,6 +6,8 @@ import { AntigravityAdapter, GeminiAdapter } from './google.js';
 import { LocalApiAdapter } from './local-api.js';
 import { OpenCodeAdapter } from './opencode.js';
 import type { WorkerAdapter } from './types.js';
+import { m } from '../i18n/index.js';
+import { warnOnce } from '../core/warn-once.js';
 
 export type AdapterRegistry = ReadonlyMap<string, WorkerAdapter>;
 
@@ -73,14 +75,15 @@ export function defaultAdapters(
       ),
     );
   }
-  if (w.antigravity?.enabled === true) {
+  if (w.antigravity?.enabled === true && w.antigravity.accept_terms_risk === true) {
+    warnOnce('agy-disclaimer', m().adapters.agyDisclaimer);
     list.push(
       new AntigravityAdapter(
         opt({
           bin: w.antigravity.bin,
           model: w.antigravity.model,
           maxConcurrency: w.antigravity.max_concurrency,
-          acknowledged: w.antigravity.acknowledge_terms === true,
+          acknowledged: true,
           allowedCommands: [
             ...(config?.test_command ? [config.test_command] : []),
             ...(w.antigravity.allowed_commands ?? []),
@@ -89,6 +92,11 @@ export function defaultAdapters(
       ),
     );
   }
+  if (w.antigravity?.enabled === true && w.antigravity.accept_terms_risk !== true)
+    warnOnce(
+      'agy-terms',
+      w.antigravity.acknowledge_terms ? m().adapters.agyNeedsRiskKey : m().adapters.agyTerms,
+    );
   return new Map(
     list
       .filter((a) => (a.id === 'cirak' ? cirak.enabled : w[a.id]?.enabled) !== false)
