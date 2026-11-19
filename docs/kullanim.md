@@ -121,7 +121,7 @@ değildir; sağlayıcıların güncel koşullarını ayrıca inceleyin.
 
 Uzun işleri beklemek için Claude Code'da Bash `run_in_background` kullanarak `anafor job wait <id>` çalıştırın; bitince harness yöneticiyi uyandırır. MCP `job_wait` aracı en fazla 50 saniyelik kısa kontroller içindir.
 | Düzelt | `job_request_changes` (aynı işçi oturumu, görev başına en fazla 5) |
-| Kabul | `/anafor:accept <görev> <iş>`: `task_accept` kapıları; worktree işi görev dalına birleşir. İşçi testleri çalıştıramadıysa (ör. sandbox): `evidence_generate` → `task_accept` + `verified_by_evidence_reason` |
+| Kabul | `/anafor:accept <görev> <iş>`: `task_accept` kapıları; worktree işi görev dalına birleşir. Standard/deep görevlerde güncel bağımsız review gerekir; review sonrası düzeltmenin `auto_check`'i geçerse review yenilenmez. İşçi testleri çalıştıramadıysa (ör. sandbox): `evidence_generate` → `task_accept` + `verified_by_evidence_reason` |
 | Dalına al | `task_merge`: görev dalı → çalışma ağacındaki dal (temiz ağaç şartı) |
 | Temizle | `workspace_cleanup` |
 | Durum | `/anafor:status` |

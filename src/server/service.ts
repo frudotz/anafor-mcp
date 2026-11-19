@@ -401,6 +401,11 @@ export class AnaforService {
         ...order.filter((w) => w === target.worker),
       ];
     }
+    if (role === 'review') {
+      const preferred = canonicalWorkerId(loadConfig(this.store.paths.root).review.worker);
+      if (this.adapters.has(preferred))
+        order = [preferred, ...order.filter((w) => w !== preferred)];
+    }
     this.routeNotes = [];
     const cfg = loadConfig(this.store.paths.root);
     if (cfg.balancer.strategy !== 'off' && order.length > 1) {
@@ -588,6 +593,7 @@ export class AnaforService {
     }
     const target = input.targetJobId ? this.mustJob(input.targetJobId) : null;
     this.routeNotes = [];
+    const reviewConfig = loadConfig(this.store.paths.root).review;
     const workerId = input.worker
       ? canonicalWorkerId(input.worker)
       : await this.route(input.role, target);
@@ -693,7 +699,11 @@ export class AnaforService {
       taskId: task.id,
       role: input.role,
       worker: workerId,
-      model: input.model ?? null,
+      model:
+        input.model ??
+        (input.role === 'review' && workerId === canonicalWorkerId(reviewConfig.worker)
+          ? reviewConfig.model
+          : null),
       workspaceMode: workspace,
       workdir,
       branch,
@@ -784,6 +794,7 @@ export class AnaforService {
       projectRoot: this.store.paths.root,
       verifiedByEvidence: verify ? this.evidenceVerdict(taskId, job, verify.reason) : null,
       autoCheck: job.autoCheck,
+      reviewRequireFor: loadConfig(this.store.paths.root).review.require_for,
     });
     // Worktree işi: değişiklikleri iş dalına commit et ve görev dalına birleştir.
     let integration: { task_branch: string; commit: string | null } | null = null;

@@ -21,6 +21,7 @@ export interface AcceptInput {
    */
   verifiedByEvidence?: { ok: boolean; detail: string } | null;
   autoCheck?: { passed: boolean; summary: string } | null;
+  reviewRequireFor?: 'standard' | 'deep' | 'none';
 }
 
 /**
@@ -140,9 +141,17 @@ export function evaluateAcceptance(input: AcceptInput): Gate[] {
     );
   }
 
-  if (task.reviewLevel === 'deep') {
+  const requiresReview =
+    input.reviewRequireFor !== 'none' &&
+    (task.reviewLevel === 'deep' ||
+      (task.reviewLevel === 'standard' && input.reviewRequireFor !== 'deep'));
+  if (requiresReview) {
     if (!reviewJob) {
-      add('deep_review', false, 'deep seviye: bağımsız review işi gerekli (review_job_id)');
+      add(
+        task.reviewLevel === 'standard' ? 'review_required' : 'deep_review',
+        false,
+        `${task.reviewLevel} seviye: bağımsız review işi gerekli (review_job_id)`,
+      );
     } else {
       const rr = reviewJob.result;
       const independent =
@@ -152,6 +161,17 @@ export function evaluateAcceptance(input: AcceptInput): Gate[] {
         !!reviewJob.startedAt &&
         !!job.endedAt &&
         Date.parse(reviewJob.startedAt) >= Date.parse(job.endedAt);
+      const afterReview = taskJobs.filter(
+        (j) =>
+          j.role === 'implementation' &&
+          j.createdAt &&
+          reviewJob.endedAt &&
+          Date.parse(j.createdAt) > Date.parse(reviewJob.endedAt),
+      );
+      const corrected =
+        afterReview.length > 0 &&
+        afterReview.every((j) => j.autoCheck?.passed) &&
+        afterReview[afterReview.length - 1]?.id === latestImpl?.id;
       add(
         'deep_review_role',
         reviewJob.role === 'review' && reviewJob.taskId === task.id,
@@ -180,8 +200,12 @@ export function evaluateAcceptance(input: AcceptInput): Gate[] {
       );
       add(
         'deep_review_fresh',
-        fresh,
-        fresh ? 'uygulamadan sonra başladı' : 'uygulama bitmeden başlamış',
+        fresh || corrected,
+        fresh
+          ? 'uygulamadan sonra başladı'
+          : corrected
+            ? 'sonraki düzeltmeler auto_check geçti'
+            : 'review güncel değil',
       );
       add(
         'deep_review_no_critical',

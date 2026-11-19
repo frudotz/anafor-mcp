@@ -66,6 +66,10 @@ describe('evidence_generate', () => {
   beforeEach(() => {
     t = tempDir();
     initRepo(t.dir);
+    writeFileSync(
+      join(t.dir, 'anafor.config.json'),
+      JSON.stringify({ review: { require_for: 'none' } }),
+    );
     store = new Store(t.dir);
     svc = new AnaforService(store, adapters, inProcessLauncher(adapters), 'fake');
   });
@@ -142,7 +146,10 @@ describe('Anafor kanıtıyla doğrulanmış kabul', () => {
     const t = tempDir();
     initRepo(t.dir);
     mkdirSync(join(t.dir, '.anafor'), { recursive: true });
-    writeFileSync(join(t.dir, '.anafor', 'config.json'), JSON.stringify({ auto_check: false }));
+    writeFileSync(
+      join(t.dir, '.anafor', 'config.json'),
+      JSON.stringify({ auto_check: false, review: { require_for: 'none' } }),
+    );
     const store = new Store(t.dir);
     const adapters: AdapterRegistry = new Map([['fake', new FakeAdapter()]]);
     const svc = new AnaforService(store, adapters, inProcessLauncher(adapters), 'fake');
