@@ -122,6 +122,8 @@ export interface BrainOptions {
   sessionId?: string;
   resumeSessionId?: string;
   effort?: Effort;
+  lean?: boolean;
+  merge?: boolean;
 }
 
 /** Yönetici beyin için önceden izinli araçlar: Anafor MCP ve salt okuma. Diğerleri sorulur. */
@@ -131,6 +133,16 @@ export const DEFAULT_BRAIN_TOOLS = [
   'Grep',
   'Glob',
   'TodoWrite',
+  'Bash(git status:*)',
+  'Bash(git diff:*)',
+  'Bash(git log:*)',
+];
+export const LEAN_BRAIN_TOOLS = ['Read', 'Grep', 'Glob', 'Bash'];
+export const LEAN_BRAIN_ALLOWED_TOOLS = [
+  'mcp__anafor',
+  'Read',
+  'Grep',
+  'Glob',
   'Bash(git status:*)',
   'Bash(git diff:*)',
   'Bash(git log:*)',
@@ -169,6 +181,17 @@ export class BrainSession {
   }
 
   args(): string[] {
+    const lean = this.opts.lean ?? false;
+    const profile = this.opts.merge ? 'brain-merge' : 'brain';
+    const mcpConfig = JSON.stringify({
+      mcpServers: {
+        anafor: {
+          command: process.execPath,
+          args: [fileURLToPath(new URL('../server/main.js', import.meta.url))],
+          env: { ANAFOR_PROJECT_ROOT: this.opts.root, ANAFOR_TOOL_PROFILE: profile },
+        },
+      },
+    });
     return [
       '-p',
       '--input-format',
@@ -177,15 +200,27 @@ export class BrainSession {
       'stream-json',
       '--verbose',
       // Plugin kalıcı kuruluysa tekrar yüklenmez (araçlar iki kez görünmesin).
-      ...(this.opts.pluginDir || !readSetupState()?.plugin_installed
+      ...(!lean && (this.opts.pluginDir || !readSetupState()?.plugin_installed)
         ? ['--plugin-dir', this.opts.pluginDir ?? defaultPluginDir()]
+        : []),
+      ...(lean
+        ? [
+            '--strict-mcp-config',
+            '--mcp-config',
+            mcpConfig,
+            '--disable-slash-commands',
+            '--tools',
+            LEAN_BRAIN_TOOLS.join(','),
+            '--setting-sources',
+            'project,local',
+          ]
         : []),
       '--permission-prompts',
       'host',
       '--permission-prompt-tool',
-      'mcp__plugin_anafor_anafor__permission_prompt',
+      lean ? 'mcp__anafor__permission_prompt' : 'mcp__plugin_anafor_anafor__permission_prompt',
       '--allowedTools',
-      ...(this.opts.allowedTools ?? DEFAULT_BRAIN_TOOLS),
+      ...(this.opts.allowedTools ?? (lean ? LEAN_BRAIN_ALLOWED_TOOLS : DEFAULT_BRAIN_TOOLS)),
       ...(this.opts.model ? ['--model', this.opts.model] : []),
       ...(this.opts.effort ? ['--effort', this.opts.effort] : []),
       ...(this.opts.permissionMode ? ['--permission-mode', this.opts.permissionMode] : []),

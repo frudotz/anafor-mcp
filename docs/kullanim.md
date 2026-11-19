@@ -35,6 +35,7 @@ Claude Code'u açmadan, Anafor'un kendi terminalinden beyin ajanla konuşabilirs
 ```bash
 cd /projen
 anafor chat                 # kalıcı oturum (.anafor/brain.json); --new ile sıfırdan
+anafor run "hedef"           # yalın beyin oturumu
 anafor chat --once "Açık görevleri özetle"     # tek mesaj, etkileşimsiz
 anafor jobs [--all]         # görev ve iş panosu
 anafor watch                # canlı iş olayları
@@ -43,10 +44,16 @@ anafor roles set review codex,local,cirak
 anafor limits               # işçi oturum/kullanım limitleri
 ```
 
-- **Beyin**, resmi `claude` ikilisi olarak Anafor plugin'iyle başlatılır (`claude -p --input-format stream-json`). Anafor CLI yalnızca mesajı iletir ve akışı gösterir. Kimlik bilgilerine dokunulmaz; bu, Anthropic belgelerine göre izinli kullanımdır.
+- **Beyin**: `anafor chat` resmi `claude` ikilisini kullanıcı ayarlarıyla açar. `anafor run` ve `anafor loop` varsayılan olarak yalın modda yalnız Anafor MCP ve `Read`, `Grep`, `Glob`, `Bash` araçlarını yükler; diğer MCP sunucuları, skill'ler ve slash komutları devre dışıdır.
 - Sohbette beyin mesajları, çağırdığı araçlar (`⚙`) ve işçi olayları (`↳`) **canlı** görünür. Sohbet içi komutlar: `/jobs`, `/limits`, `/izinler`, `/cikis`.
 - **İzinler:** önceden izinli olmayan bir araç gerektiğinde (ör. `npm test`) beyin, `permission_prompt` aracı üzerinden sana sorar: `[e]vet / [h]ayır / [d]aima`. Yanıt gelmezse istek reddedilir. `--once` modunda istekler otomatik reddedilir. Claude Code ayarlarındaki izin modun (ör. `auto`) geçerlidir; değiştirmek için `--permission-mode manual`.
 - Oturum devam eder: `anafor chat` her çalıştığında aynı beyin oturumunu sürdürür.
+
+Headless beyin ayarları `anafor.config.json` içindeki `brain` nesnesindedir. `lean` varsayılanı `true`'dur; `false` eski plugin davranışını açar. `model` ve `effort` isteğe bağlıdır; `anafor run --model MODEL` ve loop için `--model MODEL` config modelini geçersiz kılar.
+
+```json
+{ "brain": { "lean": true, "model": "claude-sonnet-4-5", "effort": "medium" } }
+```
 
 ### Headless mod
 
