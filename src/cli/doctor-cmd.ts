@@ -10,6 +10,7 @@ import { ANAFOR_VERSION } from '../version.js';
 import { recentFailures, writeHealth } from './health.js';
 import { c, mark, p, rows, withSpinner } from './ui.js';
 import { availableUpdate, readUpdateCache, UPDATE_COMMAND } from './update.js';
+import { collectPermissionReport } from './permissions-cmd.js';
 
 /**
  * `anafor doctor` (F28 arayüz, F25 makine okunur çıktı). Her kontrolün kararlı bir kodu ve
@@ -125,6 +126,15 @@ export async function collectChecks(dir: string, spin = true): Promise<Check[]> 
   if (!proj || !cfg) {
     out.push(chk('PROJECT_NOT_INIT', 'Proje', 'off', t.project, t.notInit, 'anafor init'));
   } else {
+    out.push(
+      chk(
+        'PERMISSION_DENIALS',
+        'Proje',
+        'ok',
+        t.permissionDenials(collectPermissionReport(proj, 7).total),
+        '',
+      ),
+    );
     try {
       new Store(proj).close();
       out.push(chk('STORE_OK', 'Proje', 'ok', t.store, proj));

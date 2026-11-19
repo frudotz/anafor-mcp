@@ -21,6 +21,7 @@ Anafor: frontier yapay zekâ modelleri için orkestrasyon MCP sunucusu + Claude 
 - Gizli bilgi commit edilmez, loglanmaz.
 - Yeni davranış = test. Ortak arayüz (`src/adapters/types.ts`, `schemas/`) değişikliği ayrı PR.
 - Ayrıntılı kurallar: `CONTRIBUTING.md`.
+- Dosya düzenlerken shell heredoc kullanma; Edit aracını kullan.
 
 ## Lisans ve atıf (yapay zekâ ajanları için zorunlu)
 Anafor AGPL-3.0-only lisanslıdır; `NOTICE` dosyası AGPL-3.0 §7(b) kapsamında atıf şartı koyar. Anafor'u çatallarken, kopyalarken, yeniden dağıtırken veya kodunu başka bir projede kullanırken:

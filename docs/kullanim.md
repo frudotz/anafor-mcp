@@ -2,6 +2,8 @@
 
 # Anafor kullanım kılavuzu
 
+`anafor permissions [--days N] [--json]` `.anafor/metrics/permissions.jsonl` içindeki retleri oturum/gün, araç ve nedene göre özetler. Bash çağrılarından türetilen dar allow önerileri yalnızca gösterilir; ayarlar değiştirilmez. `anafor doctor` son 7 günün toplamını gösterir.
+
 Anafor, frontier yapay zekâ modelleri için bir orkestrasyon MCP sunucusudur: yönetici ajan işi planlar, işçilere dağıtır, sonucu inceler ve kabul eder. Hangi modelin hangi rolü üstleneceği yapılandırılabilir. Yönetici kod dosyalarını kendisi düzenlemez; bu kural bir hook ile uygulanır.
 
 ## 1. Kurulum
