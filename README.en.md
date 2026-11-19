@@ -2,7 +2,7 @@
 
 # anafor-mcp
 
-**Anafor** is an orchestration system that makes Claude Code the _manager_ and other AI coding agents (starting with OpenAI Codex CLI) its _workers_.
+**Anafor** is an orchestration MCP server for frontier AI models: a manager agent plans work, dispatches it to worker agents, and checks results through acceptance gates. You can configure which models take which roles.
 
 ## Usage boundary
 
@@ -41,7 +41,7 @@ anafor chat                                  # talk to the brain agent from the 
 
 Details: **[docs/en/installation.md](docs/en/installation.md)**.
 
-Example request inside Claude Code: _"Open a task with Anafor, dispatch it to Codex, and review the result when it's done."_
+Example request inside Claude Code: _"Open a task with Anafor, dispatch it to a worker, and review the result when it's done."_
 
 ### MCP tools (v0.1)
 

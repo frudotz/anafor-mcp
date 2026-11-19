@@ -2,7 +2,7 @@
 
 # Anafor kullanım kılavuzu
 
-Anafor, Claude Code'u **yönetici** yapar: Claude planlar, işi parçalar, işçilere (Codex, Claude Haiku…) dağıtır, sonucu inceler ve kabul eder. Kod dosyalarını kendisi düzenlemez; bu kural bir hook ile uygulanır.
+Anafor, frontier yapay zekâ modelleri için bir orkestrasyon MCP sunucusudur: yönetici ajan işi planlar, işçilere dağıtır, sonucu inceler ve kabul eder. Hangi modelin hangi rolü üstleneceği yapılandırılabilir. Yönetici kod dosyalarını kendisi düzenlemez; bu kural bir hook ile uygulanır.
 
 ## 1. Kurulum
 
