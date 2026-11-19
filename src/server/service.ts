@@ -1,4 +1,4 @@
-import type { AdapterRegistry } from '../adapters/registry.js';
+import { defaultAdapters, type AdapterRegistry } from '../adapters/registry.js';
 import type { Finding, ReviewLevel, Role, WorkerResultV1 } from '../contracts/worker-result.js';
 import { canonicalWorkerId, loadConfig } from '../core/config.js';
 import { newId, nowIso } from '../core/ids.js';
@@ -170,13 +170,23 @@ export interface DispatchInput {
 export class AnaforService {
   constructor(
     readonly store: Store,
-    readonly adapters: AdapterRegistry,
+    public adapters: AdapterRegistry,
     private readonly launch: Launcher = detachedLauncher,
-    private readonly defaultWorker = 'codex',
-    private readonly routing: Partial<Record<Role, string[]>> = {},
-    private readonly routingMode: 'static' | 'adaptive' = 'static',
-    private readonly maxParallelJobs = 4,
+    private defaultWorker = 'codex',
+    private routing: Partial<Record<Role, string[]>> = {},
+    private routingMode: 'static' | 'adaptive' = 'static',
+    private maxParallelJobs = 4,
   ) {}
+
+  /** Apply config edits for subsequent tool calls; already-started runners keep their own adapter. */
+  reloadConfig(): void {
+    const config = loadConfig(this.store.paths.root);
+    this.adapters = defaultAdapters(config);
+    this.defaultWorker = config.default_worker;
+    this.routing = config.routing;
+    this.routingMode = config.routing_mode;
+    this.maxParallelJobs = config.max_parallel_jobs;
+  }
 
   /** Global eşzamanlılık: bu projenin aktif işleri + diğer projelerin canlı runner kiraları. */
   parallelUsage() {

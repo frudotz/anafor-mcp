@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { FakeAdapter } from '../../src/adapters/fake.js';
+import { CodexAdapter } from '../../src/adapters/codex.js';
 import type { AdapterRegistry } from '../../src/adapters/registry.js';
 import { AnaforService, inProcessLauncher, ServiceError } from '../../src/server/service.js';
 import { Store } from '../../src/store/store.js';
+import { configStamp, refreshConfigIfChanged } from '../../src/server/config-refresh.js';
 import { tempDir } from '../helpers.js';
 
 describe('AnaforService', () => {
@@ -188,5 +191,29 @@ describe('AnaforService', () => {
     expect(svc.projectStatus().open_tasks).toHaveLength(1);
     const w = await svc.workersList();
     expect(w[0]).toMatchObject({ id: 'fake', available: true });
+  });
+
+  it('config mtime/size değişince sonraki workers_list güncel adaptör kümesini kullanır', async () => {
+    const before = configStamp(t.dir);
+    mkdirSync(`${t.dir}/.anafor`, { recursive: true });
+    writeFileSync(
+      `${t.dir}/anafor.config.json`,
+      JSON.stringify({
+        workers: {
+          codex: { enabled: true, windows_sandbox: 'elevated' },
+          cirak: { enabled: false },
+        },
+      }),
+    );
+    let refreshes = 0;
+    const after = refreshConfigIfChanged(t.dir, before, () => {
+      refreshes++;
+      svc.reloadConfig();
+    });
+    expect(after).not.toBe(before);
+    expect(refreshes).toBe(1);
+    const workers = await svc.workersList();
+    expect(workers.map((worker) => worker.id)).toContain('codex');
+    expect((svc.adapters.get('codex') as CodexAdapter).configuredWindowsSandbox).toBe('elevated');
   });
 });

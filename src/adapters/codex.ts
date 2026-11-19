@@ -105,12 +105,17 @@ export function parseCodexUserConfig(toml: string): CodexUserConfig {
   const result: CodexUserConfig = {};
   let section = '';
   let multilineQuote: '"""' | "'''" | null = null;
+  let arrayDepth = 0;
   for (const raw of toml.split(/\r?\n/)) {
     if (multilineQuote) {
       if (raw.includes(multilineQuote)) multilineQuote = null;
       continue;
     }
     const line = stripTomlComment(raw).trim();
+    if (arrayDepth > 0) {
+      arrayDepth += (line.match(/\[/g) ?? []).length - (line.match(/\]/g) ?? []).length;
+      continue;
+    }
     const sectionMatch = /^\[([^\]]+)\]$/.exec(line);
     if (sectionMatch) {
       section = sectionMatch[1]!.trim();
@@ -128,6 +133,17 @@ export function parseCodexUserConfig(toml: string): CodexUserConfig {
     if (!pair) continue;
     const key = parseTomlKey(pair[1]!);
     const source = pair[2]!;
+    if (section === '' && key === 'windows') {
+      const inlineSandbox = /^\{\s*sandbox\s*=\s*("(?:\\.|[^"\\])*"|'[^']*')\s*\}\s*$/.exec(source);
+      const inlineValue = inlineSandbox ? parseTomlString(inlineSandbox[1]!) : null;
+      if (inlineValue === 'elevated' || inlineValue === 'unelevated')
+        result.windowsSandbox = inlineValue;
+      continue;
+    }
+    if (source.trimStart().startsWith('[')) {
+      arrayDepth = (source.match(/\[/g) ?? []).length - (source.match(/\]/g) ?? []).length;
+      continue;
+    }
     if (source.startsWith('"""') || source.startsWith("'''")) {
       const quote = source.slice(0, 3) as '"""' | "'''";
       if (source.indexOf(quote, 3) === -1) multilineQuote = quote;
@@ -238,6 +254,10 @@ export class CodexAdapter implements WorkerAdapter {
     this.windowsSandbox = opts.windowsSandbox;
     this.platform = opts.platform ?? process.platform;
     this.userConfig = opts.userConfig ?? 'isolate';
+  }
+
+  get configuredWindowsSandbox(): CodexWindowsSandbox | undefined {
+    return this.windowsSandbox;
   }
 
   /** Windows'ta Anafor ezmesi varsa `-c windows.sandbox=...`. */
