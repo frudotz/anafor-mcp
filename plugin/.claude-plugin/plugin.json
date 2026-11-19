@@ -1,6 +1,6 @@
 {
   "name": "anafor",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Frontier yapay zekâ modelleri için orkestrasyon MCP sunucusu; işleri yönetici ve işçi ajan rolleri arasında dağıtır.",
   "author": { "name": "frudotz" },
   "homepage": "https://github.com/frudotz/anafor-mcp",
