@@ -55,6 +55,10 @@ anafor run "Stack sınıfına clear() ekle ve testini yaz" --accept --merge --wo
 
 Beyin hedefi kullanıcı olmadan baştan sona yürütür: plan → dağıt → incele → (isteğe bağlı) kabul → kanıt → yetki → birleştirme → audit → temizlik. İzin isteyen her şey reddedilir. `--accept` olmadan kabul edilmez, `--merge` olmadan birleştirilmez. Agent SDK gerekmez; resmi `claude` ikilisi kullanılır.
 
+### Limit uyumlu geliştirme döngüsü
+
+`anafor loop start "hedef"` veya `anafor loop start --backlog backlog.md` döngüyü başlatır. `anafor loop status`, `pause`, `resume` ve `stop` döngü durumunu yönetir. `stop` çalışan beyin turuna sinyal göndermez; mevcut tur bitince yeni tur başlatılmaz.
+
 ## 3. Günlük akış
 
 | Adım | Komut veya araç |

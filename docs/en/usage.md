@@ -55,6 +55,10 @@ anafor run "Add clear() to the Stack class and write a test for it" --accept --m
 
 The brain carries out the goal end to end without a user: plan → dispatch → review → (optional) accept → evidence → authorization → merge → audit → cleanup. Anything that requests permission is denied. Without `--accept` nothing is accepted; without `--merge` nothing is merged. No Agent SDK is required; the official `claude` binary is used.
 
+### Limit-aware development loop
+
+Start with `anafor loop start "goal"` or `anafor loop start --backlog backlog.md`. Use `anafor loop status`, `pause`, `resume`, and `stop` to manage it. `stop` does not signal the active brain turn; the current turn finishes and no next turn starts.
+
 ## 3. Daily flow
 
 | Step | Command or tool |

@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { TOKEN_PROFILES } from '../../src/core/token-profile.js';
 import { BrainSession, briefInput, parseBrainLine } from '../../src/chat/brain.js';
 import {
   awaitDecision,
@@ -54,6 +57,12 @@ describe('beyin akışı ayrıştırma', () => {
     expect(
       renderBrainEvent({ type: 'result', ok: true, costUsd: 0.12, turns: 2, text: '' }),
     ).toContain('API eşdeğeri');
+    expect(
+      renderBrainEvent({ type: 'rate_limit_event', limited: false, resetsAt: null }),
+    ).toBeNull();
+    expect(renderBrainEvent({ type: 'rate_limit_event', limited: true, resetsAt: null })).toContain(
+      'rate limit',
+    );
   });
 
   it('beyin süreci argümanları: plugin, izin aracı, yeni oturum kimliği; izin atlatma yok', () => {
@@ -71,6 +80,39 @@ describe('beyin akışı ayrıştırma', () => {
       );
       expect(args).toContain('--session-id');
       expect(args.join(' ')).not.toMatch(/bypass|dangerously/);
+    } finally {
+      t.cleanup();
+    }
+  });
+
+  it('isolated loop session uses explicit resume id and effort without interactive brain.json', () => {
+    const t = tempDir();
+    try {
+      mkdirSync(join(t.dir, '.anafor'), { recursive: true });
+      writeFileSync(
+        join(t.dir, '.anafor', 'brain.json'),
+        JSON.stringify({ session_id: 'interactive' }),
+      );
+      const b = new BrainSession(
+        {
+          root: t.dir,
+          isolated: true,
+          sessionId: 'loop-id',
+          resumeSessionId: 'loop-id',
+          effort: TOKEN_PROFILES.saver.implementation,
+        },
+        () => {},
+      );
+      const args = b.args();
+      expect(args.slice(args.indexOf('--resume'), args.indexOf('--resume') + 2)).toEqual([
+        '--resume',
+        'loop-id',
+      ]);
+      expect(args.slice(args.indexOf('--effort'), args.indexOf('--effort') + 2)).toEqual([
+        '--effort',
+        'medium',
+      ]);
+      expect(args).not.toContain('interactive');
     } finally {
       t.cleanup();
     }
