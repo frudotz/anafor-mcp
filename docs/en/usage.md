@@ -55,9 +55,51 @@ anafor run "Add clear() to the Stack class and write a test for it" --accept --m
 
 The brain carries out the goal end to end without a user: plan → dispatch → review → (optional) accept → evidence → authorization → merge → audit → cleanup. Anything that requests permission is denied. Without `--accept` nothing is accepted; without `--merge` nothing is merged. No Agent SDK is required; the official `claude` binary is used.
 
-### Limit-aware development loop
+### Development loop (`anafor loop`)
 
-Start with `anafor loop start "goal"` or `anafor loop start --backlog backlog.md`. Use `anafor loop status`, `pause`, `resume`, and `stop` to manage it. `stop` does not signal the active brain turn; the current turn finishes and no next turn starts.
+The loop opens one brain session through the official `claude` binary. Each turn
+prompts the manager with the goal or next backlog item; an `ANAFOR_LOOP` marker
+reports completion, continuation, or a blocker. As limits approach, it asks the
+brain to bring current work to a safe point instead of starting large work.
+
+```bash
+anafor loop start "goal" [--auto-resume] [--max-cycles N] [--until ISO]
+anafor loop start --backlog backlog.md [--profile saver|balanced|quality]
+anafor loop status
+anafor loop pause | resume | stop
+```
+
+Other start flags: `--accept`, `--merge`, `--model M`; `--detach` starts the loop
+in a detached process. Acceptance and merging are disabled unless `--accept` and
+`--merge` are explicitly set. MCP `loop_start` accepts a goal or backlog with the
+same options; `loop_status` reports state and backlog progress; `loop_stop` pauses
+or stops. In Claude Code, `/anafor:loop <goal>` also calls `loop_start`.
+
+Limit thresholds come from `limits.brain` in `anafor.config.json`: defaults are
+`warn_at: 75`, `pause_at: 90`, and `pause_at_weekly: 95` (percent). At a pause
+threshold, the loop stops after its turn, creates a checkpoint, and records
+`resume_at`. `--auto-resume` is the user's choice; without it the loop stays paused.
+Resume manually with `anafor loop resume`. A `pause` or `stop` request takes effect
+after the current turn completes.
+
+The backlog path is relative to the project root; items use `- [ ] item` lines:
+
+```markdown
+- [ ] Review the account registration flow
+- [ ] Add tests and verify the result
+```
+
+The brain's final response for each turn must include one marker:
+`ANAFOR_LOOP: DONE`, `ANAFOR_LOOP: CONTINUE`, or `ANAFOR_LOOP: BLOCKED <reason>`.
+The statusline shows a running loop as `↻ loop #N`, an auto-resuming pause as
+`⏸ loop: resumes at <time>`, and a manual pause as
+`⏸ loop paused: anafor loop resume`. The UserPromptSubmit hook adds a short safe
+point reminder when Claude usage exceeds the warning threshold.
+
+Recommendation: document next steps in advance in a note, checkpoint, or backlog
+file. The loop respects provider limits and never bypasses them; it does not run
+parallel brains, keeps one brain session, and uses the official `claude` binary.
+This is not legal advice; check providers' current terms separately.
 
 ## 3. Daily flow
 

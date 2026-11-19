@@ -37,6 +37,7 @@ Claude Code (manager) ──MCP──▶ anafor-mcp server ──▶ runner (det
 npm install -g https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz   # requires Node 24+, git, Claude Code and at least one worker
 cd /your-project && anafor setup             # wizard: workers, persistent plugin, statusline, project
 anafor chat                                  # talk to the brain agent from the terminal
+anafor loop start "goal"                    # development loop; anafor loop status/pause/resume/stop
 ```
 
 Details: **[docs/en/installation.md](docs/en/installation.md)**.
@@ -62,6 +63,7 @@ Example request inside Claude Code: _"Open a task with Anafor, dispatch it to a 
 | `intervene`, `intervene_end` | Snag exception: time-boxed, path-restricted, audited direct edit permission |
 | `checkpoint`, `operation_authorize`, `operation_record` | Governance: git state snapshot, policy and evidence gate, append-only audit |
 | `memory_lock`, `memory_metrics` | Exclusive write lease and metrics for Lat.md memory |
+| `loop_start`, `loop_status`, `loop_stop` | Start, monitor and pause a limit-aware development loop |
 
 For long jobs, run `anafor job wait <id>` with Claude Code Bash `run_in_background`; the harness wakes the director when the job finishes. The MCP `job_wait` tool is for short checks.
 
@@ -108,7 +110,7 @@ claude --plugin-dir /path/to/anafor-mcp/plugin
 
 - **PreToolUse hook:** in Anafor projects, blocks Claude from editing code files directly and from running file-modifying shell commands, redirecting the work to `job_dispatch`. Documentation and memory paths are allowed. Mode: `anafor.config.json` → `"director_mode": "enforce" | "warn" | "off"`.
 - **SessionStart hook:** role reminder and task board at session start.
-- **Commands:** `/anafor:plan`, `/anafor:run`, `/anafor:status`, `/anafor:accept`.
+- **Commands:** `/anafor:plan`, `/anafor:run`, `/anafor:loop`, `/anafor:status`, `/anafor:accept`.
 
 Detailed guide: **[docs/en/usage.md](docs/en/usage.md)**. Migrating from the old `software-orchestrator` state: `anafor migrate`.
 

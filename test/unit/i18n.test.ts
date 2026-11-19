@@ -13,6 +13,8 @@ import { classifyShell } from '../../src/hooks/director.js';
 import { AnaforService, type ServiceError } from '../../src/server/service.js';
 import { serverInstructions, toolDescriptions } from '../../src/server/tools.js';
 import { Store } from '../../src/store/store.js';
+import { writeLoopState, readLoopState } from '../../src/loop/state.js';
+import { runSessionStart } from '../../src/hooks/session-start.js';
 
 /** Katalogların anahtar ağacı ve fonksiyon/metin türleri birebir aynı olmalı. */
 function shape(o: unknown): unknown {
@@ -115,10 +117,103 @@ describe('dil desteği (F24)', () => {
       expect(e.message).toBe('Task not found: T-yok');
       expect(e.hint).toBe('List tasks with project_status');
       expect(toolDescriptions().task_status).toBe('Task state, criteria and jobs.');
+      expect(toolDescriptions().loop_start).toContain('detached');
+      expect(en.service.loopAlreadyActive).toBe('A development loop is already active.');
+      expect(en.service.loopStartFailed('spawn error')).toContain('Loop start failed');
+      expect(serverInstructions()).toContain('use loop_start');
       expect(serverInstructions()).toMatch(/^Anafor: you are the DIRECTOR/);
       setLang('tr');
       expect(err().message).toBe('Görev bulunamadı: T-yok');
       expect(toolDescriptions().task_status).toBe('Görevin durumu, kriterleri ve işleri.');
+      expect(toolDescriptions().loop_start).toContain('geliştirme döngüsü');
+      expect(tr.service.loopAlreadyActive).toBe('Geliştirme döngüsü zaten çalışıyor.');
+      expect(tr.service.loopStartFailed('hata')).toContain('Döngü başlatılamadı');
+      expect(serverInstructions()).toContain('loop_start');
+      expect(svc.loopStatus()).toMatchObject({ state: 'idle', cycle: 0 });
+      writeLoopState(t.dir, {
+        state: 'running',
+        goal: 'work',
+        cycle: 2,
+        session_id: null,
+        started_at: new Date().toISOString(),
+        paused_reason: null,
+        resume_at: null,
+        auto_resume: false,
+        max_cycles: null,
+        until: null,
+        last_task: null,
+        completed_items: [],
+      });
+      expect(svc.loopStatus()).toMatchObject({ state: 'running', cycle: 2 });
+      expect(() => svc.loopStart({ goal: 'another' })).toThrowError(/zaten çalışıyor/);
+      expect(svc.loopStop('pause')).toMatchObject({ state: 'paused' });
+      expect(readLoopState(t.dir)?.paused_reason).toBe('manual');
+      expect(svc.loopStop('stop')).toMatchObject({ state: 'stopped' });
+      writeLoopState(t.dir, {
+        state: 'running',
+        goal: 'x',
+        cycle: 4,
+        session_id: null,
+        started_at: new Date().toISOString(),
+        paused_reason: null,
+        resume_at: null,
+        auto_resume: false,
+        max_cycles: null,
+        until: null,
+        last_task: null,
+        completed_items: [],
+      });
+      expect(runSessionStart({ cwd: t.dir }, { ANAFOR_HOME: join(t.dir, 'home') })).toContain(
+        'Geliştirme döngüsü running · tur 4',
+      );
+      const starter = (_root: string, args: string[]) => {
+        expect(args).toContain('--detach');
+        writeLoopState(t.dir, {
+          state: 'running',
+          goal: 'fake goal',
+          cycle: 0,
+          session_id: null,
+          started_at: new Date().toISOString(),
+          paused_reason: null,
+          resume_at: null,
+          auto_resume: false,
+          max_cycles: null,
+          until: null,
+          last_task: null,
+          completed_items: [],
+          pid: 4321,
+        });
+        return { status: 0, stderr: '' };
+      };
+      writeLoopState(t.dir, {
+        state: 'stopped',
+        goal: 'old',
+        cycle: 4,
+        session_id: null,
+        started_at: new Date().toISOString(),
+        paused_reason: 'stopped',
+        resume_at: null,
+        auto_resume: false,
+        max_cycles: null,
+        until: null,
+        last_task: null,
+        completed_items: [],
+      });
+      const startSvc = new AnaforService(
+        store,
+        new Map(),
+        () => undefined,
+        'codex',
+        {},
+        'static',
+        4,
+        starter,
+      );
+      expect(startSvc.loopStart({ goal: 'fake goal' })).toMatchObject({
+        state: 'running',
+        pid: 4321,
+      });
+      expect(readLoopState(t.dir)).toMatchObject({ state: 'running', pid: 4321 });
     } finally {
       setLang('tr');
       store.close();

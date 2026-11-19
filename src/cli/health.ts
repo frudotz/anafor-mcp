@@ -12,6 +12,7 @@ import { m } from '../i18n/index.js';
 import { readSetupState } from '../setup/setup.js';
 import { ANAFOR_VERSION } from '../version.js';
 import { c } from './ui.js';
+import { readLoopState } from '../loop/state.js';
 
 /**
  * Kararlılık sinyalleri (F28): statusline'da `anafor doctor` / `anafor setup` önerisi için.
@@ -33,6 +34,33 @@ export function statuslineWorkers(cwd?: string, env: NodeJS.ProcessEnv = process
     return project.initialized ? loadConfig(project.root).statusline.workers : ['codex'];
   } catch {
     return ['codex'];
+  }
+}
+
+export function loopStatusText(cwd?: string): string | null {
+  try {
+    const project = resolveProjectRoot(process.env, cwd ?? process.cwd());
+    if (!project.initialized) return null;
+    const state = readLoopState(project.root);
+    if (!state) return null;
+    if (state.state === 'running') return m().status.loopRunning(state.cycle);
+    if (state.state === 'paused') {
+      if (
+        state.auto_resume &&
+        state.resume_at &&
+        !/^(blocked|error):/.test(state.paused_reason ?? '')
+      ) {
+        const at = new Date(state.resume_at).toLocaleTimeString(m().windows.locale, {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        return m().status.loopPaused(at);
+      }
+      return m().status.loopManual;
+    }
+    return null;
+  } catch {
+    return null;
   }
 }
 
@@ -100,6 +128,7 @@ export function statusLine(i: {
   update: string | null;
   signals: Signal[];
   workers?: WorkerLimits[];
+  loop?: string | null;
   now?: number;
 }): string {
   const parts = [`${c('cyan', 'anafor', true)} ${c('gray', `v${i.version}`, true)}`];
@@ -107,6 +136,7 @@ export function statusLine(i: {
   for (const s of i.signals)
     parts.push(c(s.level === 'error' ? 'red' : 'yellow', `⚠ ${s.text}: ${s.command}`, true));
   if (i.model) parts.push(i.model);
+  if (i.loop) parts.push(i.loop);
   if (i.windows.length) parts.push(formatWindows(i.windows));
   for (const worker of i.workers ?? []) {
     const ageMs = (i.now ?? Date.now()) - Date.parse(worker.observed_at);

@@ -18,6 +18,7 @@ import {
   createLoopShutdownHandler,
   defaultLoopProfile,
   runLoopCommand,
+  loopSignals,
 } from '../../src/cli/loop-cmd.js';
 import { createGrant } from '../../src/hooks/grants.js';
 
@@ -94,6 +95,18 @@ const deps = (
 };
 
 describe('runLoop', () => {
+  it('checks until while waiting for an automatic limit resume', async () => {
+    const { root, state } = setup();
+    const auto = { ...state, auto_resume: true, until: new Date(110_000).toISOString() };
+    writeLoopState(root, auto);
+    const result = await runLoop(deps(root, auto, { limits: highLimit }));
+    expect(result.state).toBe('done');
+    expect(result.cycle).toBe(0);
+  });
+  it('listens for SIGHUP on POSIX and preserves Windows signal behavior', () => {
+    expect(loopSignals('linux')).toContain('SIGHUP');
+    expect(loopSignals('win32')).toEqual(['SIGINT', 'SIGTERM', 'SIGBREAK']);
+  });
   it('auto resumes when limits clear and then completes', async () => {
     const { root, state } = setup();
     let reads = 0;
