@@ -175,6 +175,17 @@ describe('Codex Windows sandbox (F16)', () => {
     expect(parseCodexUserConfig('[profiles."a]b"]\nmodel = "hidden-model"').model).toBeUndefined();
   });
 
+  it('parses inline windows table and does not mistake multiline arrays for tables', () => {
+    expect(parseCodexUserConfig('windows = { sandbox = "elevated" }').windowsSandbox).toBe(
+      'elevated',
+    );
+    expect(
+      parseCodexUserConfig(
+        'plugins = [\n["private-plugin"]\n]\nmodel = "safe-model"\nsecrets = { token = "private" }',
+      ),
+    ).toEqual({ model: 'safe-model' });
+  });
+
   it('loadConfig reports invalid user_config through localized validation', () => {
     const dir = mkdtempSync(join(tmpdir(), 'anafor-invalid-config-'));
     try {
