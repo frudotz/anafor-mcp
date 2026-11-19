@@ -20,6 +20,7 @@ import { runSetup } from './setup-cmd.js';
 import { runExt } from './ext-cmd.js';
 import { m, parseLang } from '../i18n/index.js';
 import { runDoctor } from './doctor-cmd.js';
+import { runLoopCommand } from './loop-cmd.js';
 import { healthSignals, statusLine, statuslineWorkers } from './health.js';
 import {
   availableUpdate,
@@ -111,6 +112,9 @@ function init(root: string): void {
 }
 
 switch (cmd) {
+  case 'loop':
+    process.exitCode = await runLoopCommand(projectRoot(), rest);
+    break;
   case 'init':
     init(root);
     break;
