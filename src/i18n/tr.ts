@@ -164,7 +164,20 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
     loopLocked:
       'Loop kilidi veya yaşayan beyin alt süreci var; mevcut döngü bitene kadar bekleyin.',
     loopTurnPrompt: (context: string, accept: boolean, merge: boolean, profile: string) =>
-      `${context}\nBeyin token profili: ${profile}. ${profile === 'saver' ? 'İş dağıtımında saver profili kullan; açıkça istenmedikçe deep inceleme önerme.' : ''} Bu headless Anafor geliştirme döngüsünde bu adımı ilerlet. Açık izin/intervene varsa önce tamamla. ${accept ? 'Kriterler karşılandıysa task_accept çağır.' : 'task_accept çağırma; inceleme beklesin.'} ${merge && accept ? 'Kabul edilen işi güvenli akışla birleştir.' : 'Birleştirme yapma.'}\nSon satır olarak tam bir durum etiketi yaz: ANAFOR_LOOP: DONE (adım gerçekten bitti), ANAFOR_LOOP: CONTINUE (daha fazla çalışma gerek), veya ANAFOR_LOOP: BLOCKED <neden>.`,
+      [
+        `${context}\nBeyin token profili: ${profile}.`,
+        profile === 'saver'
+          ? 'İş dağıtımında saver profili kullan; açıkça istenmedikçe deep inceleme önerme.'
+          : '',
+        'Bu headless Anafor geliştirme döngüsünde bu adımı ilerlet.',
+        'Açık izin/intervene varsa önce tamamla.',
+        accept
+          ? 'Kriterler karşılandıysa task_accept çağır.'
+          : 'task_accept çağırma; inceleme beklesin.',
+        merge && accept ? 'Kabul edilen işi güvenli akışla birleştir.' : 'Birleştirme yapma.',
+      ].join(' ') +
+      '\nSon satır olarak tam bir durum etiketi yaz: ANAFOR_LOOP: DONE (adım gerçekten bitti), ' +
+      'ANAFOR_LOOP: CONTINUE (daha fazla çalışma gerek), veya ANAFOR_LOOP: BLOCKED <neden>.',
     notProject: 'Bu dizin bir Anafor projesi değil. Önce `anafor init` (veya `anafor setup`).',
     pluginMcp: 'Anafor plugin’i kalıcı kurulu: MCP sunucusu plugin’den gelir, .mcp.json yazılmadı.',
     mcpCreated: '.mcp.json oluşturuldu (anafor sunucusu).',

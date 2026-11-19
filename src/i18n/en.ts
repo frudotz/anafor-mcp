@@ -167,7 +167,20 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
       `Could not read backlog (${path}): ${error}`,
     loopLocked: 'A loop lock or live brain child exists; wait for the current loop to finish.',
     loopTurnPrompt: (context: string, accept: boolean, merge: boolean, profile: string) =>
-      `${context}\nBrain token profile: ${profile}. ${profile === 'saver' ? 'Use saver for dispatch defaults; do not recommend deep review unless requested.' : ''} Advance this step in the headless Anafor development loop. Finish any open permission/intervene work first. ${accept ? 'Call task_accept if the criteria are met.' : 'Do not call task_accept; leave it for review.'} ${merge && accept ? 'Merge accepted work through the safe workflow.' : 'Do not merge.'}\nWrite exactly one status marker as the final line: ANAFOR_LOOP: DONE (step is complete), ANAFOR_LOOP: CONTINUE (more work is needed), or ANAFOR_LOOP: BLOCKED <reason>.`,
+      [
+        `${context}\nBrain token profile: ${profile}.`,
+        profile === 'saver'
+          ? 'Use saver for dispatch defaults; do not recommend deep review unless requested.'
+          : '',
+        'Advance this step in the headless Anafor development loop.',
+        'Finish any open permission/intervene work first.',
+        accept
+          ? 'Call task_accept if the criteria are met.'
+          : 'Do not call task_accept; leave it for review.',
+        merge && accept ? 'Merge accepted work through the safe workflow.' : 'Do not merge.',
+      ].join(' ') +
+      '\nWrite exactly one status marker as the final line: ANAFOR_LOOP: DONE (step is complete), ' +
+      'ANAFOR_LOOP: CONTINUE (more work is needed), or ANAFOR_LOOP: BLOCKED <reason>.',
     notProject:
       'This directory is not an Anafor project. Run `anafor init` (or `anafor setup`) first.',
     pluginMcp:
