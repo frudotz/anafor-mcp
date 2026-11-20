@@ -29,6 +29,7 @@ export interface Task {
 }
 
 export interface JobInputs {
+  targetJobId?: string;
   explicitWorker?: boolean;
   failoverJobId?: string;
   files?: string[];
@@ -254,6 +255,22 @@ export class Store {
       ? 'SELECT * FROM tasks ORDER BY created_at DESC'
       : "SELECT * FROM tasks WHERE state NOT IN ('accepted','abandoned','superseded') ORDER BY created_at DESC";
     return (this.db.prepare(sql).all() as Row[]).map(toTask);
+  }
+
+  closeNeedsReviewJobsForClosedTasks(): void {
+    try {
+      const rows = this.db
+        .prepare(
+          `UPDATE jobs SET state = 'approved', auto_continue_pending = 0, updated_at = ?
+           WHERE state = 'needs_review' AND task_id IN (
+             SELECT id FROM tasks WHERE state IN ('accepted','abandoned','superseded')
+           ) RETURNING id`,
+        )
+        .all(nowIso()) as { id: string }[];
+      for (const { id } of rows) this.appendEvent(id, 'closed_with_task', 'closed_with_task');
+    } catch (error) {
+      console.error('Kapalı görev işleri temizlenemedi:', error);
+    }
   }
 
   updateTask(
