@@ -71,7 +71,7 @@ Sihirbazın adımları:
 4. **Statusline:** `~/.claude/settings.json`'a durum satırı ekler. Mevcut bir statusLine varsa dokunulmaz; değiştirmeden önce yedek alınır. Satır şunları gösterir:
 
    ```
-   anafor v0.8.0 · ⬆ v0.9.0: anafor update · ⚠ 2 iş başarısız: anafor doctor · 5s %24 · 7g %33
+   anafor v0.9.0 · ⬆ v0.10.0: anafor update · ⚠ 2 iş başarısız: anafor doctor · 5s %24 · 7g %33
    ```
 
    - **Sürüm:** kurulu Anafor sürümü.
