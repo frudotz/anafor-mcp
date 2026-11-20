@@ -34,7 +34,7 @@ import {
 import { balance } from '../capacity/balancer.js';
 import { capacityReport, readCosts } from '../capacity/capacity.js';
 import { recommend } from '../capacity/meta.js';
-import { currentLimits, formatWindows, limitAccount } from '../limits/limits.js';
+import { currentLimits, formatWindows, limitAccount, rateLimitedUntil } from '../limits/limits.js';
 import { createCheckpoint, readCheckpoint, type CheckpointMeta } from '../governance/checkpoint.js';
 import {
   acquireMemoryLock,
@@ -59,6 +59,7 @@ import { activeGrants, createGrant, endGrant } from '../hooks/grants.js';
 import { m } from '../i18n/index.js';
 import { spawnSync } from 'node:child_process';
 import { readLoopState, writeLoopState } from '../loop/state.js';
+import { queuePositions, sortQueuedJobs } from '../core/queue-order.js';
 
 /** Servis mesaj kataloğu (geçerli dil). */
 const s = () => m().service;
@@ -106,7 +107,7 @@ export class ServiceError extends Error {
 }
 
 /** İşin nasıl yürütüleceği: ayrık süreç (varsayılan) veya süreç içi (testler). */
-export type Launcher = (store: Store, job: Job) => void;
+export type Launcher = (store: Store, job: Job, onFinished?: () => void) => void;
 export type LoopStarter = (
   root: string,
   args: string[],
@@ -118,8 +119,16 @@ export const detachedLauncher: Launcher = (store, job) => {
 };
 
 export function inProcessLauncher(adapters: AdapterRegistry): Launcher {
-  return (store, job) => {
-    void runJob(store, job.id, adapters).catch(() => undefined);
+  return (store, job, onFinished) => {
+    void runJob(store, job.id, adapters)
+      .catch(() => undefined)
+      .finally(() => {
+        try {
+          onFinished?.();
+        } catch {
+          /* Store may have closed during shutdown. */
+        }
+      });
   };
 }
 
@@ -142,6 +151,7 @@ export function jobBrief(j: Job) {
     state: j.state,
     correction: j.isCorrection,
     error: j.error,
+    failover_job_id: j.inputs.failoverJobId ?? null,
     result_status: j.result?.status ?? null,
     started_at: j.startedAt,
     ended_at: j.endedAt,
@@ -190,6 +200,7 @@ export class AnaforService {
         cwd: root,
         encoding: 'utf8',
         timeout: 10_000,
+        windowsHide: true,
       });
       return { status: result.status, stderr: result.stderr ?? '' };
     },
@@ -279,7 +290,7 @@ export class AnaforService {
 
   /** Global eşzamanlılık: bu projenin aktif işleri + diğer projelerin canlı runner kiraları. */
   parallelUsage() {
-    const project = this.store.listJobs({ states: ACTIVE_JOB_STATES }).length;
+    const project = this.store.listJobs({ states: ['starting', 'running', 'validating'] }).length;
     const others = otherProjectLeases(this.store.paths.root).length;
     return { project, other_projects: others, total: project + others, max: this.maxParallelJobs };
   }
@@ -369,11 +380,20 @@ export class AnaforService {
 
   /** Limiti dolmuş (sıfırlanma zamanı gelmemiş) işçi mi? */
   private limited(workerId: string): string | null {
+    const now = Date.now() / 1000;
+    const failover = loadConfig(this.store.paths.root).failover;
+    const limitedUntil = failover.enabled ? rateLimitedUntil(workerId) : null;
+    if (limitedUntil) return s().windowFull(workerId, 'rate_limit', 100);
     const l = currentLimits(limitAccount(workerId));
     if (!l) return null;
-    const now = Date.now() / 1000;
+    const threshold = failover.threshold_percent;
     const full = l.windows.find(
-      (w) => w.used_percent >= 100 && (w.resets_at === null || w.resets_at > now),
+      (w) =>
+        (w.used_percent >= 100 && (w.resets_at === null || w.resets_at > now)) ||
+        (failover.enabled &&
+          ['five_hour', 'seven_day'].some((n) => w.name.startsWith(n)) &&
+          w.used_percent >= threshold &&
+          (w.resets_at === null || w.resets_at > now)),
     );
     return full ? s().windowFull(workerId, full.name, full.used_percent) : null;
   }
@@ -424,6 +444,8 @@ export class AnaforService {
       this.routeNotes = b.notes;
     }
     const reasons: string[] = [];
+    const limitSkipped: string[] = [];
+    let saturated: string | null = null;
     for (const id of order) {
       const a = this.adapters.get(id)!;
       if (!a.capabilities().roles.includes(role)) continue;
@@ -435,16 +457,24 @@ export class AnaforService {
       const lim = this.limited(id);
       if (lim) {
         reasons.push(lim);
+        limitSkipped.push(id);
         continue;
       }
       const running = this.store
-        .listJobs({ states: ACTIVE_JOB_STATES })
+        .listJobs({ states: ['starting', 'running', 'validating'] })
         .filter((j) => j.worker === id).length;
       if (running >= a.capabilities().maxConcurrency) {
-        reasons.push(s().capacityFull(id));
+        saturated ??= id;
         continue;
       }
+      if (limitSkipped.length)
+        this.routeNotes.push(s().failoverSkipped(limitSkipped.join(', '), id));
       return id;
+    }
+    if (saturated) {
+      if (limitSkipped.length)
+        this.routeNotes.push(s().failoverSkipped(limitSkipped.join(', '), saturated));
+      return saturated;
     }
     throw new ServiceError(
       'WORKER_UNAVAILABLE',
@@ -486,6 +516,7 @@ export class AnaforService {
       'merged',
       'changes_requested',
       'failed',
+      'failed_over',
       'timed_out',
       'invalid_output',
     ]);
@@ -520,8 +551,9 @@ export class AnaforService {
         role: jobs[0]!.role,
         finished: jobs.length,
         accepted,
-        failed: jobs.filter((j) => ['failed', 'timed_out', 'invalid_output'].includes(j.state))
-          .length,
+        failed: jobs.filter((j) =>
+          ['failed', 'failed_over', 'timed_out', 'invalid_output'].includes(j.state),
+        ).length,
         changes_requested: jobs.filter((j) => j.state === 'changes_requested').length,
         acceptance_rate: jobs.length ? accepted / jobs.length : 0,
         avg_duration_s: mean(seconds),
@@ -532,8 +564,16 @@ export class AnaforService {
   }
 
   projectStatus() {
+    this.drainQueue();
     const tasks = this.store.listTasks();
     const active = this.store.listJobs({ states: ACTIVE_JOB_STATES });
+    const activeForDisplay = [
+      ...active.filter((job) => job.state !== 'queued'),
+      ...sortQueuedJobs(
+        active.filter((job) => job.state === 'queued'),
+        (id) => this.store.getTask(id)?.priority ?? 'normal',
+      ),
+    ];
     const review = this.store.listJobs({ states: ['needs_review'] });
     const recent = this.store
       .listTasks({ includeClosed: true })
@@ -542,7 +582,10 @@ export class AnaforService {
     return {
       project_root: this.store.paths.root,
       open_tasks: tasks.map(taskBrief),
-      active_jobs: active.map(jobBrief),
+      active_jobs: activeForDisplay.map((job) => ({
+        ...jobBrief(job),
+        ...(job.state === 'queued' ? { queue_position: this.queuePosition(job.id) } : {}),
+      })),
       jobs_needing_review: review.map(jobBrief),
       recently_closed: recent.map(taskBrief),
       parallel: this.parallelUsage(),
@@ -621,13 +664,7 @@ export class AnaforService {
     const running = this.store
       .listJobs({ states: ACTIVE_JOB_STATES })
       .filter((j) => j.worker === workerId).length;
-    if (running >= caps.maxConcurrency) {
-      throw new ServiceError(
-        'LIMIT_REACHED',
-        s().workerLimit(workerId, caps.maxConcurrency),
-        s().workerLimitHint,
-      );
-    }
+    const shouldQueue = running >= caps.maxConcurrency;
 
     const root = this.store.paths.root;
     const repoReady = isGitRepo(root) && headSha(root) !== null;
@@ -711,10 +748,12 @@ export class AnaforService {
       instructions: input.instructions,
       inputs: {
         ...(input.inputs ?? {}),
+        explicitWorker: !!input.worker,
         ...(target && (input.role === 'review' || input.role === 'analysis')
           ? {
               reviewContext: {
                 diffSummary: `Files: ${target.result?.changed_files.join(', ') || '(none)'}\n${workDiff(target.workdir, target.baseSha).stat}`,
+                targetWorker: target.worker,
                 autoCheck: target.autoCheck,
               },
             }
@@ -739,12 +778,55 @@ export class AnaforService {
         warnings.push(s().dirtyShared(dirty.length));
       }
     }
-    this.startJob(job);
+    const claimed = shouldQueue
+      ? null
+      : this.store.claimQueuedJob(job.id, workerId, caps.maxConcurrency, this.maxParallelJobs);
+    if (!claimed) {
+      const queuePosition = this.queuePosition(job.id);
+      return {
+        ...jobBrief(job),
+        queue_position: queuePosition,
+        resumed_session: sessionRef !== null,
+        warnings,
+      };
+    }
+    this.startJob(claimed);
     return {
       ...jobBrief(this.store.mustGetJob(job.id)),
       resumed_session: sessionRef !== null,
       warnings,
     };
+  }
+
+  private queuePosition(jobId: string): number {
+    const positions = queuePositions(
+      this.store.listJobs({ states: ['queued'] }),
+      (id) => this.store.getTask(id)?.priority ?? 'normal',
+    );
+    return positions.get(jobId) ?? 0;
+  }
+
+  /** Starts queued jobs in task-priority/FIFO order when worker and global slots are available. */
+  drainQueue(): void {
+    const queued = sortQueuedJobs(
+      this.store.listJobs({ states: ['queued'] }),
+      (id) => this.store.getTask(id)?.priority ?? 'normal',
+    );
+    for (const job of queued) {
+      const adapter = this.adapters.get(job.worker);
+      if (!adapter) continue;
+      try {
+        const claimed = this.store.claimQueuedJob(
+          job.id,
+          job.worker,
+          adapter.capabilities().maxConcurrency,
+          this.maxParallelJobs,
+        );
+        if (claimed) this.startJob(claimed);
+      } catch {
+        /* Another server may have claimed this job. */
+      }
+    }
   }
 
   /** İşin çalışma alanı farkı. Patch dosyaya yazılır; küçükse satır içi döner (token tasarrufu). */
@@ -1051,6 +1133,7 @@ export class AnaforService {
   }
 
   async jobWait(jobIds: string[], timeoutS = 45, mode: 'any' | 'all' = 'any') {
+    this.drainQueue();
     for (const id of jobIds) this.mustJob(id);
     const deadline = Date.now() + Math.min(Math.max(timeoutS, 1), MAX_WAIT_S) * 1000;
     for (;;) {
@@ -1122,6 +1205,7 @@ export class AnaforService {
     if (j.pid) killPidTree(j.pid);
     this.store.appendEvent(jobId, 'cancel', reason);
     this.settleTask(j.taskId);
+    this.drainQueue();
     return jobBrief(cancelled);
   }
 
@@ -1189,6 +1273,7 @@ export class AnaforService {
         notes.push(`${j.id} → failed (orphaned)`);
       }
     }
+    this.drainQueue();
     return notes;
   }
 
@@ -1305,7 +1390,9 @@ export class AnaforService {
     const jobs = this.store.listJobs({ taskId }).filter((j) => j.worker !== 'director');
     const failed = jobs.filter(
       (j) =>
-        ['failed', 'timed_out', 'invalid_output', 'changes_requested'].includes(j.state) ||
+        ['failed', 'failed_over', 'timed_out', 'invalid_output', 'changes_requested'].includes(
+          j.state,
+        ) ||
         (['needs_review', 'changes_requested'].includes(j.state) && j.result?.status === 'failed'),
     );
     const stalled = jobs.filter(
@@ -1574,7 +1661,7 @@ export class AnaforService {
 
   private startJob(job: Job): void {
     try {
-      this.launch(this.store, job);
+      this.launch(this.store, job, () => this.drainQueue());
     } catch (e) {
       this.guard(() =>
         this.store.transitionJob(job.id, 'failed', {

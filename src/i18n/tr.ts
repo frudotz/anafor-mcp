@@ -147,6 +147,8 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
   hooks: {
     limitPrompt: (percent: number) =>
       `Claude limiti %${percent}; işi güvenli noktaya getir, büyük iş başlatma.`,
+    limitWarning: (percent: number) =>
+      `Claude limiti %${percent}. Büyük veya uzun bir işe başlamadan önce kullanıcıyı kalan limit konusunda kısaca uyar ve onayını iste; kullanıcı onaylarsa normal şekilde devam et. Küçük işler için uyarıya gerek yok.`,
   },
   permissions: {
     total: (n: number) => `Son dönemde ret: ${n}`,
@@ -492,6 +494,8 @@ Politika: HIGH/CRITICAL ve tarama hatası engellenir; CAUTION yalnızca --accept
   },
 
   adapters: {
+    workerSafetyRules:
+      'İŞÇİ GÜVENLİK KURALLARI (zorunlu):\n- git push çalıştırma.\n- curl veya wget çalıştırma.\n- Çalışma dizini dışındaki hiçbir yolu silme; özellikle worktree dışına yönelik rm -rf komutu çalıştırma.\n- Sandbox veya izinleri gevşetme; onay isteyen bir işlemde dur ve bildir.',
     legacyWorkerAlias: 'claude-lite kullanımdan kaldırıldı; cirak kullanın.',
     windowsSandbox: (mode: string) =>
       `Windows sandbox "${mode}": işçi alt süreç başlatamayabilir (spawn EPERM), ` +
@@ -611,6 +615,14 @@ Kullanıcı geliştirme döngüsü isterse loop_start kullan; sonraki adımları
   },
 
   service: {
+    failoverContinuation:
+      "Önceki işçi limit nedeniyle yarıda kaldı; worktree'deki mevcut değişiklikleri incele ve devam et.",
+    failoverSkipped: (workers: string, selected: string) =>
+      `failover: ${workers} limit nedeniyle atlandı; ${selected} seçildi`,
+    failoverExplicit: (worker: string, detail: string) =>
+      `Failover yok: ${worker} açıkça seçildi; rate limit: ${detail}`,
+    failoverTransferred: (worker: string, alternate: string, jobId: string) =>
+      `Rate limit (${worker}); iş ${alternate} işçisine devredildi: ${jobId}`,
     loopAlreadyActive: 'Geliştirme döngüsü zaten çalışıyor.',
     loopStartFailed: (detail: string) => `Döngü başlatılamadı${detail ? `: ${detail}` : ''}`,
     globalLimit: (max: number, project: number, others: number) =>

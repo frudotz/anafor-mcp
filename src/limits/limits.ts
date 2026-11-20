@@ -1,6 +1,16 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { isWindowsShim, quoteCmdArg, killTree } from '../adapters/process.js';
 import { m } from '../i18n/index.js';
@@ -38,6 +48,55 @@ export function anaforHome(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 const limitsFile = (env?: NodeJS.ProcessEnv) => join(anaforHome(env), 'limits.json');
+const rateLimitedDir = (env?: NodeJS.ProcessEnv) => join(anaforHome(env), 'rate-limited');
+const rateLimitedFile = (worker: string, env?: NodeJS.ProcessEnv) =>
+  join(rateLimitedDir(env), `${encodeURIComponent(worker)}.json`);
+
+export function rateLimitedUntil(
+  worker: string,
+  env?: NodeJS.ProcessEnv,
+  now = Date.now(),
+): number | null {
+  try {
+    const value = JSON.parse(readFileSync(rateLimitedFile(worker, env), 'utf8')) as {
+      rate_limited_until?: unknown;
+    };
+    const until = value.rate_limited_until;
+    return typeof until === 'number' && until * 1000 > now ? until : null;
+  } catch {
+    return null;
+  }
+}
+
+export function recordRateLimitedUntil(
+  worker: string,
+  until: number,
+  env?: NodeJS.ProcessEnv,
+): void {
+  mkdirSync(rateLimitedDir(env), { recursive: true });
+  const file = rateLimitedFile(worker, env);
+  const temp = `${file}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    writeFileSync(temp, JSON.stringify({ worker, rate_limited_until: until }, null, 2));
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        renameSync(temp, file);
+        return;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError;
+  } catch (error) {
+    try {
+      unlinkSync(temp);
+    } catch {
+      // temp may not have been created
+    }
+    throw error;
+  }
+}
 
 export function readStoredLimits(env?: NodeJS.ProcessEnv): Record<string, WorkerLimits> {
   try {

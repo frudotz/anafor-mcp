@@ -6,7 +6,7 @@ import { DEFAULT_CONFIG } from '../../src/core/config.js';
 import { runPreToolUse } from '../../src/hooks/director.js';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { recordLimits } from '../../src/limits/limits.js';
+import { rateLimitedUntil, recordLimits, recordRateLimitedUntil } from '../../src/limits/limits.js';
 import { AnaforService, inProcessLauncher } from '../../src/server/service.js';
 import { Store } from '../../src/store/store.js';
 import { tempDir } from '../helpers.js';
@@ -123,11 +123,99 @@ describe('router', () => {
       /yük dengeleyici \(balanced\): w2 yerine w1 — w2: five_hour rezerve ulaştı/,
     );
     await svc.jobWait([d.job_id], 30);
-    // strateji kapalıysa zincir korunur (%95 tamamen dolu değil)
+    // Eşik dahil limitli işçi atlanır; balancer kapalı olsa da failover uygulanır.
     writeFileSync(
       join(t.dir, 'anafor.config.json'),
       JSON.stringify({ balancer: { strategy: 'off' } }),
     );
+    expect(await svc.route('implementation', null)).toBe('w1');
+  });
+
+  it('limit eşiği üstündeki işçiyi failover notuyla atlar; pencere sıfırlanınca geri döner', async () => {
+    writeFileSync(
+      join(t.dir, 'anafor.config.json'),
+      JSON.stringify({ balancer: { strategy: 'off' } }),
+    );
+    recordLimits({
+      worker: 'w2',
+      source: 'test',
+      observed_at: new Date().toISOString(),
+      status: 'ok',
+      windows: [
+        {
+          name: 'five_hour',
+          used_percent: 0,
+          resets_at: Math.floor(Date.now() / 1000) + 3600,
+          window_minutes: 300,
+        },
+      ],
+    });
+    const svc = svcWith([as('w1'), as('w2')], { implementation: ['w1', 'w2'] });
+    const save = (used: number, resets: number) =>
+      recordLimits({
+        worker: 'w1',
+        source: 'test',
+        observed_at: new Date().toISOString(),
+        status: 'warning',
+        windows: [
+          { name: 'five_hour', used_percent: used, resets_at: resets, window_minutes: 300 },
+        ],
+      });
+    save(96, Math.floor(Date.now() / 1000) + 3600);
+    expect(await svc.route('implementation', null)).toBe('w2');
+    const task = svc.taskCreate({ title: 'x', objective: 'y' });
+    const d = await svc.jobDispatch({
+      taskId: task.task_id,
+      role: 'implementation',
+      instructions: '[fake:ok]',
+    });
+    expect(d.warnings.join(' ')).toContain('failover: w1 limit nedeniyle atlandı');
+    await svc.jobWait([d.job_id], 30);
+    save(96, Math.floor(Date.now() / 1000) - 1);
+    expect(await svc.route('implementation', null)).toBe('w1');
+    save(94, Math.floor(Date.now() / 1000) + 3600);
+    expect(await svc.route('implementation', null)).toBe('w1');
+  });
+
+  it('limits önbelleği olmayan rate-limited worker süresi boyunca atlanır, sonra seçilir', async () => {
+    const worker = `rateonly-${Date.now()}`;
+    const alternate = `healthy-${Date.now()}`;
+    writeFileSync(
+      join(t.dir, 'anafor.config.json'),
+      JSON.stringify({ balancer: { strategy: 'off' } }),
+    );
+    const svc = svcWith([as(worker), as(alternate)], { implementation: [worker, alternate] });
+    expect(rateLimitedUntil(worker)).toBeNull();
+    recordRateLimitedUntil(worker, Math.floor(Date.now() / 1000) + 600);
+    expect(await svc.route('implementation', null)).toBe(alternate);
+    recordRateLimitedUntil(worker, Math.floor(Date.now() / 1000) - 1);
+    expect(await svc.route('implementation', null)).toBe(worker);
+  });
+
+  it('failover kapalıyken eşik uygulanmaz, ancak yüzde 100 limit yine atlanır', async () => {
+    writeFileSync(
+      join(t.dir, 'anafor.config.json'),
+      JSON.stringify({ failover: { enabled: false }, balancer: { strategy: 'off' } }),
+    );
+    const svc = svcWith([as('w1'), as('w2')], { implementation: ['w1', 'w2'] });
+    const record = (used: number) =>
+      recordLimits({
+        worker: 'w1',
+        source: 'test',
+        observed_at: new Date().toISOString(),
+        status: 'warning',
+        windows: [
+          {
+            name: 'five_hour',
+            used_percent: used,
+            resets_at: Math.floor(Date.now() / 1000) + 3600,
+            window_minutes: 300,
+          },
+        ],
+      });
+    record(96);
+    expect(await svc.route('implementation', null)).toBe('w1');
+    record(100);
     expect(await svc.route('implementation', null)).toBe('w2');
   });
 

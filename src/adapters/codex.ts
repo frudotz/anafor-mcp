@@ -71,7 +71,7 @@ export function parseCodexLine(line: string): WorkerEvent[] {
 export type CodexWindowsSandbox = 'elevated' | 'unelevated';
 
 export function withWorkerSafetyRules(prompt: string): string {
-  return `${prompt}\n\nİŞÇİ GÜVENLİK KURALLARI (zorunlu):\n- git push çalıştırma.\n- curl veya wget çalıştırma.\n- Çalışma dizini dışındaki hiçbir yolu silme; özellikle worktree dışına yönelik rm -rf komutu çalıştırma.\n- Sandbox veya izinleri gevşetme; onay isteyen bir işlemde dur ve bildir.`;
+  return `${prompt}\n\n${m().adapters.workerSafetyRules}`;
 }
 
 /**

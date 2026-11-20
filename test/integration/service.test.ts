@@ -9,6 +9,7 @@ import { AnaforService, inProcessLauncher, ServiceError } from '../../src/server
 import { Store } from '../../src/store/store.js';
 import { configStamp, refreshConfigIfChanged } from '../../src/server/config-refresh.js';
 import { tempDir } from '../helpers.js';
+import { jobsTable } from '../../src/cli/chat.js';
 
 describe('AnaforService', () => {
   let t: ReturnType<typeof tempDir>;
@@ -228,6 +229,174 @@ describe('AnaforService', () => {
     const w = await svc.workersList();
     expect(w[0]).toMatchObject({ id: 'fake', available: true });
   });
+
+  it('işçi kapasitesi doluyken işi sıraya alır ve slot açılınca atomik başlatır', async () => {
+    const limited = new FakeAdapter();
+    limited.capabilities = () => ({ ...new FakeAdapter().capabilities(), maxConcurrency: 1 });
+    const registry: AdapterRegistry = new Map([['fake', limited]]);
+    const launched: string[] = [];
+    const queuedSvc = new AnaforService(
+      store,
+      registry,
+      (_store, job) => launched.push(job.id),
+      'fake',
+    );
+    const task = queuedSvc.taskCreate({ title: 'queue', objective: 'queue' });
+    const first = await queuedSvc.jobDispatch({
+      taskId: task.task_id,
+      role: 'analysis',
+      instructions: 'x',
+    });
+    const second = await queuedSvc.jobDispatch({
+      taskId: task.task_id,
+      role: 'analysis',
+      instructions: 'x',
+    });
+    expect(second).toMatchObject({ state: 'queued', queue_position: 1 });
+    store.transitionJob(first.job_id, 'failed', { endedAt: new Date().toISOString() });
+    queuedSvc.drainQueue();
+    expect(store.mustGetJob(second.job_id).state).toBe('starting');
+    expect(launched).toEqual([first.job_id, second.job_id]);
+  });
+
+  it('queued işler restart uzlaştırmasında korunur, kuyruk iptali ve pano sırası çalışır', async () => {
+    const limited = new FakeAdapter();
+    limited.capabilities = () => ({ ...new FakeAdapter().capabilities(), maxConcurrency: 1 });
+    const registry: AdapterRegistry = new Map([['fake', limited]]);
+    const launched: string[] = [];
+    const queuedSvc = new AnaforService(
+      store,
+      registry,
+      (_store, job) => launched.push(job.id),
+      'fake',
+    );
+    const task = queuedSvc.taskCreate({ title: 'persist', objective: 'persist' });
+    const first = await queuedSvc.jobDispatch({
+      taskId: task.task_id,
+      role: 'analysis',
+      instructions: 'x',
+    });
+    const second = await queuedSvc.jobDispatch({
+      taskId: task.task_id,
+      role: 'analysis',
+      instructions: 'x',
+    });
+    expect(second.state).toBe('queued');
+    expect(
+      jobsTable(store).some((line) => line.includes(`${second.job_id}`) && line.includes('#1')),
+    ).toBe(true);
+    queuedSvc.jobCancel(second.job_id, 'test');
+    expect(store.mustGetJob(second.job_id).state).toBe('cancelled');
+    store.transitionJob(first.job_id, 'failed', { endedAt: new Date().toISOString() });
+    const next = await queuedSvc.jobDispatch({
+      taskId: task.task_id,
+      role: 'analysis',
+      instructions: 'x',
+    });
+    expect(next.state).toBe('starting');
+    // A fresh service instance sees durable queued rows and reconciles/drains them too.
+    const persisted = store.createJob({
+      taskId: task.task_id,
+      role: 'analysis',
+      worker: 'fake',
+      workspaceMode: 'readonly',
+      workdir: t.dir,
+      instructions: 'persisted',
+      timeoutS: 10,
+    });
+    store.transitionJob(next.job_id, 'failed', { endedAt: new Date().toISOString() });
+    const reopened = new Store(t.dir);
+    try {
+      const restarted = new AnaforService(
+        reopened,
+        registry,
+        (_store, job) => launched.push(job.id),
+        'fake',
+      );
+      expect(restarted.reconcile()).toEqual([]);
+      expect(reopened.mustGetJob(persisted.id).state).toBe('starting');
+    } finally {
+      reopened.close();
+    }
+  });
+
+  it('kuyruk önceliği ve FIFO ile çalışır; iki eşzamanlı tüketici kapasiteyi aşmaz', async () => {
+    const limited = new FakeAdapter();
+    limited.capabilities = () => ({ ...new FakeAdapter().capabilities(), maxConcurrency: 1 });
+    const registry: AdapterRegistry = new Map([['fake', limited]]);
+    const launched: string[] = [];
+    const queuedSvc = new AnaforService(
+      store,
+      registry,
+      (_store, job) => launched.push(job.id),
+      'fake',
+    );
+    const low = store.createTask({ title: 'low', objective: 'x', priority: 'normal' });
+    const high = store.createTask({ title: 'high', objective: 'x', priority: 'critical' });
+    const makeQueued = (taskId: string) =>
+      store.createJob({
+        taskId,
+        role: 'analysis',
+        worker: 'fake',
+        workspaceMode: 'readonly',
+        workdir: t.dir,
+        instructions: 'x',
+        timeoutS: 10,
+      });
+    const lowFirst = makeQueued(low.id);
+    const lowSecond = makeQueued(low.id);
+    const highFirst = makeQueued(high.id);
+    const otherStore = new Store(t.dir);
+    const competing = new AnaforService(
+      otherStore,
+      registry,
+      (_store, job) => launched.push(job.id),
+      'fake',
+    );
+    await Promise.all([
+      Promise.resolve().then(() => queuedSvc.drainQueue()),
+      Promise.resolve().then(() => competing.drainQueue()),
+    ]);
+    expect(store.listJobs({ states: ['starting'] })).toHaveLength(1);
+    expect(launched).toHaveLength(1);
+    expect(launched[0]).toBe(highFirst.id);
+    store.transitionJob(highFirst.id, 'failed', { endedAt: new Date().toISOString() });
+    queuedSvc.drainQueue();
+    expect(launched[1]).toBe(lowFirst.id);
+    store.transitionJob(lowFirst.id, 'failed', { endedAt: new Date().toISOString() });
+    queuedSvc.drainQueue();
+    expect(launched[2]).toBe(lowSecond.id);
+    otherStore.close();
+  });
+
+  it.each(['[fake:ok]', '[fake:fail]'])(
+    'runner sonlanınca kuyrukta sıradaki işi başlatır (%s)',
+    async (scenario) => {
+      const limited = new FakeAdapter();
+      limited.capabilities = () => ({ ...new FakeAdapter().capabilities(), maxConcurrency: 1 });
+      const registry: AdapterRegistry = new Map([['fake', limited]]);
+      const queuedSvc = new AnaforService(store, registry, inProcessLauncher(registry), 'fake');
+      const task = queuedSvc.taskCreate({ title: 'runner queue', objective: 'x' });
+      const first = await queuedSvc.jobDispatch({
+        taskId: task.task_id,
+        role: 'analysis',
+        instructions: scenario,
+      });
+      const second = await queuedSvc.jobDispatch({
+        taskId: task.task_id,
+        role: 'analysis',
+        instructions: '[fake:ok]',
+      });
+      expect(second.state).toBe('queued');
+      await queuedSvc.jobWait([first.job_id], 10);
+      const deadline = Date.now() + 3000;
+      while (store.mustGetJob(second.job_id).state === 'queued' && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      expect(store.mustGetJob(second.job_id).state).not.toBe('queued');
+      await queuedSvc.jobWait([second.job_id], 10);
+    },
+  );
 
   it('config mtime/size değişince sonraki workers_list güncel adaptör kümesini kullanır', async () => {
     const before = configStamp(t.dir);
