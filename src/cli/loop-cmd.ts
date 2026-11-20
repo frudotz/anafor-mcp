@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { BrainSession } from '../chat/brain.js';
@@ -20,6 +20,23 @@ import { m } from '../i18n/index.js';
 import { runBrainTurn } from '../loop/brain-turn.js';
 import type { SetupState } from '../setup/setup.js';
 import { TOKEN_PROFILES, type TokenProfile } from '../core/token-profile.js';
+import { spawnSync } from 'node:child_process';
+import { Store } from '../store/store.js';
+import { ACTIVE_JOB_STATES } from '../core/states.js';
+import { defaultAdapters } from '../adapters/registry.js';
+import { AnaforService } from '../server/service.js';
+import {
+  shouldShutdown,
+  loopControlChanged,
+  planShutdownCommand,
+  scheduleShutdown,
+  shutdownStartNotice,
+  applyShutdownResult,
+  cancelScheduledShutdown,
+  markShutdownCancelled,
+  isShutdownTerminal,
+  waitForJobs,
+} from '../loop/shutdown.js';
 
 export function defaultLoopProfile(
   override: string | undefined,
@@ -46,7 +63,11 @@ export function loopSignals(platform = process.platform): readonly string[] {
   return platform === 'win32' ? ['SIGINT', 'SIGTERM', 'SIGBREAK'] : ['SIGINT', 'SIGTERM', 'SIGHUP'];
 }
 
-export async function runLoopCommand(root: string, args: string[]): Promise<number> {
+export async function runLoopCommand(
+  root: string,
+  args: string[],
+  injected: Pick<LoopExecuteDeps, 'shutdownRunner'> = {},
+): Promise<number> {
   const action = args[0];
   let state = readLoopState(root);
   if (action === 'status') {
@@ -55,6 +76,45 @@ export async function runLoopCommand(root: string, args: string[]): Promise<numb
   }
   if (action === 'pause' || action === 'stop') {
     if (!state) return 1;
+    const shutdownWait =
+      (state.shutdown_pending || (state.shutdown_on_finish && !state.shutdown_scheduled_at)) &&
+      isShutdownTerminal(state);
+    if (shutdownWait) {
+      markShutdownCancelled(root);
+      console.log(m().cli.loopShutdownCancelled);
+      return 0;
+    }
+    if (state.shutdown_scheduled_at && isShutdownTerminal(state)) {
+      const result = cancelScheduledShutdown(state, process.platform, (cmd, commandArgs) =>
+        (
+          injected.shutdownRunner ??
+          ((c, a) => spawnSync(c, a, { encoding: 'utf8', windowsHide: true, timeout: 30_000 }))
+        )(cmd, commandArgs),
+      );
+      if (result.attempted) {
+        if (result.error) {
+          const message = m().cli.loopShutdownCancelFailed(
+            result.error,
+            result.state.shutdown_cancel_command ?? '',
+          );
+          console.warn(message);
+          appendFileSync(
+            join(root, '.anafor', 'loop.log'),
+            `${new Date().toISOString()} ${message}\n`,
+          );
+        }
+        writeLoopState(root, result.state);
+        console.log(
+          result.error
+            ? m().cli.loopShutdownCancelFailed(
+                result.error,
+                result.state.shutdown_cancel_command ?? '',
+              )
+            : m().cli.loopShutdownCancelled,
+        );
+        return result.error ? 1 : 0;
+      }
+    }
     writeLoopState(root, {
       ...state,
       state: action === 'stop' ? 'stopped' : 'paused',
@@ -118,6 +178,8 @@ export async function runLoopCommand(root: string, args: string[]): Promise<numb
     merge: args.includes('--merge'),
     profile: defaultLoopProfile(profileArg, setup),
     model: value('model') ?? loadConfig(root).brain.model,
+    shutdown_on_finish:
+      args.includes('--shutdown-on-finish') || loadConfig(root).loop.on_finish === 'shutdown',
   };
   if (args.includes('--detach')) {
     const childArgs = args.filter((a) => a !== '--detach');
@@ -139,7 +201,12 @@ export async function runLoopCommand(root: string, args: string[]): Promise<numb
           pid?: number;
         };
         if (liveState.pid === child.pid) {
-          console.log(m().cli.loopStarted);
+          const notice = shutdownStartNotice(
+            stateNew.shutdown_on_finish ?? false,
+            process.platform,
+            m().cli.loopShutdownWarning,
+          );
+          console.log(`${m().cli.loopStarted}${notice ? `\n${notice}` : ''}`);
           return 0;
         }
       } catch {
@@ -158,7 +225,22 @@ export async function runLoopCommand(root: string, args: string[]): Promise<numb
   return execute(root, stateNew, true);
 }
 
-async function execute(root: string, state: LoopState, lockHeld = false): Promise<number> {
+export interface LoopExecuteDeps {
+  shutdownRunner?: (
+    cmd: string,
+    args: string[],
+  ) => { status: number | null; error?: Error; stderr?: string };
+  sleep?: (ms: number) => Promise<void>;
+  now?: () => number;
+  loopRunner?: typeof runLoop;
+}
+
+export async function execute(
+  root: string,
+  state: LoopState,
+  lockHeld = false,
+  injected: LoopExecuteDeps = {},
+): Promise<number> {
   if (!lockHeld && !acquireLoopLock(root)) {
     console.error(m().cli.loopLocked);
     return 1;
@@ -176,13 +258,31 @@ async function execute(root: string, state: LoopState, lockHeld = false): Promis
   for (const signal of signals) process.on(signal, onSignal);
   process.on('exit', onExit);
   try {
-    state = { ...state, state: 'running', paused_reason: null, resume_at: null, pid: process.pid };
+    state = {
+      ...state,
+      state: 'running',
+      paused_reason: null,
+      resume_at: null,
+      pid: process.pid,
+      shutdown_pending: false,
+      shutdown_cancelled: false,
+      shutdown_scheduled_at: null,
+      shutdown_cancel_command: null,
+      shutdown_error: null,
+    };
     state = { ...state, profile: defaultLoopProfile(state.profile, readSetupState()) };
     writeLoopState(root, state);
     const cfg = loadConfig(root);
+    const shutdownPlan = planShutdownCommand(process.platform);
+    if (state.shutdown_on_finish) {
+      const warning = m().cli.loopShutdownWarning(shutdownPlan.cancel);
+      console.warn(warning);
+      appendFileSync(join(root, '.anafor', 'loop.log'), `${new Date().toISOString()} ${warning}\n`);
+    }
     const model = state.model ?? cfg.brain.model;
     const profile = defaultLoopProfile(state.profile, readSetupState());
-    const final = await runLoop({
+    const run = injected.loopRunner ?? runLoop;
+    const final = await run({
       root,
       state,
       brain: {
@@ -221,7 +321,7 @@ async function execute(root: string, state: LoopState, lockHeld = false): Promis
         },
       },
       now: Date.now,
-      sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+      sleep: injected.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
       readLimits: () => currentLimits('claude'),
       checkpoint: () =>
         createCheckpoint(root, join(root, '.anafor', 'checkpoints'), {
@@ -234,6 +334,103 @@ async function execute(root: string, state: LoopState, lockHeld = false): Promis
       limitConfig: cfg.limits.brain,
       minTurnGapSec: cfg.loop.min_turn_gap_sec,
     });
+    const onFinish =
+      state.shutdown_on_finish || cfg.loop.on_finish === 'shutdown' ? 'shutdown' : 'none';
+    const postRunState = readLoopState(root);
+    if (
+      postRunState?.state === 'stopped' ||
+      postRunState?.shutdown_cancelled ||
+      (postRunState?.state === 'paused' && postRunState.paused_reason === 'manual')
+    )
+      return 0;
+    if (state.shutdown_on_finish && shouldShutdown(final, onFinish)) {
+      final.shutdown_pending = true;
+      final.shutdown_cancelled = false;
+      final.shutdown_cancel_command = shutdownPlan.cancel;
+      writeLoopState(root, final);
+      const store = new Store(root);
+      const active = () => store.listJobs({ states: ACTIVE_JOB_STATES });
+      const service = new AnaforService(
+        store,
+        defaultAdapters(cfg),
+        undefined,
+        cfg.default_worker,
+        cfg.routing,
+        cfg.routing_mode,
+        cfg.max_parallel_jobs,
+      );
+      try {
+        const completedWait = await waitForJobs(
+          active,
+          (id) => {
+            try {
+              service.jobCancel(id, 'Loop shutdown timeout');
+            } catch {
+              /* Job finished during the timeout race. */
+            }
+          },
+          injected.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
+          30 * 60_000,
+          () => {
+            const liveState = readLoopState(root);
+            return liveState?.shutdown_cancelled === true || loopControlChanged(final, liveState);
+          },
+          injected.now,
+        );
+        if (!completedWait) return 0;
+      } finally {
+        store.close();
+      }
+      const live = readLoopState(root);
+      if (live?.shutdown_cancelled || loopControlChanged(final, live)) return 0;
+      const plan = shutdownPlan;
+      console.warn(m().cli.loopShutdownScheduled(plan.cancel));
+      appendFileSync(
+        join(root, '.anafor', 'loop.log'),
+        `${new Date().toISOString()} ${m().cli.loopShutdownScheduled(plan.cancel)}\n`,
+      );
+      const error = scheduleShutdown(
+        plan,
+        injected.shutdownRunner ??
+          ((cmd, commandArgs) =>
+            spawnSync(cmd, commandArgs, { encoding: 'utf8', windowsHide: true, timeout: 30_000 })),
+      );
+      const afterCommand = readLoopState(root);
+      if (!error && afterCommand?.shutdown_cancelled) {
+        const cancelled = cancelScheduledShutdown(
+          { ...final, shutdown_scheduled_at: new Date((injected.now ?? Date.now)()).toISOString() },
+          process.platform,
+          injected.shutdownRunner ??
+            ((cmd, commandArgs) =>
+              spawnSync(cmd, commandArgs, {
+                encoding: 'utf8',
+                windowsHide: true,
+                timeout: 30_000,
+              })),
+        );
+        Object.assign(final, cancelled.state, { shutdown_pending: false });
+        if (cancelled.error) {
+          const message = m().cli.loopShutdownCancelFailed(cancelled.error, plan.cancel);
+          console.warn(message);
+          appendFileSync(
+            join(root, '.anafor', 'loop.log'),
+            `${new Date().toISOString()} ${message}\n`,
+          );
+        }
+        writeLoopState(root, final);
+        return 0;
+      }
+      const resultState = applyShutdownResult(
+        final,
+        plan,
+        error,
+        new Date((injected.now ?? Date.now)()).toISOString(),
+      );
+      if (error) console.warn(m().cli.loopShutdownFailed(error));
+      Object.assign(final, resultState);
+      final.shutdown_pending = false;
+      writeLoopState(root, final);
+    }
     if (
       (final.state === 'paused' || final.state === 'stopped') &&
       final.paused_reason?.startsWith('error:')

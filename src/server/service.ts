@@ -59,6 +59,11 @@ import { activeGrants, createGrant, endGrant } from '../hooks/grants.js';
 import { m } from '../i18n/index.js';
 import { spawnSync } from 'node:child_process';
 import { readLoopState, writeLoopState } from '../loop/state.js';
+import {
+  cancelScheduledShutdown,
+  isShutdownTerminal,
+  markShutdownCancelled,
+} from '../loop/shutdown.js';
 
 /** Servis mesaj kataloğu (geçerli dil). */
 const s = () => m().service;
@@ -215,13 +220,61 @@ export class AnaforService {
       cycle: state.cycle,
       paused_reason: state.paused_reason,
       resume_at: state.resume_at,
+      shutdown_scheduled_at: state.shutdown_scheduled_at ?? null,
+      shutdown_cancel_command: state.shutdown_cancel_command ?? null,
+      shutdown_error: state.shutdown_error ?? null,
+      shutdown_cancel_error: state.shutdown_cancel_error ?? null,
+      shutdown_pending: state.shutdown_pending ?? false,
+      shutdown_cancelled: state.shutdown_cancelled ?? false,
       backlog: state.backlog ? { completed: state.completed_items.length, total } : null,
     };
   }
 
-  loopStop(mode: 'pause' | 'stop') {
+  loopStop(
+    mode: 'pause' | 'stop',
+    shutdownRunner: (
+      cmd: string,
+      args: string[],
+    ) => { status: number | null; error?: Error; stderr?: string } = (cmd, args) =>
+      spawnSync(cmd, args, { encoding: 'utf8', windowsHide: true, timeout: 30_000 }),
+  ) {
     const state = readLoopState(this.store.paths.root);
-    if (!state || !['running', 'paused'].includes(state.state))
+    if (!state) throw new ServiceError('INVALID_STATE', 'No active development loop');
+    const shutdownWait =
+      (state.shutdown_pending || (state.shutdown_on_finish && !state.shutdown_scheduled_at)) &&
+      isShutdownTerminal(state);
+    if (shutdownWait) {
+      markShutdownCancelled(this.store.paths.root);
+      return { state: state.state, shutdown_cancelled: true, note: m().cli.loopShutdownCancelled };
+    }
+    if (state.shutdown_scheduled_at && isShutdownTerminal(state)) {
+      const result = cancelScheduledShutdown(state, process.platform, shutdownRunner);
+      writeLoopState(this.store.paths.root, result.state);
+      if (result.error) {
+        const message = m().cli.loopShutdownCancelFailed(
+          result.error,
+          result.state.shutdown_cancel_command ?? '',
+        );
+        console.warn(message);
+        appendFileSync(
+          join(this.store.paths.root, '.anafor', 'loop.log'),
+          `${nowIso()} ${message}\n`,
+        );
+      }
+      return {
+        state: result.state.state,
+        shutdown_cancelled: !result.error,
+        shutdown_cancel_error: result.error,
+        manual_cancel_command: result.error ? result.state.shutdown_cancel_command : null,
+        note: result.error
+          ? m().cli.loopShutdownCancelFailed(
+              result.error,
+              result.state.shutdown_cancel_command ?? '',
+            )
+          : m().cli.loopShutdownCancelled,
+      };
+    }
+    if (!['running', 'paused'].includes(state.state))
       throw new ServiceError('INVALID_STATE', 'No active development loop');
     writeLoopState(this.store.paths.root, {
       ...state,
@@ -243,6 +296,7 @@ export class AnaforService {
     accept?: boolean;
     merge?: boolean;
     profile?: string;
+    shutdown_on_finish?: boolean;
   }) {
     const current = readLoopState(this.store.paths.root);
     if (current && ['running', 'paused'].includes(current.state))
@@ -261,11 +315,17 @@ export class AnaforService {
       ...(input.accept ? ['--accept'] : []),
       ...(input.merge ? ['--merge'] : []),
       ...(input.profile ? ['--profile', input.profile] : []),
+      ...(input.shutdown_on_finish ? ['--shutdown-on-finish'] : []),
     ];
     const result = this.startDetachedLoop(this.store.paths.root, args);
     if (result.status !== 0) throw new ServiceError('CONFLICT', s().loopStartFailed(result.stderr));
     const state = readLoopState(this.store.paths.root);
-    return { pid: state?.pid ?? null, ...this.loopStatus() };
+    const status = this.loopStatus();
+    const warning =
+      input.shutdown_on_finish || state?.shutdown_on_finish
+        ? m().cli.loopShutdownWarning(process.platform === 'win32' ? 'shutdown /a' : 'shutdown -c')
+        : null;
+    return { pid: state?.pid ?? null, ...status, shutdown_warning: warning };
   }
 
   /** Apply config edits for subsequent tool calls; already-started runners keep their own adapter. */
