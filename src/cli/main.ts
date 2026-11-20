@@ -13,12 +13,18 @@ import { startServer } from '../server/main.js';
 import { Store } from '../store/store.js';
 import { ANAFOR_VERSION, SOURCE_NOTICE } from '../version.js';
 import { resolveProjectRoot, loadConfig } from '../core/config.js';
+import {
+  AttributionSettingsError,
+  configurePrAttribution,
+  isPrAttributionActive,
+  readAttributionSettings,
+} from '../core/attribution.js';
 import { waitForJobs } from '../core/job-wait.js';
 import { jobsTable, runChat } from './chat.js';
 import { buildGoalPrompt, type RunGoalOptions } from './run.js';
 import { runSetup } from './setup-cmd.js';
 import { runExt } from './ext-cmd.js';
-import { m, parseLang } from '../i18n/index.js';
+import { lang, m, parseLang } from '../i18n/index.js';
 import { runDoctor } from './doctor-cmd.js';
 import { runLoopCommand } from './loop-cmd.js';
 import { recoverEnabled, recoverTrigger } from '../loop/recover.js';
@@ -86,7 +92,7 @@ function serverEntry(): string {
   return fileURLToPath(new URL('../server/main.js', import.meta.url));
 }
 
-function init(root: string): void {
+async function init(root: string): Promise<void> {
   const store = new Store(root);
   ensurePolicy(store.paths.anaforDir, store.paths.projectId);
   store.close();
@@ -114,6 +120,32 @@ function init(root: string): void {
     );
   }
   console.log(m().cli.ready(join(root, '.anafor')));
+  if (
+    rest.includes('--yes') ||
+    (process.stdin.isTTY &&
+      process.stdout.isTTY &&
+      (await (async () => {
+        const { p } = await import('./ui.js');
+        const result = await p.confirm({ message: m().attribution.ask, initialValue: true });
+        return !p.isCancel(result) && result;
+      })()))
+  ) {
+    const file = join(root, '.claude', 'settings.json');
+    try {
+      if (!isPrAttributionActive(readAttributionSettings(file))) {
+        const result = configurePrAttribution(
+          file,
+          true,
+          parseLang(process.env.ANAFOR_LANG) ?? lang(),
+        );
+        if (result === 'Attribution disabled globally' || result === '')
+          console.warn(m().attribution.optedOut);
+      }
+    } catch (error) {
+      if (error instanceof AttributionSettingsError) console.warn(m().attribution[error.code]);
+      else throw error;
+    }
+  }
 }
 
 switch (cmd) {
@@ -121,8 +153,55 @@ switch (cmd) {
     process.exitCode = await runLoopCommand(projectRoot(), rest);
     break;
   case 'init':
-    init(root);
+    await init(root);
     break;
+  case 'attribution': {
+    const action = rest[0];
+    const file = join(projectRoot(), '.claude', 'settings.json');
+    if (!['enable', 'disable', 'status'].includes(action ?? '')) {
+      console.error(m().attribution.usage);
+      process.exitCode = 2;
+    } else if (action === 'status') {
+      try {
+        const value = readAttributionSettings(file).attribution as
+          false | { pr?: string } | undefined;
+        console.log(
+          value === false
+            ? m().attribution.optedOut
+            : value?.pr === ''
+              ? m().attribution.optedOut
+              : String(value?.pr ?? m().attribution.defaultPr),
+        );
+      } catch (error) {
+        if (error instanceof AttributionSettingsError) {
+          console.error(m().attribution[error.code]);
+          process.exitCode = 1;
+        } else throw error;
+      }
+    } else {
+      try {
+        const before = readAttributionSettings(file);
+        const value = before.attribution as false | { pr?: string } | undefined;
+        if (value === false || value?.pr === '') {
+          console.warn(m().attribution.optedOut);
+          break;
+        }
+        const result = configurePrAttribution(
+          file,
+          action === 'enable',
+          parseLang(process.env.ANAFOR_LANG) ?? lang(),
+        );
+        if (result === 'Attribution disabled globally') console.warn(m().attribution.optedOut);
+        else console.log(action === 'enable' ? m().attribution.enabled : m().attribution.disabled);
+      } catch (error) {
+        if (error instanceof AttributionSettingsError) {
+          console.error(m().attribution[error.code]);
+          process.exitCode = 1;
+        } else throw error;
+      }
+    }
+    break;
+  }
   case 'setup':
     process.exitCode = await runSetup({
       yes: rest.includes('--yes'),

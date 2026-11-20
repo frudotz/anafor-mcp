@@ -16,6 +16,14 @@ import {
 import { lang, m, setLang, systemLang, type Lang } from '../i18n/index.js';
 import { recommend, SUBSCRIPTIONS } from '../capacity/meta.js';
 import { ANAFOR_VERSION } from '../version.js';
+import {
+  AttributionSettingsError,
+  configurePrAttribution,
+  isPrAttributionActive,
+  readAttributionSettings,
+  shouldEnablePrAttribution,
+} from '../core/attribution.js';
+import { join } from 'node:path';
 import { formatRecommendation, runRecommend } from './capacity-cmd.js';
 import { ask, c, interactive, mark, p, rows, withSpinner } from './ui.js';
 
@@ -29,7 +37,38 @@ export interface SetupOptions {
   project?: boolean;
   /** Abonelikler (--subscriptions a,b); verilmezse etkileşimliyse sorulur. */
   subscriptions?: string[] | undefined;
-  init: (dir: string) => void;
+  init: (dir: string) => void | Promise<void>;
+}
+
+export async function maybeConfigureSetupAttribution(
+  root: string | null,
+  yes: boolean,
+  isInteractive: boolean,
+  language: Lang,
+  confirm: () => Promise<boolean>,
+): Promise<boolean> {
+  if (!root) return false;
+  try {
+    if (isPrAttributionActive(readAttributionSettings(join(root, '.claude', 'settings.json'))))
+      return false;
+  } catch (error) {
+    if (error instanceof AttributionSettingsError) {
+      p.log.warn(m().attribution[error.code]);
+      return false;
+    }
+    throw error;
+  }
+  if (!shouldEnablePrAttribution(yes, isInteractive)) return false;
+  if (!yes && !(await confirm())) return false;
+  try {
+    const result = configurePrAttribution(join(root, '.claude', 'settings.json'), true, language);
+    if (result === 'Attribution disabled globally' || result === '')
+      p.log.warn(m().attribution.optedOut);
+  } catch (error) {
+    if (error instanceof AttributionSettingsError) p.log.warn(m().attribution[error.code]);
+    else throw error;
+  }
+  return true;
 }
 
 const WORKERS = ['codex', 'cirak', 'gemini', 'opencode', 'local', 'antigravity'];
@@ -202,6 +241,7 @@ export async function runSetup(opts: SetupOptions): Promise<number> {
   }
 
   // 5. Proje
+  let initializedNow = false;
   if (opts.project !== false) {
     p.log.step(c('bold', t.projectStep));
     const inRepo =
@@ -215,11 +255,23 @@ export async function runSetup(opts: SetupOptions): Promise<number> {
       inRepo &&
       (await ask(`${t.projectAsk}\n${c('gray', process.cwd())}`, false, opts.yes))
     ) {
-      opts.init(process.cwd());
+      await opts.init(process.cwd());
+      initializedNow = true;
       p.log.success(t.projectDone);
     } else {
       p.log.info(`${t.projectHint} ${c('cyan', 'anafor init')}`);
     }
+  }
+
+  // Existing Anafor projects also get an explicit opt-in prompt during setup.
+  if (root && !initializedNow && opts.project !== false) {
+    await maybeConfigureSetupAttribution(
+      root,
+      opts.yes,
+      interactive(),
+      language,
+      async () => (await ask(m().attribution.ask, true, false)) === true,
+    );
   }
 
   writeSetupState({
