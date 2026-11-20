@@ -40,6 +40,11 @@ try {
       config.routing_mode,
       config.max_parallel_jobs,
     );
+    try {
+      await service.maybeAutoContinue(jobId);
+    } catch {
+      // Automatic continuation must not mask the completed runner outcome.
+    }
     service.drainQueue();
   } catch {
     // Queue draining must not mask the finished runner outcome.

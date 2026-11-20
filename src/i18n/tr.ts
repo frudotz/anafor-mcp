@@ -643,6 +643,19 @@ PR açarken açıklamanın sonuna şu atıf satırını ekle: ${'<img src="https
   },
 
   service: {
+    autoContinueInstructions: (items: string, check: string) =>
+      `Kalan kabul ölçütleri:\n${items}\nBu turda tamamla; yalnız gerçek bir engel varsa blockers doldur.${check}`,
+    autoContinueEvent: (jobId: string) => `Otomatik devam işi: ${jobId}`,
+    autoContinueStarted: (jobId: string) => `Devam işi açıldı: ${jobId}`,
+    autoContinueFailedEvent: (detail: string) => `Otomatik devam başlatılamadı: ${detail}`,
+    autoContinueManualFallback: (jobId: string, detail: string) =>
+      `${jobId} otomatik düzeltmesi başlatılamadı (${detail}); yönetici job_request_changes ile elle devam edebilir.`,
+    autoContinueSkipped: 'atlandı: otomatik düzeltme limiti doldu',
+    autoContinueCheckFailure: (summary: string) => `\nOtomatik kontrol başarısız: ${summary}`,
+    autoContinueFailure: (jobId: string, detail: string) =>
+      `${jobId} otomatik devamı başlatılamadı: ${detail}`,
+    autoContinueWait:
+      'İş otomatik devam talebi bekliyor; auto_continue_pending alanını kontrol edin.',
     failoverContinuation:
       "Önceki işçi limit nedeniyle yarıda kaldı; worktree'deki mevcut değişiklikleri incele ve devam et.",
     failoverSkipped: (workers: string, selected: string) =>

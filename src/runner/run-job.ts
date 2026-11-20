@@ -463,6 +463,21 @@ ${r.stderr ?? ''}`,
     result: v.value,
     warnings: resultWarnings,
     endedAt: nowIso(),
+    autoContinuePending: (() => {
+      const task = store.getTask(job.taskId);
+      return Boolean(
+        config.auto_continue.enabled &&
+        job.role === 'implementation' &&
+        v.value.agent_role === 'implementation' &&
+        v.value.status === 'partial' &&
+        v.value.requirements_missing.length > 0 &&
+        v.value.blockers.length === 0 &&
+        (v.value.review?.critical_count ?? 0) === 0 &&
+        !job.inputs.failoverJobId &&
+        task &&
+        ['open', 'in_progress'].includes(task.state),
+      );
+    })(),
   });
   settleTask(store, job.taskId);
   return store.mustGetJob(job.id);
