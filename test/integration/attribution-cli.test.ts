@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { configurePrAttribution } from '../../src/core/attribution.js';
 
 const cli = resolve('dist/cli/main.js');
 const sandbox = resolve('.anafor-tmp');
@@ -13,6 +14,7 @@ const run = (cwd: string, ...args: string[]) =>
 describe('attribution CLI', () => {
   it('enable/disable/status backs up settings and changes only attribution.pr', () => {
     const dir = project();
+    expect(spawnSync('git', ['init', '-q'], { cwd: dir }).status).toBe(0);
     const originalLang = process.env.ANAFOR_LANG;
     try {
       expect(run(dir, 'init', dir, '--yes').status).toBe(0);
@@ -32,9 +34,14 @@ describe('attribution CLI', () => {
       });
       expect(existsSync(`${file}.bak`)).toBe(true);
       expect(JSON.parse(readFileSync(`${file}.bak`, 'utf8'))).toEqual(initial);
+      const ignoreFile = join(dir, '.gitignore');
+      expect(readFileSync(ignoreFile, 'utf8')).toBe('.anafor/\n/.claude/settings.json.bak\n');
       const once = readFileSync(file, 'utf8');
       expect(run(dir, 'attribution', 'enable').status).toBe(0);
       expect(readFileSync(file, 'utf8')).toBe(once);
+      expect(readFileSync(ignoreFile, 'utf8').match(/\.claude\/settings\.json\.bak/g)).toHaveLength(
+        1,
+      );
       writeFileSync(`${file}.bak`, 'preserve original backup');
       expect(run(dir, 'attribution', 'enable').status).toBe(0);
       expect(readFileSync(`${file}.bak`, 'utf8')).toBe('preserve original backup');
@@ -54,6 +61,29 @@ describe('attribution CLI', () => {
     } finally {
       if (originalLang === undefined) delete process.env.ANAFOR_LANG;
       else process.env.ANAFOR_LANG = originalLang;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('adds backup ignore entry while preserving existing ignore content and line endings', () => {
+    const dir = project();
+    try {
+      expect(spawnSync('git', ['init', '-q'], { cwd: dir }).status).toBe(0);
+      expect(run(dir, 'init', dir, '--yes').status).toBe(0);
+      const ignoreFile = join(dir, '.gitignore');
+      writeFileSync(ignoreFile, 'node_modules/\r\n# keep this\r\n');
+      const file = join(dir, 'nested', '.claude', 'settings.json');
+      mkdirSync(join(dir, 'nested', '.claude'), { recursive: true });
+      writeFileSync(file, '{}\n');
+      configurePrAttribution(file, true, 'en');
+      expect(readFileSync(ignoreFile, 'utf8')).toBe(
+        'node_modules/\r\n# keep this\r\n/nested/.claude/settings.json.bak\r\n',
+      );
+      configurePrAttribution(file, false, 'en');
+      expect(
+        readFileSync(ignoreFile, 'utf8').match(/\/nested\/\.claude\/settings\.json\.bak/g),
+      ).toHaveLength(1);
+    } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
