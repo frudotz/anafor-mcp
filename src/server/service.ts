@@ -59,6 +59,7 @@ import { activeGrants, createGrant, endGrant } from '../hooks/grants.js';
 import { m } from '../i18n/index.js';
 import { spawnSync } from 'node:child_process';
 import { readLoopState, writeLoopState } from '../loop/state.js';
+import { queuePositions, sortQueuedJobs } from '../core/queue-order.js';
 
 /** Servis mesaj kataloğu (geçerli dil). */
 const s = () => m().service;
@@ -106,7 +107,7 @@ export class ServiceError extends Error {
 }
 
 /** İşin nasıl yürütüleceği: ayrık süreç (varsayılan) veya süreç içi (testler). */
-export type Launcher = (store: Store, job: Job) => void;
+export type Launcher = (store: Store, job: Job, onFinished?: () => void) => void;
 export type LoopStarter = (
   root: string,
   args: string[],
@@ -118,8 +119,16 @@ export const detachedLauncher: Launcher = (store, job) => {
 };
 
 export function inProcessLauncher(adapters: AdapterRegistry): Launcher {
-  return (store, job) => {
-    void runJob(store, job.id, adapters).catch(() => undefined);
+  return (store, job, onFinished) => {
+    void runJob(store, job.id, adapters)
+      .catch(() => undefined)
+      .finally(() => {
+        try {
+          onFinished?.();
+        } catch {
+          /* Store may have closed during shutdown. */
+        }
+      });
   };
 }
 
@@ -279,7 +288,7 @@ export class AnaforService {
 
   /** Global eşzamanlılık: bu projenin aktif işleri + diğer projelerin canlı runner kiraları. */
   parallelUsage() {
-    const project = this.store.listJobs({ states: ACTIVE_JOB_STATES }).length;
+    const project = this.store.listJobs({ states: ['starting', 'running', 'validating'] }).length;
     const others = otherProjectLeases(this.store.paths.root).length;
     return { project, other_projects: others, total: project + others, max: this.maxParallelJobs };
   }
@@ -424,6 +433,7 @@ export class AnaforService {
       this.routeNotes = b.notes;
     }
     const reasons: string[] = [];
+    let saturated: string | null = null;
     for (const id of order) {
       const a = this.adapters.get(id)!;
       if (!a.capabilities().roles.includes(role)) continue;
@@ -438,14 +448,15 @@ export class AnaforService {
         continue;
       }
       const running = this.store
-        .listJobs({ states: ACTIVE_JOB_STATES })
+        .listJobs({ states: ['starting', 'running', 'validating'] })
         .filter((j) => j.worker === id).length;
       if (running >= a.capabilities().maxConcurrency) {
-        reasons.push(s().capacityFull(id));
+        saturated ??= id;
         continue;
       }
       return id;
     }
+    if (saturated) return saturated;
     throw new ServiceError(
       'WORKER_UNAVAILABLE',
       s().noWorker(role),
@@ -532,8 +543,16 @@ export class AnaforService {
   }
 
   projectStatus() {
+    this.drainQueue();
     const tasks = this.store.listTasks();
     const active = this.store.listJobs({ states: ACTIVE_JOB_STATES });
+    const activeForDisplay = [
+      ...active.filter((job) => job.state !== 'queued'),
+      ...sortQueuedJobs(
+        active.filter((job) => job.state === 'queued'),
+        (id) => this.store.getTask(id)?.priority ?? 'normal',
+      ),
+    ];
     const review = this.store.listJobs({ states: ['needs_review'] });
     const recent = this.store
       .listTasks({ includeClosed: true })
@@ -542,7 +561,10 @@ export class AnaforService {
     return {
       project_root: this.store.paths.root,
       open_tasks: tasks.map(taskBrief),
-      active_jobs: active.map(jobBrief),
+      active_jobs: activeForDisplay.map((job) => ({
+        ...jobBrief(job),
+        ...(job.state === 'queued' ? { queue_position: this.queuePosition(job.id) } : {}),
+      })),
       jobs_needing_review: review.map(jobBrief),
       recently_closed: recent.map(taskBrief),
       parallel: this.parallelUsage(),
@@ -621,13 +643,7 @@ export class AnaforService {
     const running = this.store
       .listJobs({ states: ACTIVE_JOB_STATES })
       .filter((j) => j.worker === workerId).length;
-    if (running >= caps.maxConcurrency) {
-      throw new ServiceError(
-        'LIMIT_REACHED',
-        s().workerLimit(workerId, caps.maxConcurrency),
-        s().workerLimitHint,
-      );
-    }
+    const shouldQueue = running >= caps.maxConcurrency;
 
     const root = this.store.paths.root;
     const repoReady = isGitRepo(root) && headSha(root) !== null;
@@ -739,12 +755,55 @@ export class AnaforService {
         warnings.push(s().dirtyShared(dirty.length));
       }
     }
-    this.startJob(job);
+    const claimed = shouldQueue
+      ? null
+      : this.store.claimQueuedJob(job.id, workerId, caps.maxConcurrency, this.maxParallelJobs);
+    if (!claimed) {
+      const queuePosition = this.queuePosition(job.id);
+      return {
+        ...jobBrief(job),
+        queue_position: queuePosition,
+        resumed_session: sessionRef !== null,
+        warnings,
+      };
+    }
+    this.startJob(claimed);
     return {
       ...jobBrief(this.store.mustGetJob(job.id)),
       resumed_session: sessionRef !== null,
       warnings,
     };
+  }
+
+  private queuePosition(jobId: string): number {
+    const positions = queuePositions(
+      this.store.listJobs({ states: ['queued'] }),
+      (id) => this.store.getTask(id)?.priority ?? 'normal',
+    );
+    return positions.get(jobId) ?? 0;
+  }
+
+  /** Starts queued jobs in task-priority/FIFO order when worker and global slots are available. */
+  drainQueue(): void {
+    const queued = sortQueuedJobs(
+      this.store.listJobs({ states: ['queued'] }),
+      (id) => this.store.getTask(id)?.priority ?? 'normal',
+    );
+    for (const job of queued) {
+      const adapter = this.adapters.get(job.worker);
+      if (!adapter) continue;
+      try {
+        const claimed = this.store.claimQueuedJob(
+          job.id,
+          job.worker,
+          adapter.capabilities().maxConcurrency,
+          this.maxParallelJobs,
+        );
+        if (claimed) this.startJob(claimed);
+      } catch {
+        /* Another server may have claimed this job. */
+      }
+    }
   }
 
   /** İşin çalışma alanı farkı. Patch dosyaya yazılır; küçükse satır içi döner (token tasarrufu). */
@@ -1051,6 +1110,7 @@ export class AnaforService {
   }
 
   async jobWait(jobIds: string[], timeoutS = 45, mode: 'any' | 'all' = 'any') {
+    this.drainQueue();
     for (const id of jobIds) this.mustJob(id);
     const deadline = Date.now() + Math.min(Math.max(timeoutS, 1), MAX_WAIT_S) * 1000;
     for (;;) {
@@ -1122,6 +1182,7 @@ export class AnaforService {
     if (j.pid) killPidTree(j.pid);
     this.store.appendEvent(jobId, 'cancel', reason);
     this.settleTask(j.taskId);
+    this.drainQueue();
     return jobBrief(cancelled);
   }
 
@@ -1189,6 +1250,7 @@ export class AnaforService {
         notes.push(`${j.id} → failed (orphaned)`);
       }
     }
+    this.drainQueue();
     return notes;
   }
 
@@ -1574,7 +1636,7 @@ export class AnaforService {
 
   private startJob(job: Job): void {
     try {
-      this.launch(this.store, job);
+      this.launch(this.store, job, () => this.drainQueue());
     } catch (e) {
       this.guard(() =>
         this.store.transitionJob(job.id, 'failed', {

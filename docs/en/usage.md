@@ -105,8 +105,10 @@ The brain's final response for each turn must include one marker:
 `ANAFOR_LOOP: DONE`, `ANAFOR_LOOP: CONTINUE`, or `ANAFOR_LOOP: BLOCKED <reason>`.
 The statusline shows a running loop as `↻ loop #N`, an auto-resuming pause as
 `⏸ loop: resumes at <time>`, and a manual pause as
-`⏸ loop paused: anafor loop resume`. The UserPromptSubmit hook adds a short safe
-point reminder when Claude usage exceeds the warning threshold.
+`⏸ loop paused: anafor loop resume`. When Claude usage exceeds the warning
+threshold, the UserPromptSubmit hook adds a safe-point reminder during a loop;
+outside a loop, it asks the assistant to briefly warn the user and seek
+confirmation before large or lengthy work. It adds no context below the threshold.
 
 Recommendation: document next steps in advance in a note, checkpoint, or backlog
 file. The loop respects provider limits and never bypasses them; it does not run
@@ -170,7 +172,7 @@ If the server restarts, dead jobs become `failed (orphaned)`. **No job is ever r
 
 In a new worktree, `worktree_cache` replicates the dependency directory from the main working tree via **hardlinks** instead of running `worktree_setup`. Conditions: the `key_files` (e.g. `package-lock.json`) must be byte-identical in both trees, the directory must be gitignored, and the source must contain no symlinks/junctions. If a condition is not met, the reason is written to the event log and the normal `worktree_setup` runs. Junctions are not used, because `git worktree remove` deletes a junction's target (the main project's `node_modules`).
 
-`max_parallel_jobs` (default 4) is the total number of jobs that may run at the same time **machine-wide**: all workers and all projects count. Each running runner leaves a lease with its process ID under `~/.anafor/running/`; leases of dead processes are not counted. When the limit is full, `job_dispatch` returns `LIMIT_REACHED`. Current usage is shown in the `project_status.parallel` field. A per-worker limit is set separately with `workers.<id>.max_concurrency`.
+`max_parallel_jobs` (default 4) is the total number of jobs that may run at the same time **machine-wide**: all workers and all projects count. Each running runner leaves a lease with its process ID under `~/.anafor/running/`; leases of dead processes are not counted. When a worker concurrency limit is full, the job is recorded as `queued` and starts when a slot opens, ordered by task priority and FIFO. `job_dispatch` returns its position in `queue_position`. Queued jobs appear in `project_status` and `anafor jobs`. Current usage is shown in the `project_status.parallel` field. A per-worker limit is set separately with `workers.<id>.max_concurrency`.
 
 `.anafor/config.json` is for local overrides (not committed). The project file takes precedence.
 
