@@ -1,5 +1,6 @@
-import { mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, unlinkSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 export interface LoopState {
   state: 'running' | 'paused' | 'stopped' | 'done';
@@ -29,6 +30,7 @@ export interface LoopState {
   shutdown_cancel_error?: string | null;
   shutdown_pending?: boolean;
   shutdown_cancelled?: boolean;
+  heartbeat_at?: string;
 }
 const paths = (root: string) => ({
   dir: join(root, '.anafor'),
@@ -130,5 +132,22 @@ export function releaseLoopLock(root: string): void {
     unlinkSync(paths(root).lock);
   } catch {
     /* already released */
+  }
+}
+
+export function updateLoopHeartbeat(root: string, now = Date.now()): void {
+  const p = paths(root);
+  try {
+    const state = JSON.parse(readFileSync(p.state, 'utf8')) as LoopState;
+    if (state.state !== 'running') return;
+    const temp = `${p.state}.${randomUUID()}.tmp`;
+    writeFileSync(
+      temp,
+      JSON.stringify({ ...state, heartbeat_at: new Date(now).toISOString() }, null, 2) + '\n',
+      { flag: 'wx' },
+    );
+    renameSync(temp, p.state);
+  } catch {
+    /* loop may be stopping or state may be changing */
   }
 }

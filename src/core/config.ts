@@ -56,7 +56,13 @@ export interface AnaforConfig {
   /** Rol başına akıl yürütme düzeyi profili (saver | balanced | quality | off). */
   token_profile: TokenProfile;
   limits: { brain: { warn_at: number; pause_at: number; pause_at_weekly: number } };
-  loop: { turn_timeout_min: number; min_turn_gap_sec: number; on_finish: 'none' | 'shutdown' };
+  failover: { enabled: boolean; threshold_percent: number };
+  loop: {
+    turn_timeout_min: number;
+    min_turn_gap_sec: number;
+    recover_on_crash: boolean;
+    on_finish: 'none' | 'shutdown';
+  };
   brain: { lean: boolean; model?: string; effort?: import('../adapters/types.js').Effort };
 }
 
@@ -120,7 +126,8 @@ export const DEFAULT_CONFIG: AnaforConfig = {
   balancer: DEFAULT_BALANCER,
   token_profile: 'balanced',
   limits: { brain: { warn_at: 75, pause_at: 90, pause_at_weekly: 95 } },
-  loop: { turn_timeout_min: 60, min_turn_gap_sec: 30, on_finish: 'none' },
+  failover: { enabled: true, threshold_percent: 95 },
+  loop: { turn_timeout_min: 60, min_turn_gap_sec: 30, recover_on_crash: true, on_finish: 'none' },
   brain: { lean: true },
   worktree_setup: null,
   worktree_cache: null,
@@ -195,6 +202,7 @@ export function loadConfig(root: string): AnaforConfig {
     limits: {
       brain: { ...DEFAULT_CONFIG.limits.brain, ...local.limits?.brain, ...project.limits?.brain },
     },
+    failover: { ...DEFAULT_CONFIG.failover, ...local.failover, ...project.failover },
     loop: { ...DEFAULT_CONFIG.loop, ...local.loop, ...project.loop },
     brain: { ...DEFAULT_CONFIG.brain, ...local.brain, ...project.brain },
   };

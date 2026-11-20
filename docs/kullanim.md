@@ -105,6 +105,21 @@ durum dosyasına yazar. `--auto-resume` kullanıcı tercihidir; verilmezse otoma
 devam etmez. Duraklamış işi `anafor loop resume` ile elle sürdürün. `pause` ve
 `stop` isteği mevcut tur bitince geçerli olur.
 
+#### Çökmeden kurtarma ve bekçi
+
+Çalışan döngü `.anafor/loop.json` dosyasındaki heartbeat'i dakikada bir yeniler.
+Süreç ölür ve heartbeat üç dakikadan eski olursa `anafor loop recover` aynı Claude
+oturumunu sürdürür. SessionStart ve statusline kurtarmayı arkada, en fazla üç
+dakikada bir dener. `loop.recover_on_crash` varsayılan olarak `true` değerindedir;
+projede veya `.anafor/config.json` içinde `false` yaparak kapatabilirsiniz.
+
+Tüm arka plan tetiklerini kapatmak için `ANAFOR_DISABLE_BACKGROUND=1` ayarlayın.
+Claude Code kapalıyken Windows bekçisini açıkça `anafor loop watchdog install`
+komutuyla kurabilirsiniz. Görev her beş dakikada bir gizli pencerede `.anafor` altındaki
+VBS sarmalayıcısını çalıştırır. `uninstall` görevi ve sarmalayıcıyı kaldırır;
+`status` görev durumunu gösterir. Diğer platformlarda komut cron ve launchd örnekleri
+yazdırır.
+
 Backlog dosyası proje kökünden okunur; tamamlanan satırlar `- [ ] madde` biçiminde
 olmalıdır. Örnek:
 
@@ -118,7 +133,9 @@ Her turun son yanıtı bir `ANAFOR_LOOP` işareti taşımalıdır:
 Durum satırında çalışan döngü `↻ döngü #N`, otomatik devamı bekleyen döngü
 `⏸ döngü: <saat>'te devam`, elle devam bekleyen döngü ise
 `⏸ döngü durakladı: anafor loop resume` olarak görünür. UserPromptSubmit hook'u
-Claude limiti uyarı eşiğini aşınca işi güvenli noktaya getirmesi için kısa not ekler.
+limit uyarı eşiği aşıldığında döngü sırasında işi güvenli noktaya getirme notu,
+döngü dışında ise büyük veya uzun işe başlamadan önce kullanıcıyı uyarıp onay
+isteme notu ekler. Eşik altındaki limitlerde not eklemez.
 
 Öneri: sonraki adımları önceden bir belge, kasa (checkpoint) veya backlog dosyasında
 belirleyin. Döngü limitlere uyar ve bunları atlatmaz; paralel beyin başlatmaz, tek
@@ -182,7 +199,7 @@ Sunucu yeniden başlarsa ölü işler `failed (orphaned)` olur. **Hiçbir iş ot
 
 `worktree_cache` yeni worktree'de `worktree_setup` yerine bağımlılık dizinini ana çalışma ağacından **hardlink** ile çoğaltır. Koşullar: `key_files` (ör. `package-lock.json`) iki ağaçta birebir aynı olmalı, dizin gitignore'da olmalı ve kaynakta symlink/junction bulunmamalı. Koşul sağlanmazsa olay günlüğüne nedeni yazılır ve normal `worktree_setup` çalışır. Junction kullanılmaz, çünkü `git worktree remove` junction'ın hedefini (ana projenin `node_modules`'ünü) siler.
 
-`max_parallel_jobs` (varsayılan 4) **makine genelinde** aynı anda çalışabilecek toplam iş sayısıdır: tüm işçiler ve tüm projeler sayılır. Her çalışan runner `~/.anafor/running/` altında süreç kimlikli bir kira bırakır; ölü süreçlerin kiraları sayılmaz. Sınır doluysa `job_dispatch` `LIMIT_REACHED` döner. Anlık kullanım `project_status.parallel` alanında görünür. İşçi başına sınır ayrıca `workers.<id>.max_concurrency` ile verilir.
+`max_parallel_jobs` (varsayılan 4) **makine genelinde** aynı anda çalışabilecek toplam iş sayısıdır: tüm işçiler ve tüm projeler sayılır. Her çalışan runner `~/.anafor/running/` altında süreç kimlikli bir kira bırakır; ölü süreçlerin kiraları sayılmaz. İşçi eşzamanlılık sınırı dolduğunda iş `queued` olarak kaydedilir; slot boşalınca görev önceliği ve FIFO sırasıyla başlar. `job_dispatch` kuyruk sırasını `queue_position` alanında döndürür. `project_status` ve `anafor jobs` kuyruktaki işleri gösterir. Anlık kullanım `project_status.parallel` alanında görünür. İşçi başına sınır ayrıca `workers.<id>.max_concurrency` ile verilir.
 
 `.anafor/config.json` yerel ezmeler içindir (commit edilmez). Proje dosyası önceliklidir.
 
@@ -292,6 +309,12 @@ Router, rolün tercih zincirini (`routing`) **abonelik kapasitesine göre** yeni
 | `off` | Zincir olduğu gibi kullanılır; yalnızca %100 dolu limitler atlanır. |
 
 Dengeleyici sırayı değiştirdiğinde gerekçesi `job_dispatch` uyarılarında ve işin `route` olayında görünür. Örnek: `yük dengeleyici (balanced): codex yerine cirak — codex: five_hour rezerve ulaştı`.
+
+`failover.enabled` varsayılan olarak açıktır. İşçi belirtilmeden dağıtılan işlerde, önbellekteki 5 saatlik veya haftalık kullanım `failover.threshold_percent` değerine (varsayılan `%95`, eşik dahil) ulaşmışsa işçi atlanır ve uyarıda failover nedeni gösterilir. `enabled: false` eşiği kapatır ama %100 dolu pencereleri yine atlar. Rate-limit hata kaydı ayrı kısa ömürlü cache'te tutulur; adaptörün `resets_at` bilgisi yoksa 15 dakika sonra silinmiş sayılır. Pencerenin `resets_at` zamanı geçince işçi tekrar sıraya katılır. İş çalışma sırasında rate/usage limit hatası verirse Anafor aynı talimatla zincirdeki sonraki uygun işçiye en fazla bir otomatik iş açar; ilk iş `failed_over` olarak kaydedilir. Açıkça seçilmiş işçi için otomatik aktarım yapılmaz.
+
+```json
+{ "failover": { "enabled": true, "threshold_percent": 95 } }
+```
 
 ```json
 { "balancer": { "strategy": "protect-brain" } }

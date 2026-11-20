@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Deterministik sahte işçi: Codex `exec --json` olay biçimini taklit eder.
 // Senaryo, prompt içindeki `[fake:<senaryo>]` işaretiyle seçilir:
-//   ok (varsayılan) | fail | invalid | slow | wrong-id
+//   ok (varsayılan) | fail | rate-limited | invalid | slow | wrong-id
 // Kimlikler prompt'taki `task_id: ...`, `job_id: ...`, `agent_role: ...` satırlarından okunur.
 import { writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
@@ -29,6 +29,11 @@ if (scenario === 'slow') {
 if (scenario === 'fail') {
   emit({ type: 'error', message: 'sahte hata' });
   emit({ type: 'turn.failed', error: { message: 'sahte hata' } });
+  process.exit(1);
+}
+if (scenario === 'rate-limited') {
+  emit({ type: 'error', message: '429 usage limit reached', fatal: true });
+  emit({ type: 'turn.failed', error: { message: '429 usage limit reached' } });
   process.exit(1);
 }
 

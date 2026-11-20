@@ -12,6 +12,8 @@ import {
   readStoredLimits,
   recordLimits,
   statusFrom,
+  rateLimitedUntil,
+  recordRateLimitedUntil,
 } from '../../src/limits/limits.js';
 import { tempDir } from '../helpers.js';
 
@@ -31,6 +33,22 @@ const CLAUDE_EVENT = {
 };
 
 describe('limitler', () => {
+  it('rate limit cache is separate and expires at its deadline', () => {
+    const t = tempDir();
+    try {
+      const env = { ...process.env, ANAFOR_HOME: t.dir };
+      recordRateLimitedUntil('codex', 200, env);
+      recordRateLimitedUntil('codex', 300, env);
+      recordRateLimitedUntil('claude', 250, env);
+      expect(rateLimitedUntil('codex', env, 100_000)).toBe(300);
+      expect(rateLimitedUntil('claude', env, 100_000)).toBe(250);
+      expect(rateLimitedUntil('codex', env, 100_000)).toBe(300);
+      expect(rateLimitedUntil('codex', env, 301_000)).toBeNull();
+      expect(readStoredLimits(env)).toEqual({});
+    } finally {
+      t.cleanup();
+    }
+  });
   it('Claude rate_limit_event → iki pencere', () => {
     const w = parseClaudeRateLimitInfo(CLAUDE_EVENT.rate_limit_info);
     expect(w).toEqual([

@@ -12,6 +12,7 @@ import {
   setLoopBrainPid,
   cleanupLoopProcess,
   writeLoopState,
+  updateLoopHeartbeat,
   type LoopState,
 } from '../loop/state.js';
 import { parseLoopCompletion, runLoop } from '../loop/run.js';
@@ -37,6 +38,8 @@ import {
   isShutdownTerminal,
   waitForJobs,
 } from '../loop/shutdown.js';
+import { recoverEnabled, recoverLoop } from '../loop/recover.js';
+import { watchdogCommand } from '../loop/watchdog.js';
 
 export function defaultLoopProfile(
   override: string | undefined,
@@ -70,6 +73,19 @@ export async function runLoopCommand(
 ): Promise<number> {
   const action = args[0];
   let state = readLoopState(root);
+  if (action === 'recover') {
+    if (loadConfig(root).loop.recover_on_crash && recoverEnabled(root)) await recoverLoop(root);
+    return 0;
+  }
+  if (action === '_recover-resume') {
+    if (state?.state !== 'running') return 0;
+    return execute(root, state, false, {}, true);
+  }
+  if (action === 'watchdog') {
+    const result = watchdogCommand(args[1] ?? '', process.platform, undefined, root);
+    for (const line of result.lines) console.log(line);
+    return result.code;
+  }
   if (action === 'status') {
     console.log(JSON.stringify(state, null, 2) ?? 'null');
     return 0;
@@ -220,7 +236,7 @@ export async function runLoopCommand(
     console.error(m().cli.loopLocked);
     return 1;
   }
-  writeLoopState(root, { ...stateNew, pid: process.pid });
+  writeLoopState(root, { ...stateNew, pid: process.pid, heartbeat_at: new Date().toISOString() });
   console.log(m().cli.loopStarted);
   return execute(root, stateNew, true);
 }
@@ -240,6 +256,7 @@ export async function execute(
   state: LoopState,
   lockHeld = false,
   injected: LoopExecuteDeps = {},
+  onlyIfRunning = false,
 ): Promise<number> {
   if (!lockHeld && !acquireLoopLock(root)) {
     console.error(m().cli.loopLocked);
@@ -257,7 +274,11 @@ export async function execute(
   };
   for (const signal of signals) process.on(signal, onSignal);
   process.on('exit', onExit);
+  const heartbeat = setInterval(() => updateLoopHeartbeat(root), 60_000);
   try {
+    const current = readLoopState(root);
+    if (onlyIfRunning && current?.state !== 'running') return 0;
+    if (onlyIfRunning) state = current!;
     state = {
       ...state,
       state: 'running',
@@ -440,6 +461,7 @@ export async function execute(
     }
     return final.state === 'paused' ? 3 : 0;
   } finally {
+    clearInterval(heartbeat);
     process.off('exit', onExit);
     for (const signal of signals) process.off(signal, onSignal);
     releaseLoopLock(root);

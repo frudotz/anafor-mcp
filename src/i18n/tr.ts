@@ -147,6 +147,8 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
   hooks: {
     limitPrompt: (percent: number) =>
       `Claude limiti %${percent}; işi güvenli noktaya getir, büyük iş başlatma.`,
+    limitWarning: (percent: number) =>
+      `Claude limiti %${percent}. Büyük veya uzun bir işe başlamadan önce kullanıcıyı kalan limit konusunda kısaca uyar ve onayını iste; kullanıcı onaylarsa normal şekilde devam et. Küçük işler için uyarıya gerek yok.`,
   },
   permissions: {
     total: (n: number) => `Son dönemde ret: ${n}`,
@@ -178,6 +180,21 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
   cli: {
     loopUsage:
       'loop start "<hedef>" | --backlog <dosya> [--profile saver|balanced|quality] [--model M] [--auto-resume] [--max-cycles N] [--until ISO] [--detach] | status | pause | resume | stop (mevcut tur bitince durur)',
+    watchdogUsage: 'Kullanım: anafor loop watchdog install|uninstall|status',
+    watchdogInstalled: 'Döngü bekçisi kuruldu.',
+    watchdogInstallFailed: (code: number | null) => `Döngü bekçisi kurulamadı (çıkış ${code}).`,
+    watchdogRemoved: 'Döngü bekçisi kaldırıldı.',
+    watchdogRemoveFailed: (code: number | null) => `Döngü bekçisi kaldırılamadı (çıkış ${code}).`,
+    watchdogNotInstalled: 'Döngü bekçisi kurulu değil.',
+    watchdogPathTooLong: 'Bekçi komutu Windows görev sınırını aşıyor.',
+    watchdogNonWindowsInstall:
+      'Bu platformda bekçiyi kurmak için aşağıdaki cron satırını veya launchd plist dosyasını kullanın.',
+    watchdogNonWindowsUninstall:
+      'Cron veya launchd yapılandırmanızdan Anafor loop recover girdisini kaldırın.',
+    watchdogNonWindowsStatus:
+      'Cron veya launchd yapılandırmanızda Anafor loop recover girdisini denetleyin.',
+    watchdogCron: 'Beş dakikalık cron girdisi:',
+    watchdogLaunchd: 'launchd için plist içinde şu ProgramArguments ve aralığı kullanın:',
     loopStarted: 'Geliştirme döngüsü başlatıldı',
     loopShutdownWarning: (cancel: string) =>
       `Uyarı: diğer uygulamalardaki kaydedilmemiş veriler kaybolabilir. İptal komutu: ${cancel}`,
@@ -488,6 +505,8 @@ Politika: HIGH/CRITICAL ve tarama hatası engellenir; CAUTION yalnızca --accept
   },
 
   adapters: {
+    workerSafetyRules:
+      'İŞÇİ GÜVENLİK KURALLARI (zorunlu):\n- git push çalıştırma.\n- curl veya wget çalıştırma.\n- Çalışma dizini dışındaki hiçbir yolu silme; özellikle worktree dışına yönelik rm -rf komutu çalıştırma.\n- Sandbox veya izinleri gevşetme; onay isteyen bir işlemde dur ve bildir.',
     legacyWorkerAlias: 'claude-lite kullanımdan kaldırıldı; cirak kullanın.',
     windowsSandbox: (mode: string) =>
       `Windows sandbox "${mode}": işçi alt süreç başlatamayabilir (spawn EPERM), ` +
@@ -607,6 +626,14 @@ Kullanıcı geliştirme döngüsü isterse loop_start kullan; sonraki adımları
   },
 
   service: {
+    failoverContinuation:
+      "Önceki işçi limit nedeniyle yarıda kaldı; worktree'deki mevcut değişiklikleri incele ve devam et.",
+    failoverSkipped: (workers: string, selected: string) =>
+      `failover: ${workers} limit nedeniyle atlandı; ${selected} seçildi`,
+    failoverExplicit: (worker: string, detail: string) =>
+      `Failover yok: ${worker} açıkça seçildi; rate limit: ${detail}`,
+    failoverTransferred: (worker: string, alternate: string, jobId: string) =>
+      `Rate limit (${worker}); iş ${alternate} işçisine devredildi: ${jobId}`,
     loopAlreadyActive: 'Geliştirme döngüsü zaten çalışıyor.',
     loopStartFailed: (detail: string) => `Döngü başlatılamadı${detail ? `: ${detail}` : ''}`,
     globalLimit: (max: number, project: number, others: number) =>

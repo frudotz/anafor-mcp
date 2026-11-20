@@ -52,7 +52,16 @@ export async function startServer(projectRoot?: string): Promise<void> {
 
   const server = createMcpServer(getService);
   await server.connect(new StdioServerTransport());
+  const queuePoll = setInterval(() => {
+    try {
+      getService().drainQueue();
+    } catch {
+      // A failed poll must not interrupt the MCP transport.
+    }
+  }, 20_000);
+  queuePoll.unref();
   const shutdown = () => {
+    clearInterval(queuePoll);
     service?.store.close();
     process.exit(0);
   };
