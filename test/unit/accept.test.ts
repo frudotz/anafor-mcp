@@ -9,11 +9,12 @@ describe('deep review partial sonucu', () => {
   it('satır aralığı ve worktree göreli kanıtını çözer, dış yolu reddeder', () => {
     const root = 'C:/repo';
     const worktree = 'C:/repo/.anafor/worktrees/job';
+    // Kök Windows yolu; beklenti platformdan bağımsız olarak win32 ile kurulur.
     expect(resolveEvidence(root, worktree, 'lat.md/tasks.md:148-150')).toBe(
-      resolve(worktree, 'lat.md/tasks.md'),
+      win32.resolve(worktree, 'lat.md/tasks.md'),
     );
     expect(resolveEvidence(root, worktree, '.anafor/evidence/T-tests.txt:1')).toBe(
-      resolve(root, '.anafor/evidence/T-tests.txt'),
+      win32.resolve(root, '.anafor/evidence/T-tests.txt'),
     );
     expect(resolveEvidence(root, worktree, '../../../../outside.txt')).toBeNull();
   });
@@ -27,7 +28,7 @@ describe('deep review partial sonucu', () => {
   ])('kanıt yolundaki açıklama konumunu kaldırır: %s', (input, expected) => {
     const root = 'C:/repo';
     const worktree = 'C:/repo/worktree';
-    expect(resolveEvidence(root, worktree, input)).toBe(resolve(worktree, expected));
+    expect(resolveEvidence(root, worktree, input)).toBe(win32.resolve(worktree, expected));
   });
   it('Windows mutlak yolundaki sürücü harfini korur ve dış yolu reddeder', () => {
     const root = 'C:/x';

@@ -103,7 +103,7 @@ describe('AnaforService', () => {
 
   it('jobDispatch queued işlerin kapsamını tarar', async () => {
     const other = svc.taskCreate({ title: 'Kuyrukta', objective: 'x', contextRefs: ['src/a.ts'] });
-    store.createJob({
+    const fixture = store.createJob({
       taskId: other.task_id,
       role: 'implementation',
       worker: 'fake',
@@ -120,6 +120,12 @@ describe('AnaforService', () => {
     });
     expect(dispatched.warnings.join(' ')).toContain(other.task_id);
     svc.jobCancel(dispatched.job_id, 'test');
+    // Kuyruk boşaltma fixture işini başlatmış olabilir; temizlik zaman aşımına düşmesin.
+    try {
+      svc.jobCancel(fixture.id, 'test');
+    } catch {
+      /* zaten bitmiş olabilir */
+    }
   });
 
   it('jobDispatch approved işlerin kapsamını tarar', async () => {
