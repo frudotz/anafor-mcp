@@ -149,6 +149,8 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
   hooks: {
     limitPrompt: (percent: number) =>
       `Claude limit ${percent}%; bring work to a safe point and avoid starting large work.`,
+    limitWarning: (percent: number) =>
+      `Claude limit ${percent}%. Before starting large or lengthy work, briefly warn the user about the remaining limit and ask for confirmation; if the user agrees, continue normally. No warning is needed for small tasks.`,
   },
   permissions: {
     total: (n: number) => `Recent denials: ${n}`,
