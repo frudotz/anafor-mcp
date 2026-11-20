@@ -12,6 +12,7 @@ import {
   setLoopBrainPid,
   cleanupLoopProcess,
   writeLoopState,
+  updateLoopHeartbeat,
   type LoopState,
 } from '../loop/state.js';
 import { parseLoopCompletion, runLoop } from '../loop/run.js';
@@ -20,6 +21,8 @@ import { m } from '../i18n/index.js';
 import { runBrainTurn } from '../loop/brain-turn.js';
 import type { SetupState } from '../setup/setup.js';
 import { TOKEN_PROFILES, type TokenProfile } from '../core/token-profile.js';
+import { recoverEnabled, recoverLoop } from '../loop/recover.js';
+import { watchdogCommand } from '../loop/watchdog.js';
 
 export function defaultLoopProfile(
   override: string | undefined,
@@ -49,6 +52,19 @@ export function loopSignals(platform = process.platform): readonly string[] {
 export async function runLoopCommand(root: string, args: string[]): Promise<number> {
   const action = args[0];
   let state = readLoopState(root);
+  if (action === 'recover') {
+    if (loadConfig(root).loop.recover_on_crash && recoverEnabled(root)) await recoverLoop(root);
+    return 0;
+  }
+  if (action === '_recover-resume') {
+    if (state?.state !== 'running') return 0;
+    return execute(root, state, false, true);
+  }
+  if (action === 'watchdog') {
+    const result = watchdogCommand(args[1] ?? '', process.platform, undefined, root);
+    for (const line of result.lines) console.log(line);
+    return result.code;
+  }
   if (action === 'status') {
     console.log(JSON.stringify(state, null, 2) ?? 'null');
     return 0;
@@ -153,12 +169,17 @@ export async function runLoopCommand(root: string, args: string[]): Promise<numb
     console.error(m().cli.loopLocked);
     return 1;
   }
-  writeLoopState(root, { ...stateNew, pid: process.pid });
+  writeLoopState(root, { ...stateNew, pid: process.pid, heartbeat_at: new Date().toISOString() });
   console.log(m().cli.loopStarted);
   return execute(root, stateNew, true);
 }
 
-async function execute(root: string, state: LoopState, lockHeld = false): Promise<number> {
+async function execute(
+  root: string,
+  state: LoopState,
+  lockHeld = false,
+  onlyIfRunning = false,
+): Promise<number> {
   if (!lockHeld && !acquireLoopLock(root)) {
     console.error(m().cli.loopLocked);
     return 1;
@@ -175,7 +196,11 @@ async function execute(root: string, state: LoopState, lockHeld = false): Promis
   };
   for (const signal of signals) process.on(signal, onSignal);
   process.on('exit', onExit);
+  const heartbeat = setInterval(() => updateLoopHeartbeat(root), 60_000);
   try {
+    const current = readLoopState(root);
+    if (onlyIfRunning && current?.state !== 'running') return 0;
+    if (onlyIfRunning) state = current!;
     state = { ...state, state: 'running', paused_reason: null, resume_at: null, pid: process.pid };
     state = { ...state, profile: defaultLoopProfile(state.profile, readSetupState()) };
     writeLoopState(root, state);
@@ -243,6 +268,7 @@ async function execute(root: string, state: LoopState, lockHeld = false): Promis
     }
     return final.state === 'paused' ? 3 : 0;
   } finally {
+    clearInterval(heartbeat);
     process.off('exit', onExit);
     for (const signal of signals) process.off(signal, onSignal);
     releaseLoopLock(root);

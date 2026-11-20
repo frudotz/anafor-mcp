@@ -180,6 +180,22 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
   cli: {
     loopUsage:
       'loop start "<goal>" | --backlog <file> [--profile saver|balanced|quality] [--model M] [--auto-resume] [--max-cycles N] [--until ISO] [--detach] | status | pause | resume | stop (stops after the current turn)',
+    watchdogUsage: 'Usage: anafor loop watchdog install|uninstall|status',
+    watchdogInstalled: 'Loop watchdog installed.',
+    watchdogInstallFailed: (code: number | null) =>
+      `Could not install loop watchdog (exit ${code}).`,
+    watchdogRemoved: 'Loop watchdog removed.',
+    watchdogRemoveFailed: (code: number | null) => `Could not remove loop watchdog (exit ${code}).`,
+    watchdogNotInstalled: 'Loop watchdog is not installed.',
+    watchdogPathTooLong: 'Watchdog command exceeds the Windows task limit.',
+    watchdogNonWindowsInstall:
+      'Use the cron line or launchd plist below to install the watchdog on this platform.',
+    watchdogNonWindowsUninstall:
+      'Remove the Anafor loop recover entry from your cron or launchd configuration.',
+    watchdogNonWindowsStatus:
+      'Check your cron or launchd configuration for the Anafor loop recover entry.',
+    watchdogCron: 'Add this five minute cron entry:',
+    watchdogLaunchd: 'For launchd, use this ProgramArguments and interval in a plist:',
     loopStarted: 'Development loop started',
     loopWarn: (percent: number) =>
       `Limit at ${percent}%; wrap up current work and do not start a large task.`,

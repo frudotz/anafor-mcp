@@ -21,6 +21,7 @@ import { runExt } from './ext-cmd.js';
 import { m, parseLang } from '../i18n/index.js';
 import { runDoctor } from './doctor-cmd.js';
 import { runLoopCommand } from './loop-cmd.js';
+import { recoverEnabled, recoverTrigger } from '../loop/recover.js';
 import { healthSignals, loopStatusText, statusLine, statuslineWorkers } from './health.js';
 import { runUserPromptSubmit } from '../hooks/user-prompt-submit.js';
 import { recordPermissionDenied } from '../hooks/permission-denied.js';
@@ -59,7 +60,10 @@ function flag(name: string): string | undefined {
 
 /** Anafor projesinin kökü (cwd'den yukarı); yoksa açıklayıcı hata. */
 function projectRoot(): string {
-  const resolved = resolveProjectRoot();
+  const explicitRoot = flag('project-root');
+  const resolved = resolveProjectRoot(
+    explicitRoot ? { ...process.env, ANAFOR_PROJECT_ROOT: resolve(explicitRoot) } : process.env,
+  );
   if (!resolved.initialized) {
     console.error(m().cli.notProject);
     process.exit(1);
@@ -440,29 +444,45 @@ switch (cmd) {
     }
     let signals: ReturnType<typeof healthSignals> = [];
     try {
-      refreshInBackground();
-      const lastCodex = readStoredLimits().codex;
-      const refreshMarker = join(anaforHome(), 'codex-limits-refresh');
-      let lastAttempt = 0;
-      try {
-        lastAttempt = Number(readFileSync(refreshMarker, 'utf8')) || 0;
-      } catch {
-        /* first refresh */
+      const workspace = input.workspace as { current_dir?: string } | undefined;
+      if (process.env.ANAFOR_DISABLE_BACKGROUND !== '1') {
+        refreshInBackground();
+        const loopProject = resolveProjectRoot(
+          process.env,
+          workspace?.current_dir ?? (input.cwd as string | undefined) ?? process.cwd(),
+        );
+        if (
+          loopProject.initialized &&
+          loadConfig(loopProject.root).loop.recover_on_crash &&
+          recoverEnabled(loopProject.root)
+        )
+          recoverTrigger(loopProject.root);
+        const lastCodex = readStoredLimits().codex;
+        const refreshMarker = join(anaforHome(), 'codex-limits-refresh');
+        let lastAttempt = 0;
+        try {
+          lastAttempt = Number(readFileSync(refreshMarker, 'utf8')) || 0;
+        } catch {
+          /* first refresh */
+        }
+        if (
+          (!lastCodex || Date.now() - Date.parse(lastCodex.observed_at) > 5 * 60_000) &&
+          Date.now() - lastAttempt > 5 * 60_000
+        ) {
+          writeFileSync(refreshMarker, String(Date.now()));
+          const child = spawn(
+            process.execPath,
+            [fileURLToPath(import.meta.url), 'limits-refresh'],
+            {
+              detached: true,
+              stdio: 'ignore',
+              windowsHide: true,
+            },
+          );
+          child.unref();
+        }
       }
-      if (
-        (!lastCodex || Date.now() - Date.parse(lastCodex.observed_at) > 5 * 60_000) &&
-        Date.now() - lastAttempt > 5 * 60_000
-      ) {
-        writeFileSync(refreshMarker, String(Date.now()));
-        const child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'limits-refresh'], {
-          detached: true,
-          stdio: 'ignore',
-          windowsHide: true,
-        });
-        child.unref();
-      }
-      const ws = input.workspace as { current_dir?: string } | undefined;
-      signals = healthSignals(ws?.current_dir ?? (input.cwd as string | undefined));
+      signals = healthSignals(workspace?.current_dir ?? (input.cwd as string | undefined));
     } catch {
       // sağlık sinyali statusline'ı durdurmaz
     }

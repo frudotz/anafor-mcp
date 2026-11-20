@@ -5,6 +5,7 @@ import { checkExtensions } from '../extensions/registry.js';
 import { activeGrants } from './grants.js';
 import { m } from '../i18n/index.js';
 import { readLoopState } from '../loop/state.js';
+import { recoverEnabled, recoverTrigger } from '../loop/recover.js';
 
 /** SessionStart: yöneticiye kısa rol hatırlatması + proje panosu (token dostu). */
 export function runSessionStart(
@@ -16,6 +17,7 @@ export function runSessionStart(
   if (!resolved.initialized) return '';
   const root = resolved.root;
   const config = loadConfig(root);
+  if (config.loop.recover_on_crash && recoverEnabled(root)) recoverTrigger(root);
   const store = new Store(root);
   try {
     const tasks = store.listTasks();
