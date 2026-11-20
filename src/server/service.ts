@@ -111,6 +111,8 @@ export class ServiceError extends Error {
   }
 }
 
+class AutoContinueSkipped extends Error {}
+
 /** İşin nasıl yürütüleceği: ayrık süreç (varsayılan) veya süreç içi (testler). */
 export type Launcher = (store: Store, job: Job, onFinished?: () => void) => void;
 export type LoopStarter = (
@@ -158,6 +160,7 @@ export function jobBrief(j: Job) {
     error: j.error,
     failover_job_id: j.inputs.failoverJobId ?? null,
     result_status: j.result?.status ?? null,
+    auto_continue_pending: j.autoContinuePending,
     started_at: j.startedAt,
     ended_at: j.endedAt,
   };
@@ -868,6 +871,13 @@ export class AnaforService {
 
   /** Starts queued jobs in task-priority/FIFO order when worker and global slots are available. */
   drainQueue(): void {
+    for (const job of this.store
+      .listJobs({ states: ['needs_review'] })
+      .filter((j) => j.autoContinuePending)) {
+      void this.maybeAutoContinue(job.id).catch((error) =>
+        console.error(s().autoContinueFailure(job.id, String(error))),
+      );
+    }
     const queued = sortQueuedJobs(
       this.store.listJobs({ states: ['queued'] }),
       (id) => this.store.getTask(id)?.priority ?? 'normal',
@@ -1187,6 +1197,7 @@ export class AnaforService {
       : 0;
     return {
       ...jobBrief(j),
+      continued_by: this.continuedBy(jobId),
       elapsed_s: elapsed,
       last_events: events.map((e) => `${e.seq} ${e.type}: ${e.summary}`),
     };
@@ -1198,17 +1209,90 @@ export class AnaforService {
     const deadline = Date.now() + Math.min(Math.max(timeoutS, 1), MAX_WAIT_S) * 1000;
     for (;;) {
       const jobs = jobIds.map((id) => this.store.mustGetJob(id));
-      const done = jobs.filter((j) => isJobWaitComplete(j.state));
-      const pending = jobs.filter((j) => !isJobWaitComplete(j.state));
+      const done = jobs.filter((j) => isJobWaitComplete(j.state) && !j.autoContinuePending);
+      const pending = jobs.filter((j) => !isJobWaitComplete(j.state) || j.autoContinuePending);
       const satisfied = mode === 'any' ? done.length > 0 : pending.length === 0;
       if (satisfied || Date.now() >= deadline) {
+        const continuation = this.continuationInfo(jobIds);
         return {
           finished: done.map(jobBrief),
           still_running: pending.map((j) => j.id),
+          auto_continue_pending: pending.filter((j) => j.autoContinuePending).map((j) => j.id),
+          continued_by: continuation.continuedBy,
+          note: continuation.note,
           timed_out_waiting: !satisfied,
         };
       }
       await new Promise((r) => setTimeout(r, 500));
+    }
+  }
+
+  private continuedBy(jobId: string): string | null {
+    return (
+      this.store
+        .listEvents(jobId, 0, 1000)
+        .find((e) => e.type === 'auto_continue')
+        ?.summary.match(/\bJ-[\w-]+/)?.[0] ?? null
+    );
+  }
+
+  private continuationInfo(jobIds: string[]) {
+    const continuedBy = Object.fromEntries(
+      jobIds.flatMap((id) => {
+        const next = this.continuedBy(id);
+        return next ? [[id, next]] : [];
+      }),
+    );
+    const first = Object.values(continuedBy)[0];
+    const pending = jobIds.find((id) => this.store.mustGetJob(id).autoContinuePending);
+    return {
+      continuedBy,
+      note: first ? s().autoContinueStarted(first) : pending ? s().autoContinueWait : undefined,
+    };
+  }
+
+  async maybeAutoContinue(jobId: string): Promise<void | { auto_continue_skipped: string }> {
+    const job = this.store.claimAutoContinuePending(jobId);
+    if (!job) return;
+    const result = job.result;
+    const config = loadConfig(this.store.paths.root).auto_continue;
+    const task = this.mustTask(job.taskId);
+    if (
+      !config.enabled ||
+      job.role !== 'implementation' ||
+      result?.agent_role !== 'implementation' ||
+      result.status !== 'partial' ||
+      !result.requirements_missing.length ||
+      result.blockers.length ||
+      (result.review?.critical_count ?? 0) > 0 ||
+      job.inputs.failoverJobId ||
+      ['abandoned', 'superseded', 'blocked'].includes(task.state)
+    )
+      return;
+    const autoCount = this.store
+      .listJobs({ taskId: job.taskId })
+      .filter((j) => j.autoContinued).length;
+    if (autoCount >= config.max || task.correctionCount >= MAX_CORRECTIONS) return;
+    const lines = result.requirements_missing.map((x) => `- ${x}`).join('\n');
+    const check =
+      job.autoCheck && !job.autoCheck.passed
+        ? s().autoContinueCheckFailure(job.autoCheck.summary.slice(0, 240))
+        : '';
+    const instructions = s().autoContinueInstructions(lines, check);
+    try {
+      const next = await this.jobRequestChanges(jobId, [], instructions, true);
+      this.store.appendEvent(jobId, 'auto_continue', s().autoContinueEvent(next.job_id));
+    } catch (error) {
+      if (error instanceof AutoContinueSkipped) return { auto_continue_skipped: error.message };
+      const detail = String(error);
+      try {
+        this.store.appendEvent(jobId, 'auto_continue_failed', s().autoContinueFailedEvent(detail));
+        this.store.updateTask(job.taskId, { note: s().autoContinueManualFallback(jobId, detail) });
+      } catch {
+        /* preserve original error */
+      }
+      console.warn(s().autoContinueFailure(jobId, detail));
+      throw error;
     }
   }
 
@@ -1270,13 +1354,22 @@ export class AnaforService {
   }
 
   /** İncelemede bulunan sorunlar için aynı işçi oturumunda düzeltme işi açar. */
-  async jobRequestChanges(jobId: string, findings: Finding[], instructions?: string) {
+  async jobRequestChanges(
+    jobId: string,
+    findings: Finding[],
+    instructions?: string,
+    automatic = false,
+  ) {
     const j = this.mustJob(jobId);
     if (j.state !== 'needs_review') {
       throw new ServiceError('INVALID_STATE', s().jobNotInReview(jobId, j.state));
     }
     const task = this.mustTask(j.taskId);
+    const autoCount = this.store
+      .listJobs({ taskId: task.id })
+      .filter((j) => j.autoContinued).length;
     if (task.correctionCount >= MAX_CORRECTIONS) {
+      if (automatic) throw new AutoContinueSkipped(s().autoContinueSkipped);
       this.store.updateTask(task.id, {
         state: 'blocked',
         note: s().correctionLimitNote(MAX_CORRECTIONS),
@@ -1288,7 +1381,7 @@ export class AnaforService {
       );
     }
     this.guard(() => this.store.transitionJob(jobId, 'changes_requested'));
-    this.store.updateTask(task.id, { correctionCount: task.correctionCount + 1 });
+    if (!automatic) this.store.updateTask(task.id, { correctionCount: task.correctionCount + 1 });
     const job = this.store.createJob({
       taskId: task.id,
       role: j.role,
@@ -1301,6 +1394,7 @@ export class AnaforService {
       sessionRef: j.sessionRef,
       parentJobId: j.id,
       isCorrection: true,
+      autoContinued: automatic,
       instructions: instructions ?? `Önceki işin (${j.id}) incelemesinde bulunan sorunları düzelt.`,
       inputs: { ...j.inputs, findings },
       timeoutS: j.timeoutS,
@@ -1309,7 +1403,7 @@ export class AnaforService {
     this.startJob(job);
     return {
       ...jobBrief(this.store.mustGetJob(job.id)),
-      correction_number: task.correctionCount + 1,
+      correction_number: automatic ? autoCount + 1 : task.correctionCount + 1,
     };
   }
 

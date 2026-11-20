@@ -21,7 +21,10 @@ describe('AnaforService', () => {
     t = tempDir();
     writeFileSync(
       join(t.dir, 'anafor.config.json'),
-      JSON.stringify({ review: { require_for: 'none' } }),
+      JSON.stringify({
+        review: { require_for: 'none' },
+        auto_continue: { enabled: false, max: 1 },
+      }),
     );
     store = new Store(t.dir);
     svc = new AnaforService(store, adapters, inProcessLauncher(adapters), 'fake');

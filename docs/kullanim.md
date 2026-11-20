@@ -203,6 +203,8 @@ Sunucu yeniden başlarsa ölü işler `failed (orphaned)` olur. **Hiçbir iş ot
 
 `.anafor/config.json` yerel ezmeler içindir (commit edilmez). Proje dosyası önceliklidir.
 
+`auto_continue` varsayılanı `{"enabled": true, "max": 1}` şeklindedir. Kısmi implementation sonucu eksik gereksinim listeliyor ve engel bildirmiyorsa, aynı işçi oturumunda en fazla `max` otomatik düzeltme açılır. Kapatmak için `{"auto_continue":{"enabled":false,"max":1}}` kullanın.
+
 ### İşçi CLI yapılandırma yalıtımı
 
 İşçi yalıtımı sandbox'ın yerini tutmaz. Codex ve OpenCode iş emirlerine şu sıkılaştırma kuralları eklenir: `git push`, `curl`/`wget` ve worktree dışına yönelik silme (özellikle `rm -rf`) yasaktır; sandbox/izinleri gevşetmek yasaktır ve onay gerektiren adımda işçi durup bildirir. Kurallar iş emrinde açıkça belirtilir ancak CLI seviyesinde zorlayıcı politika değildir. Gelecek adım: Codex `execpolicy` `.rules` ile CLI düzeyinde zorlama. OpenCode kullanıcı izin ayarlarının üzerine yazılmaz ve izin atlatma bayrağı kullanılmaz.

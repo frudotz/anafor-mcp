@@ -63,6 +63,8 @@ export interface Job {
   sessionRef: string | null;
   parentJobId: string | null;
   isCorrection: boolean;
+  autoContinuePending: boolean;
+  autoContinued: boolean;
   instructions: string;
   inputs: JobInputs;
   timeoutS: number;
@@ -141,6 +143,8 @@ function toJob(r: Row): Job {
     sessionRef: str(r.session_ref ?? null),
     parentJobId: str(r.parent_job_id ?? null),
     isCorrection: Number(r.is_correction) === 1,
+    autoContinuePending: Number(r.auto_continue_pending ?? 0) === 1,
+    autoContinued: Number(r.auto_continued ?? 0) === 1,
     instructions: String(r.instructions),
     inputs: parse(r.inputs_json ?? null, {}),
     timeoutS: Number(r.timeout_s),
@@ -182,6 +186,7 @@ export interface CreateJobInput {
   sessionRef?: string | null;
   parentJobId?: string | null;
   isCorrection?: boolean;
+  autoContinued?: boolean;
   instructions: string;
   inputs?: JobInputs;
   timeoutS: number;
@@ -289,9 +294,9 @@ export class Store {
     this.db
       .prepare(
         `INSERT INTO jobs (id, task_id, role, worker, model, state, workspace_mode, workdir, branch,
-          session_ref, parent_job_id, is_correction, instructions, inputs_json, timeout_s,
+          session_ref, parent_job_id, is_correction, auto_continued, instructions, inputs_json, timeout_s,
           base_sha, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -305,6 +310,7 @@ export class Store {
         input.sessionRef ?? null,
         input.parentJobId ?? null,
         input.isCorrection ? 1 : 0,
+        input.autoContinued ? 1 : 0,
         input.instructions,
         JSON.stringify(input.inputs ?? {}),
         input.timeoutS,
@@ -406,10 +412,12 @@ export class Store {
       startedAt: string;
       endedAt: string;
       autoCheck: AutoCheck | null;
+      autoContinuePending: boolean;
     }> = {},
   ): Job {
     const sources = jobSourcesFor(to);
     const cols: Record<string, SQLInputValue> = { state: to };
+    if (sources.includes('needs_review')) cols.auto_continue_pending = 0;
     if (patch.pid !== undefined) cols.pid = patch.pid;
     if (patch.exitCode !== undefined) cols.exit_code = patch.exitCode;
     if (patch.error !== undefined) cols.error = patch.error;
@@ -418,6 +426,8 @@ export class Store {
       cols.result_json = patch.result ? JSON.stringify(patch.result) : null;
     if (patch.autoCheck !== undefined)
       cols.auto_check_json = patch.autoCheck ? JSON.stringify(patch.autoCheck) : null;
+    if (patch.autoContinuePending !== undefined)
+      cols.auto_continue_pending = patch.autoContinuePending ? 1 : 0;
     if (patch.warnings !== undefined) cols.warnings_json = JSON.stringify(patch.warnings);
     if (patch.inputs !== undefined) cols.inputs_json = JSON.stringify(patch.inputs);
     if (patch.usage !== undefined)
@@ -446,6 +456,7 @@ export class Store {
       usage: TokenUsage | null;
       autoCheck: AutoCheck | null;
       warnings: string[];
+      autoContinuePending: boolean;
     }>,
   ): void {
     const cols: Record<string, SQLInputValue> = {};
@@ -456,7 +467,26 @@ export class Store {
     if (patch.autoCheck !== undefined)
       cols.auto_check_json = patch.autoCheck ? JSON.stringify(patch.autoCheck) : null;
     if (patch.warnings !== undefined) cols.warnings_json = JSON.stringify(patch.warnings);
+    if (patch.autoContinuePending !== undefined)
+      cols.auto_continue_pending = patch.autoContinuePending ? 1 : 0;
     this.updateRow('jobs', id, cols);
+  }
+
+  claimAutoContinuePending(id: string): Job | null {
+    this.db.exec('BEGIN IMMEDIATE;');
+    try {
+      const update = this.db
+        .prepare(
+          "UPDATE jobs SET auto_continue_pending = 0, updated_at = ? WHERE id = ? AND state = 'needs_review' AND auto_continue_pending = 1",
+        )
+        .run(nowIso(), id);
+      const job = Number(update.changes) === 1 ? this.getJob(id) : null;
+      this.db.exec('COMMIT;');
+      return job;
+    } catch (error) {
+      this.db.exec('ROLLBACK;');
+      throw error;
+    }
   }
 
   // ---- oturumlar ----

@@ -74,6 +74,31 @@ describe('Store', () => {
     expect(done.pid).toBe(123);
   });
 
+  it('needs_review durumundan çıkışta otomatik devam işareti her geçişte temizlenir', () => {
+    const task = mkTask();
+    const job = mkJob(task.id);
+    store.transitionJob(job.id, 'starting');
+    store.transitionJob(job.id, 'running');
+    store.transitionJob(job.id, 'validating');
+    store.transitionJob(job.id, 'needs_review', {
+      result: sampleResult(),
+      autoContinuePending: true,
+    });
+    expect(store.mustGetJob(job.id).autoContinuePending).toBe(true);
+    const changed = store.transitionJob(job.id, 'changes_requested');
+    expect(changed.autoContinuePending).toBe(false);
+
+    const approvedJob = mkJob(task.id);
+    store.transitionJob(approvedJob.id, 'starting');
+    store.transitionJob(approvedJob.id, 'running');
+    store.transitionJob(approvedJob.id, 'validating');
+    store.transitionJob(approvedJob.id, 'needs_review', {
+      result: sampleResult(),
+      autoContinuePending: true,
+    });
+    expect(store.transitionJob(approvedJob.id, 'approved').autoContinuePending).toBe(false);
+  });
+
   it('geçersiz geçiş INVALID_STATE fırlatır', () => {
     const job = mkJob(mkTask().id);
     expect(() => store.transitionJob(job.id, 'needs_review')).toThrowError(StoreError);
