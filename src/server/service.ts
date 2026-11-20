@@ -737,6 +737,74 @@ export class AnaforService {
     const workspace: WorkspaceMode =
       input.workspace ??
       (target ? 'readonly' : writes ? (repoReady ? 'worktree' : 'shared') : 'readonly');
+    const scope = [...(task.contextRefs ?? []), ...(input.inputs?.files ?? [])];
+    const windowsPaths = process.platform === 'win32';
+    const norm = (p: string) => {
+      const normalized = p.replace(/\\/g, '/').replace(/^\.\//, '');
+      return windowsPaths ? normalized.toLowerCase() : normalized;
+    };
+    const matches = (scopePath: string, file: string) => {
+      const p = norm(scopePath);
+      if (!p) return false;
+      if (p.includes('*') || p.includes('?')) {
+        let pattern = '';
+        for (let i = 0; i < p.length; i++) {
+          const c = p[i]!;
+          if (c === '*' && p[i + 1] === '*') {
+            pattern += '.*';
+            i++;
+          } else if (c === '*') pattern += '[^/]*';
+          else if (c === '?') pattern += '[^/]';
+          else pattern += /[.+^${}()|[\]\\]/.test(c) ? `\\${c}` : c;
+        }
+        const re = new RegExp(`^${pattern}$`);
+        return re.test(norm(file));
+      }
+      return norm(file) === p || norm(file).startsWith(p.endsWith('/') ? p : `${p}/`);
+    };
+    const overlapWarnings: string[] = [];
+    if (input.role === 'implementation' || input.role === 'test') {
+      const tasks = this.store.listTasks();
+      const taskById = new Map(tasks.map((item) => [item.id, item]));
+      const eligibleTasks = new Set(
+        tasks
+          .filter(
+            (item) =>
+              item.id !== task.id && ['open', 'in_progress', 'in_review'].includes(item.state),
+          )
+          .map((item) => item.id),
+      );
+      const candidateStates = new Set([
+        'queued',
+        'starting',
+        'running',
+        'validating',
+        'needs_review',
+        'approved',
+      ]);
+      const jobsByTask = new Map<string, Job[]>();
+      for (const otherJob of this.store.listJobs()) {
+        if (!eligibleTasks.has(otherJob.taskId) || !candidateStates.has(otherJob.state)) continue;
+        const jobs = jobsByTask.get(otherJob.taskId) ?? [];
+        jobs.push(otherJob);
+        jobsByTask.set(otherJob.taskId, jobs);
+      }
+      for (const [otherTaskId, jobs] of jobsByTask) {
+        const other = taskById.get(otherTaskId)!;
+        const overlaps = new Set<string>();
+        for (const otherJob of jobs) {
+          const otherScope = [...other.contextRefs, ...(otherJob.result?.changed_files ?? [])];
+          for (const candidate of scope) {
+            if (otherScope.some((file) => matches(candidate, file) || matches(file, candidate))) {
+              overlaps.add(candidate);
+            }
+          }
+        }
+        if (overlaps.size) {
+          overlapWarnings.push(s().dispatchOverlap(otherTaskId, [...overlaps].join(', ')));
+        }
+      }
+    }
     if (workspace === 'worktree' && !repoReady) {
       throw new ServiceError('VALIDATION_FAILED', s().worktreeNeedsRepo, s().worktreeNeedsRepoHint);
     }
@@ -832,6 +900,7 @@ export class AnaforService {
       this.store.updateTask(task.id, { state: 'in_progress' });
     }
     const warnings: string[] = [];
+    warnings.push(...new Set(overlapWarnings));
     if (routeNotes.length) {
       this.store.appendEvent(job.id, 'route', routeNotes.join('; '));
       warnings.push(...routeNotes);
