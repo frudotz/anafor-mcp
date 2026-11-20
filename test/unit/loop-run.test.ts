@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runLoop, parseBacklog, parseLoopCompletion } from '../../src/loop/run.js';
 import {
   acquireLoopLock,
+  cleanupLoopProcess,
   readLoopState,
   releaseLoopLock,
   setLoopBrainPid,
@@ -509,6 +510,22 @@ describe('runLoop', () => {
     expect(readLoopState(root)).toMatchObject({ state: 'stopped', paused_reason: 'operator stop' });
     expect(acquireLoopLock(root)).toBe(true);
     releaseLoopLock(root);
+  });
+  it('preserves a blocked loop result during process cleanup', () => {
+    const { root, state } = setup();
+    acquireLoopLock(root);
+    writeLoopState(root, {
+      ...state,
+      state: 'paused',
+      paused_reason: 'blocked: waiting',
+      shutdown_pending: true,
+    });
+    cleanupLoopProcess(root, 'process exit', () => {});
+    expect(readLoopState(root)).toMatchObject({
+      state: 'paused',
+      paused_reason: 'blocked: waiting',
+      shutdown_pending: true,
+    });
   });
   it('does not replace loop.json when start cannot acquire the existing live lock', async () => {
     const { root, state } = setup();

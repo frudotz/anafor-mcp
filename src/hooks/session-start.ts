@@ -31,12 +31,22 @@ export function runSessionStart(
       t.board(tasks.length, active.length, review.length, grants.length),
     ];
     const loop = readLoopState(root);
-    if (loop && ['running', 'paused'].includes(loop.state)) {
+    if (
+      loop &&
+      (['running', 'paused'].includes(loop.state) ||
+        loop.shutdown_scheduled_at ||
+        loop.shutdown_error)
+    ) {
       const detail =
         loop.paused_reason?.startsWith('blocked:') || loop.paused_reason?.startsWith('error:')
           ? loop.paused_reason
           : (loop.resume_at ?? '');
       lines.push(t.loopSummary(loop.state, loop.cycle, detail));
+      if (loop.shutdown_scheduled_at)
+        lines.push(
+          t.shutdownScheduled(loop.shutdown_scheduled_at, loop.shutdown_cancel_command ?? ''),
+        );
+      if (loop.shutdown_error) lines.push(t.shutdownFailed(loop.shutdown_error));
     }
     for (const t of tasks.slice(0, 5)) lines.push(`- ${t.id} [${t.state}] ${t.title}`);
     for (const j of review.slice(0, 5)) lines.push(t.awaitingReview(j.id, j.worker, j.role));

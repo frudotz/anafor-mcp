@@ -196,6 +196,14 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
     watchdogCron: 'Beş dakikalık cron girdisi:',
     watchdogLaunchd: 'launchd için plist içinde şu ProgramArguments ve aralığı kullanın:',
     loopStarted: 'Geliştirme döngüsü başlatıldı',
+    loopShutdownWarning: (cancel: string) =>
+      `Uyarı: diğer uygulamalardaki kaydedilmemiş veriler kaybolabilir. İptal komutu: ${cancel}`,
+    loopShutdownScheduled: (cancel: string) =>
+      `Bilgisayar 120 saniye içinde kapanacak. İptal: ${cancel}`,
+    loopShutdownFailed: (error: string) => `Bilgisayar kapatma işlemi zamanlanamadı: ${error}`,
+    loopShutdownCancelled: 'Bilgisayarın kapanması iptal edildi.',
+    loopShutdownCancelFailed: (error: string, cancel: string) =>
+      `Kapatma iptal edilemedi: ${error}. Elle iptal: ${cancel}`,
     loopWarn: (percent: number) => `Limit %${percent}; işi toparla, büyük iş başlatma.`,
     loopResumePrompt:
       'Limit yenilendi. project_status ile kaldığın yeri bul; biten ve çalışan işleri incele; plana devam et.',
@@ -460,6 +468,9 @@ Politika: HIGH/CRITICAL ve tarama hatası engellenir; CAUTION yalnızca --accept
   },
 
   sessionStart: {
+    shutdownScheduled: (at: string, cancel: string) =>
+      `Bilgisayar kapatma zamanı: ${at} · iptal: ${cancel}`,
+    shutdownFailed: (error: string) => `Bilgisayar kapatma zamanlanamadı: ${error}`,
     loopSummary: (state: string, cycle: number, detail: string) =>
       `Geliştirme döngüsü ${state} · tur ${cycle}${detail ? ` · ${detail}` : ''}`,
     managed: (mode: string) => `[Anafor] Bu proje Anafor yönetiminde (director_mode: ${mode}).`,
