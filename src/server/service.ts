@@ -34,7 +34,7 @@ import {
 import { balance } from '../capacity/balancer.js';
 import { capacityReport, readCosts } from '../capacity/capacity.js';
 import { recommend } from '../capacity/meta.js';
-import { currentLimits, formatWindows, limitAccount } from '../limits/limits.js';
+import { currentLimits, formatWindows, limitAccount, rateLimitedUntil } from '../limits/limits.js';
 import { createCheckpoint, readCheckpoint, type CheckpointMeta } from '../governance/checkpoint.js';
 import {
   acquireMemoryLock,
@@ -151,6 +151,7 @@ export function jobBrief(j: Job) {
     state: j.state,
     correction: j.isCorrection,
     error: j.error,
+    failover_job_id: j.inputs.failoverJobId ?? null,
     result_status: j.result?.status ?? null,
     started_at: j.startedAt,
     ended_at: j.endedAt,
@@ -379,11 +380,20 @@ export class AnaforService {
 
   /** Limiti dolmuş (sıfırlanma zamanı gelmemiş) işçi mi? */
   private limited(workerId: string): string | null {
+    const now = Date.now() / 1000;
+    const failover = loadConfig(this.store.paths.root).failover;
+    const limitedUntil = failover.enabled ? rateLimitedUntil(workerId) : null;
+    if (limitedUntil) return s().windowFull(workerId, 'rate_limit', 100);
     const l = currentLimits(limitAccount(workerId));
     if (!l) return null;
-    const now = Date.now() / 1000;
+    const threshold = failover.threshold_percent;
     const full = l.windows.find(
-      (w) => w.used_percent >= 100 && (w.resets_at === null || w.resets_at > now),
+      (w) =>
+        (w.used_percent >= 100 && (w.resets_at === null || w.resets_at > now)) ||
+        (failover.enabled &&
+          ['five_hour', 'seven_day'].some((n) => w.name.startsWith(n)) &&
+          w.used_percent >= threshold &&
+          (w.resets_at === null || w.resets_at > now)),
     );
     return full ? s().windowFull(workerId, full.name, full.used_percent) : null;
   }
@@ -434,6 +444,7 @@ export class AnaforService {
       this.routeNotes = b.notes;
     }
     const reasons: string[] = [];
+    const limitSkipped: string[] = [];
     let saturated: string | null = null;
     for (const id of order) {
       const a = this.adapters.get(id)!;
@@ -446,6 +457,7 @@ export class AnaforService {
       const lim = this.limited(id);
       if (lim) {
         reasons.push(lim);
+        limitSkipped.push(id);
         continue;
       }
       const running = this.store
@@ -455,9 +467,15 @@ export class AnaforService {
         saturated ??= id;
         continue;
       }
+      if (limitSkipped.length)
+        this.routeNotes.push(s().failoverSkipped(limitSkipped.join(', '), id));
       return id;
     }
-    if (saturated) return saturated;
+    if (saturated) {
+      if (limitSkipped.length)
+        this.routeNotes.push(s().failoverSkipped(limitSkipped.join(', '), saturated));
+      return saturated;
+    }
     throw new ServiceError(
       'WORKER_UNAVAILABLE',
       s().noWorker(role),
@@ -498,6 +516,7 @@ export class AnaforService {
       'merged',
       'changes_requested',
       'failed',
+      'failed_over',
       'timed_out',
       'invalid_output',
     ]);
@@ -532,8 +551,9 @@ export class AnaforService {
         role: jobs[0]!.role,
         finished: jobs.length,
         accepted,
-        failed: jobs.filter((j) => ['failed', 'timed_out', 'invalid_output'].includes(j.state))
-          .length,
+        failed: jobs.filter((j) =>
+          ['failed', 'failed_over', 'timed_out', 'invalid_output'].includes(j.state),
+        ).length,
         changes_requested: jobs.filter((j) => j.state === 'changes_requested').length,
         acceptance_rate: jobs.length ? accepted / jobs.length : 0,
         avg_duration_s: mean(seconds),
@@ -728,10 +748,12 @@ export class AnaforService {
       instructions: input.instructions,
       inputs: {
         ...(input.inputs ?? {}),
+        explicitWorker: !!input.worker,
         ...(target && (input.role === 'review' || input.role === 'analysis')
           ? {
               reviewContext: {
                 diffSummary: `Files: ${target.result?.changed_files.join(', ') || '(none)'}\n${workDiff(target.workdir, target.baseSha).stat}`,
+                targetWorker: target.worker,
                 autoCheck: target.autoCheck,
               },
             }
@@ -1368,7 +1390,9 @@ export class AnaforService {
     const jobs = this.store.listJobs({ taskId }).filter((j) => j.worker !== 'director');
     const failed = jobs.filter(
       (j) =>
-        ['failed', 'timed_out', 'invalid_output', 'changes_requested'].includes(j.state) ||
+        ['failed', 'failed_over', 'timed_out', 'invalid_output', 'changes_requested'].includes(
+          j.state,
+        ) ||
         (['needs_review', 'changes_requested'].includes(j.state) && j.result?.status === 'failed'),
     );
     const stalled = jobs.filter(

@@ -16,6 +16,8 @@ import {
   limitAccount,
   recordLimits,
   statusFrom,
+  rateLimitedUntil,
+  recordRateLimitedUntil,
 } from '../limits/limits.js';
 import { nowIso } from '../core/ids.js';
 import { memoryContext } from '../core/memory-context.js';
@@ -25,8 +27,10 @@ import { compilePrompt } from '../core/prompt.js';
 import { resolveEffort } from '../core/token-profile.js';
 import { recordMemoryMetric } from '../governance/memory.js';
 import { ACTIVE_JOB_STATES } from '../core/states.js';
+import { isRateLimitError } from '../core/rate-limit.js';
 import { detectTestCommand, generateTestEvidenceAsync } from '../governance/evidence.js';
 import { StoreError, type Job, type Store, type TokenUsage } from '../store/store.js';
+import { m } from '../i18n/index.js';
 
 export interface RunJobOptions {
   env?: NodeJS.ProcessEnv;
@@ -103,7 +107,13 @@ export async function runJob(
   // Yeni worktree'de bağımlılık kurulumu (config: worktree_setup).
   const config = loadConfig(store.paths.root);
   const setup = config.worktree_setup;
-  const freshWorktree = job.workspaceMode === 'worktree' && !job.isCorrection && !job.sessionRef;
+  const failoverContinuation =
+    job.parentJobId !== null && store.getJob(job.parentJobId)?.state === 'failed_over';
+  const freshWorktree =
+    job.workspaceMode === 'worktree' &&
+    !job.isCorrection &&
+    !job.sessionRef &&
+    !failoverContinuation;
   // Bağımlılık önbelleği (config: worktree_cache): uygulanırsa worktree_setup atlanır.
   let cached = false;
   if (config.worktree_cache && freshWorktree) {
@@ -255,13 +265,23 @@ ${r.stderr ?? ''}`,
   const timer = setTimeout(() => void handle.cancel('timeout'), spec.timeoutMs);
   let usage = null as TokenUsage | null;
   let lastError: string | null = null;
+  let lastErrorFatal = false;
+  let rateResetAt: number | null = null;
   try {
     for await (const ev of handle.events) {
       appendFileSync(eventsFile, JSON.stringify({ ts: nowIso(), ...ev }) + '\n');
       store.appendEvent(job.id, ev.type, summarize(ev));
       if (ev.type === 'session') store.patchJob(job.id, { sessionRef: ev.sessionRef });
-      if (ev.type === 'error') lastError = ev.message;
+      if (ev.type === 'error') {
+        lastError = ev.message;
+        lastErrorFatal ||= ev.fatal;
+      }
       if (ev.type === 'limits') {
+        const resets = ev.windows
+          .filter((w) => w.used_percent >= config.failover.threshold_percent)
+          .map((w) => w.resets_at)
+          .filter((v): v is number => v !== null && v * 1000 > Date.now());
+        if (resets.length) rateResetAt = Math.max(rateResetAt ?? 0, ...resets);
         recordLimits({
           worker: limitAccount(job.worker),
           source: `${job.worker} akışı`,
@@ -293,7 +313,102 @@ ${r.stderr ?? ''}`,
   }
   if (outcome.timedOut) return fail(`Zaman aşımı (${job.timeoutS} sn)`, 'timed_out');
   if (outcome.cancelled) return fail('İptal edildi', 'cancelled');
-  if (outcome.exitCode !== 0) {
+  const rateLimitError = lastError ?? '';
+  const rateLimited =
+    (outcome.exitCode !== 0 || lastErrorFatal) && isRateLimitError(rateLimitError);
+  if (outcome.exitCode !== 0 || rateLimited) {
+    const error = rateLimitError;
+    if (rateLimited) {
+      if (job.inputs.explicitWorker) {
+        store.appendEvent(
+          job.id,
+          'failover',
+          m().service.failoverExplicit(job.worker, error.slice(0, 200)),
+        );
+      } else if (config.failover.enabled) {
+        const until = rateResetAt ?? Math.floor(Date.now() / 1000) + 15 * 60;
+        recordRateLimitedUntil(job.worker, until, opts.env);
+        const chain = [...new Set([...(config.routing[job.role] ?? []), config.default_worker])];
+        const after = chain.slice(Math.max(0, chain.indexOf(job.worker) + 1));
+        const alternate = (
+          await Promise.all(
+            after.map(async (id) => {
+              const candidate = adapters.get(id);
+              if (!candidate || !candidate.capabilities().roles.includes(job.role)) return null;
+              const reviewTargetWorker = job.inputs.reviewContext?.targetWorker;
+              if (
+                job.role === 'review' &&
+                (limitAccount(id) === limitAccount(job.worker) ||
+                  (reviewTargetWorker !== undefined &&
+                    limitAccount(id) === limitAccount(reviewTargetWorker)))
+              )
+                return null;
+              if (rateLimitedUntil(id, opts.env)) return null;
+              const limit = currentLimits(limitAccount(id), opts.env);
+              const now = Date.now() / 1000;
+              if (
+                limit?.windows.some(
+                  (w) =>
+                    (w.used_percent >= 100 ||
+                      ((w.name.startsWith('five_hour') || w.name.startsWith('seven_day')) &&
+                        w.used_percent >= config.failover.threshold_percent)) &&
+                    (w.resets_at === null || w.resets_at > now),
+                )
+              )
+                return null;
+              if (
+                store.listJobs({ states: ACTIVE_JOB_STATES }).filter((j) => j.worker === id)
+                  .length >= candidate.capabilities().maxConcurrency
+              )
+                return null;
+              const detected = await candidate.detect();
+              return detected.available && detected.authOk !== false ? id : null;
+            }),
+          )
+        ).find((id): id is string => id !== null);
+        if (alternate) {
+          let next: Job | null = null;
+          store.db.exec('BEGIN IMMEDIATE');
+          try {
+            if (!store.listJobs({ taskId: job.taskId }).some((j) => j.state === 'failed_over')) {
+              next = store.createJob({
+                taskId: job.taskId,
+                role: job.role,
+                worker: alternate,
+                model: config.workers[alternate]?.model ?? null,
+                workspaceMode: job.workspaceMode,
+                workdir: job.workdir,
+                branch: job.branch,
+                instructions: `${job.instructions}\n\n${m().service.failoverContinuation}`,
+                inputs: { ...job.inputs, explicitWorker: false },
+                timeoutS: job.timeoutS,
+                baseSha: job.baseSha,
+                parentJobId: job.id,
+              });
+              store.transitionJob(job.id, 'failed_over', {
+                error: `Rate limit: ${error.slice(0, 300)}`,
+                endedAt: nowIso(),
+                inputs: { ...job.inputs, failoverJobId: next.id },
+              });
+              store.appendEvent(
+                job.id,
+                'failover',
+                m().service.failoverTransferred(job.worker, alternate, next.id),
+              );
+            }
+            store.db.exec('COMMIT');
+          } catch (e) {
+            store.db.exec('ROLLBACK');
+            throw e;
+          }
+          if (next) {
+            settleTask(store, job.taskId);
+            await runJob(store, next.id, adapters, opts);
+            return store.mustGetJob(job.id);
+          }
+        }
+      }
+    }
     return fail(`İşçi çıkış kodu ${outcome.exitCode}${lastError ? `: ${lastError}` : ''}`);
   }
 

@@ -55,6 +55,26 @@ describe('parseClaudeLine', () => {
     const evs = parseClaudeLine('{"type":"result","is_error":true,"result":"limit","usage":{}}');
     expect(evs).toContainEqual({ type: 'error', message: 'limit', fatal: true });
   });
+  it('rate_limit_event rejected → fatal hata ve limit penceresi', () => {
+    const evs = parseClaudeLine(
+      JSON.stringify({
+        type: 'rate_limit_event',
+        status: 'rejected',
+        rate_limit_info: {
+          status: 'rejected',
+          resetsAt: 200,
+          utilization: 1,
+          rateLimitType: 'five_hour',
+        },
+      }),
+    );
+    expect(evs).toContainEqual({
+      type: 'error',
+      message: 'rate_limit_event status rejected',
+      fatal: true,
+    });
+    expect(evs.some((ev) => ev.type === 'limits')).toBe(true);
+  });
   it('diğerleri yok sayılır', () => {
     expect(parseClaudeLine('{"type":"rate_limit_event"}')).toEqual([]);
     expect(parseClaudeLine('{"type":"user","message":{"content":[]}}')).toEqual([]);

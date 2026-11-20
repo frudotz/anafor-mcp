@@ -281,6 +281,12 @@ The router reorders the role's preference chain (`routing`) **according to subsc
 
 When the balancer changes the order, the reason appears in the `job_dispatch` warnings and in the job's `route` event. Example (actual output): `yük dengeleyici (balanced): codex yerine cirak — codex: five_hour rezerve ulaştı` ("load balancer (balanced): cirak instead of codex — codex: five_hour reached reserve").
 
+`failover.enabled` defaults to true. For jobs without an explicitly selected worker, a worker is skipped when its cached five-hour or weekly usage reaches `failover.threshold_percent` (default `%95`, inclusive); the dispatch warning includes the reason. Setting `enabled: false` disables the threshold but still skips 100%-full windows. Rate-limit errors use a separate short-lived cache; adapter `resets_at` is used when available, otherwise the entry expires after 15 minutes. If a running job ends with a rate/usage limit error, Anafor opens at most one automatic job for the next eligible worker in the role chain, using the same instructions, and records the original as `failed_over`. Explicitly selected workers are never transferred automatically.
+
+```json
+{ "failover": { "enabled": true, "threshold_percent": 95 } }
+```
+
 ```json
 { "balancer": { "strategy": "protect-brain" } }
 ```

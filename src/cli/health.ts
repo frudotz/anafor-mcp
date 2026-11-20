@@ -90,7 +90,7 @@ export function recentFailures(root: string, hours = 2, now = Date.now()): numbe
     const since = new Date(now - hours * 3600_000).toISOString();
     const r = conn
       .prepare(
-        "SELECT COUNT(*) AS n FROM jobs WHERE state IN ('failed','timed_out','invalid_output') AND ended_at >= ?",
+        "SELECT COUNT(*) AS n FROM jobs WHERE state IN ('failed','failed_over','timed_out','invalid_output') AND ended_at >= ?",
       )
       .get(since) as { n: number } | undefined;
     return r?.n ?? 0;

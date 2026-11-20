@@ -286,6 +286,12 @@ Router, rolün tercih zincirini (`routing`) **abonelik kapasitesine göre** yeni
 
 Dengeleyici sırayı değiştirdiğinde gerekçesi `job_dispatch` uyarılarında ve işin `route` olayında görünür. Örnek: `yük dengeleyici (balanced): codex yerine cirak — codex: five_hour rezerve ulaştı`.
 
+`failover.enabled` varsayılan olarak açıktır. İşçi belirtilmeden dağıtılan işlerde, önbellekteki 5 saatlik veya haftalık kullanım `failover.threshold_percent` değerine (varsayılan `%95`, eşik dahil) ulaşmışsa işçi atlanır ve uyarıda failover nedeni gösterilir. `enabled: false` eşiği kapatır ama %100 dolu pencereleri yine atlar. Rate-limit hata kaydı ayrı kısa ömürlü cache'te tutulur; adaptörün `resets_at` bilgisi yoksa 15 dakika sonra silinmiş sayılır. Pencerenin `resets_at` zamanı geçince işçi tekrar sıraya katılır. İş çalışma sırasında rate/usage limit hatası verirse Anafor aynı talimatla zincirdeki sonraki uygun işçiye en fazla bir otomatik iş açar; ilk iş `failed_over` olarak kaydedilir. Açıkça seçilmiş işçi için otomatik aktarım yapılmaz.
+
+```json
+{ "failover": { "enabled": true, "threshold_percent": 95 } }
+```
+
 ```json
 { "balancer": { "strategy": "protect-brain" } }
 ```
