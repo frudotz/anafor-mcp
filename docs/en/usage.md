@@ -202,6 +202,8 @@ In a new worktree, `worktree_cache` replicates the dependency directory from the
 
 `.anafor/config.json` is for local overrides (not committed). The project file takes precedence.
 
+`auto_continue` defaults to `{"enabled": true, "max": 1}`. A partial implementation result with missing requirements and no blockers starts up to `max` automatic corrections in the same worker session. Disable it with `{"auto_continue":{"enabled":false,"max":1}}`.
+
 ### Worker CLI config isolation
 
 Codex defaults to `workers.codex.user_config: "isolate"`. It starts with `--ignore-user-config`; only `model` (when there is no custom provider), `model_reasoning_effort`, and Windows `sandbox` are copied from `~/.codex/config.toml` (or `CODEX_HOME`). Job model/effort and `workers.codex.windows_sandbox` take precedence. Personal MCP servers, plugins, and project settings are not passed through. Web search, app connectors, and image generation are disabled in isolation. The user's `sandbox_workspace_write.network_access` setting is also not copied; sandbox network access is off by default. Use Codex `inherit` when a worker needs these settings or network access. In a measurement with codex-cli 0.167.2, first-turn input tokens fell by about 22% (16.8K → 13.1K) when app connectors, image generation, and web search were disabled; ignoring user config alone made no measurable difference.

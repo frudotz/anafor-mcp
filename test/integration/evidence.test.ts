@@ -148,7 +148,11 @@ describe('Anafor kanıtıyla doğrulanmış kabul', () => {
     mkdirSync(join(t.dir, '.anafor'), { recursive: true });
     writeFileSync(
       join(t.dir, '.anafor', 'config.json'),
-      JSON.stringify({ auto_check: false, review: { require_for: 'none' } }),
+      JSON.stringify({
+        auto_check: false,
+        auto_continue: { enabled: false, max: 1 },
+        review: { require_for: 'none' },
+      }),
     );
     const store = new Store(t.dir);
     const adapters: AdapterRegistry = new Map([['fake', new FakeAdapter()]]);

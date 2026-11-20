@@ -33,6 +33,7 @@ export interface AnaforConfig {
   /** Kanıt üretiminde kullanılacak test komutu (yoksa package.json'dan tahmin). */
   test_command: string | null;
   auto_check: boolean;
+  auto_continue: { enabled: boolean; max: number };
   env_probe: boolean;
   auto_check_timeout_s: number;
   /** İşçi başına ayarlar. */
@@ -134,6 +135,7 @@ export const DEFAULT_CONFIG: AnaforConfig = {
   escalation: { failure_threshold: 3, stall_minutes: 60, takeover_minutes: 120 },
   test_command: null,
   auto_check: true,
+  auto_continue: { enabled: true, max: 1 },
   env_probe: true,
   auto_check_timeout_s: 900,
   workers: { codex: { user_config: 'isolate' }, cirak: { user_config: 'isolate' } },
@@ -203,9 +205,21 @@ export function loadConfig(root: string): AnaforConfig {
       brain: { ...DEFAULT_CONFIG.limits.brain, ...local.limits?.brain, ...project.limits?.brain },
     },
     failover: { ...DEFAULT_CONFIG.failover, ...local.failover, ...project.failover },
+    auto_continue: {
+      ...DEFAULT_CONFIG.auto_continue,
+      ...local.auto_continue,
+      ...project.auto_continue,
+    },
     loop: { ...DEFAULT_CONFIG.loop, ...local.loop, ...project.loop },
     brain: { ...DEFAULT_CONFIG.brain, ...local.brain, ...project.brain },
   };
+  if (
+    typeof result.auto_continue.enabled !== 'boolean' ||
+    !Number.isInteger(result.auto_continue.max) ||
+    result.auto_continue.max < 0
+  ) {
+    throw new Error('auto_continue requires enabled:boolean and max:non-negative integer');
+  }
   for (const id of ['codex', 'cirak']) {
     const localValue = local.workers?.[id]?.user_config;
     const projectValue = project.workers?.[id]?.user_config;
