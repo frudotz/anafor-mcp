@@ -1,5 +1,6 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { dirname, join, relative } from 'node:path';
 import type { Lang } from '../i18n/index.js';
 
 const ANAFOR_LOGO =
@@ -87,8 +88,36 @@ export function configurePrAttribution(file: string, enable: boolean, lang: Lang
       ? 'Attribution disabled globally'
       : ((settings.attribution as { pr?: string } | undefined)?.pr ?? '');
   mkdirSync(dirname(file), { recursive: true });
-  if (existsSync(file) && !existsSync(`${file}.bak`)) copyFileSync(file, `${file}.bak`);
+  if (existsSync(file) && !existsSync(`${file}.bak`)) {
+    copyFileSync(file, `${file}.bak`);
+    ignoreSettingsBackup(dirname(file));
+  }
   writeFileSync(file, `${JSON.stringify(next, null, 2)}\n`);
   const finalAttribution = next.attribution as Record<string, unknown> | undefined;
   return typeof finalAttribution?.pr === 'string' ? finalAttribution.pr : '';
+}
+
+function ignoreSettingsBackup(settingsDir: string): void {
+  let root: string;
+  try {
+    root = execFileSync('git', ['-C', settingsDir, 'rev-parse', '--show-toplevel'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      windowsHide: true,
+    }).trim();
+  } catch {
+    return;
+  }
+  const ignoreFile = join(root, '.gitignore');
+  const entry = `/${relative(root, join(settingsDir, 'settings.json.bak')).replace(/\\/g, '/')}`;
+  if (!existsSync(ignoreFile)) {
+    writeFileSync(ignoreFile, `${entry}\n`);
+    return;
+  }
+  const contents = readFileSync(ignoreFile, 'utf8');
+  if (contents.split(/\r?\n/).some((line) => line.trim() === entry)) return;
+  const newline = contents.includes('\r\n') ? '\r\n' : '\n';
+  const separator =
+    contents.length && !contents.endsWith('\n') && !contents.endsWith('\r') ? newline : '';
+  writeFileSync(ignoreFile, `${contents}${separator}${entry}${newline}`);
 }

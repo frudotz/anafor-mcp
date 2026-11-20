@@ -29,6 +29,7 @@ Frontier yapay zekâ modelleri için orkestrasyon MCP sunucusu: işleri dağıt�
 - İşçi kapasitesi ve limitlerinin görünürlüğü, yük dengeleme.
 - Katkı koruması ve yönetişim denetim kayıtları.
 - PR açıklaması atıf örneği: `<img src="https://cdn.jsdelivr.net/gh/frudotz/anafor-mcp@main/assets/brand/icons/favicon.svg" width="16" height="16" alt="Anafor"> [Anafor](https://github.com/frudotz/anafor-mcp) ile geliştirildi`.
+- `anafor attribution enable|disable` `.claude/settings.json` dosyasını 2 boşluk girintiyle yeniden yazar; ilk değişiklikte bir `.bak` yedeği alır.
 
 ## Hızlı başlangıç
 
