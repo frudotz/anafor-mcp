@@ -29,7 +29,7 @@ Human-oriented docs (Turkish): [kurulum.md](kurulum.md), [kullanim.md](kullanim.
 `anafor doctor --json` prints:
 
 ```json
-{ "version": "0.9.0", "ok": true, "problems": [], "warnings": ["CODEX_SANDBOX_UNELEVATED"],
+{ "version": "0.10.0", "ok": true, "problems": [], "warnings": ["CODEX_SANDBOX_UNELEVATED"],
   "checks": [{ "code": "…", "section": "…", "status": "ok|warn|fail|off", "label": "…", "info": "…", "fix": "…" }] }
 ```
 

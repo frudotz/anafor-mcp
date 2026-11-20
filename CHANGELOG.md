@@ -2,6 +2,25 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/) (0.x döneminde küçük sürüm kırıcı olabilir).
 
+## [0.10.0] - 2026-11-20
+
+### Eklenenler
+- Yarım kalan implementation işini aynı oturumla otomatik devam ettirme; `auto_continue.max` ile ayarlanır (#98).
+- `job_dispatch`, aynı dosyalara dokunan başka bir açık görev varsa çakışma uyarısı verir (#100).
+- `job_result` yanıtında `tests_verification`: işçinin test iddiası auto_check ile karşılaştırılır (#99).
+
+### Değişenler
+- Yönetici modu, proje dışındaki `cd <dizin> && ...` komutlarını engellemez (#97).
+- Kabul edilen ya da kapatılan görevlerin bekleyen işleri otomatik kapanır; bayat düşük bulgular ayrı listelenir (#99).
+- Kanıt yollarındaki `:satır`, `#Lx` ve açıklama ekleri ayıklanır (#100).
+
+### Düzeltilenler
+- Review/analysis işlerinde yanlış `job_diff` uyuşmazlık uyarısı kaldırıldı (#99).
+- PR atfı yedeği `.gitignore`'a eklenir (#96).
+
+### Geçiş notu
+- Otomatik devam varsayılan olarak açıktır (en fazla 1 kez); kapatmak için `auto_continue.enabled: false` ayarlayın.
+
 ## [0.9.0] - 2026-11-20
 
 ### Eklenenler
