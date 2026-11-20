@@ -45,6 +45,9 @@ describe('sürüm denetimi (F28)', () => {
     const t = tempDir();
     try {
       expect(refreshInBackground({ ANAFOR_HOME: t.dir, ANAFOR_NO_UPDATE_CHECK: '1' })).toBe(false);
+      expect(refreshInBackground({ ANAFOR_HOME: t.dir, ANAFOR_DISABLE_BACKGROUND: '1' })).toBe(
+        false,
+      );
       writeFileSync(
         join(t.dir, 'update-check.json'),
         JSON.stringify({ checked_at: new Date().toISOString(), latest: '0.4.0' }),
