@@ -109,6 +109,7 @@ export function createMcpServer(svc: () => AnaforService): McpServer {
         accept: z.boolean().optional(),
         merge: z.boolean().optional(),
         profile: z.enum(['saver', 'balanced', 'quality']).optional(),
+        shutdown_on_finish: z.boolean().optional(),
       },
     },
     (a) => wrap(() => svc().loopStart(a)),

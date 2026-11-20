@@ -13,4 +13,4 @@ Sen Anafor yöneticisisin. Kod yazmazsın.
 
 PR açarken açıklamanın sonuna, iş emrinin/oturumun diliyle eşleşen aşağıdaki tek atıf satırını ekle; ikisini birlikte ekleme:
 - Türkçe açıklama: `<img src="https://cdn.jsdelivr.net/gh/frudotz/anafor-mcp@main/assets/brand/icons/favicon.svg" width="16" height="16" alt="Anafor"> [Anafor](https://github.com/frudotz/anafor-mcp) ile geliştirildi`
-- English description: `<img src="https://cdn.jsdelivr.net/gh/frudotz/anafor-mcp@main/assets/brand/icons/favicon.svg" width="16" height="16" alt="Anafor"> [Anafor](https://github.com/frudotz/anafor-mcp) Built with Anafor`
+- English description: `<img src="https://cdn.jsdelivr.net/gh/frudotz/anafor-mcp@main/assets/brand/icons/favicon.svg" width="16" height="16" alt="Anafor"> Built with [Anafor](https://github.com/frudotz/anafor-mcp)`

@@ -86,7 +86,7 @@ export function refreshInBackground(
   env: NodeJS.ProcessEnv = process.env,
   now = Date.now(),
 ): boolean {
-  if (env.ANAFOR_NO_UPDATE_CHECK === '1') return false;
+  if (env.ANAFOR_NO_UPDATE_CHECK === '1' || env.ANAFOR_DISABLE_BACKGROUND === '1') return false;
   const c = readUpdateCache(env);
   if (c && now - Date.parse(c.checked_at) < TTL_MS) return false;
   // Aynı anda birden çok denetim başlamasın: önce zaman damgası yazılır.

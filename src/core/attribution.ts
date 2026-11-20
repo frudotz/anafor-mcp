@@ -2,10 +2,14 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { dirname } from 'node:path';
 import type { Lang } from '../i18n/index.js';
 
-export const ANAFOR_PR_LINE =
-  '<img src="https://cdn.jsdelivr.net/gh/frudotz/anafor-mcp@main/assets/brand/icons/favicon.svg" width="16" height="16" alt="Anafor"> [Anafor](https://github.com/frudotz/anafor-mcp)';
+const ANAFOR_LOGO =
+  '<img src="https://cdn.jsdelivr.net/gh/frudotz/anafor-mcp@main/assets/brand/icons/favicon.svg" width="16" height="16" alt="Anafor">';
+const ANAFOR_LINK = '[Anafor](https://github.com/frudotz/anafor-mcp)';
+export const ANAFOR_PR_LINE = `${ANAFOR_LOGO} ${ANAFOR_LINK}`;
 export const anaforAttributionLine = (lang: Lang): string =>
-  `${ANAFOR_PR_LINE} ${lang === 'tr' ? 'ile geliştirildi' : 'Built with Anafor'}`;
+  lang === 'tr'
+    ? `${ANAFOR_LOGO} ${ANAFOR_LINK} ile geliştirildi`
+    : `${ANAFOR_LOGO} Built with ${ANAFOR_LINK}`;
 
 type Settings = Record<string, unknown>;
 const DEFAULT_PR = '🤖 Generated with [Claude Code](https://claude.com/claude-code)';

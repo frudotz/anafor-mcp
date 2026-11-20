@@ -195,7 +195,30 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
   cli: {
     loopUsage:
       'loop start "<hedef>" | --backlog <dosya> [--profile saver|balanced|quality] [--model M] [--auto-resume] [--max-cycles N] [--until ISO] [--detach] | status | pause | resume | stop (mevcut tur bitince durur)',
+    watchdogUsage: 'Kullanım: anafor loop watchdog install|uninstall|status',
+    watchdogInstalled: 'Döngü bekçisi kuruldu.',
+    watchdogInstallFailed: (code: number | null) => `Döngü bekçisi kurulamadı (çıkış ${code}).`,
+    watchdogRemoved: 'Döngü bekçisi kaldırıldı.',
+    watchdogRemoveFailed: (code: number | null) => `Döngü bekçisi kaldırılamadı (çıkış ${code}).`,
+    watchdogNotInstalled: 'Döngü bekçisi kurulu değil.',
+    watchdogPathTooLong: 'Bekçi komutu Windows görev sınırını aşıyor.',
+    watchdogNonWindowsInstall:
+      'Bu platformda bekçiyi kurmak için aşağıdaki cron satırını veya launchd plist dosyasını kullanın.',
+    watchdogNonWindowsUninstall:
+      'Cron veya launchd yapılandırmanızdan Anafor loop recover girdisini kaldırın.',
+    watchdogNonWindowsStatus:
+      'Cron veya launchd yapılandırmanızda Anafor loop recover girdisini denetleyin.',
+    watchdogCron: 'Beş dakikalık cron girdisi:',
+    watchdogLaunchd: 'launchd için plist içinde şu ProgramArguments ve aralığı kullanın:',
     loopStarted: 'Geliştirme döngüsü başlatıldı',
+    loopShutdownWarning: (cancel: string) =>
+      `Uyarı: diğer uygulamalardaki kaydedilmemiş veriler kaybolabilir. İptal komutu: ${cancel}`,
+    loopShutdownScheduled: (cancel: string) =>
+      `Bilgisayar 120 saniye içinde kapanacak. İptal: ${cancel}`,
+    loopShutdownFailed: (error: string) => `Bilgisayar kapatma işlemi zamanlanamadı: ${error}`,
+    loopShutdownCancelled: 'Bilgisayarın kapanması iptal edildi.',
+    loopShutdownCancelFailed: (error: string, cancel: string) =>
+      `Kapatma iptal edilemedi: ${error}. Elle iptal: ${cancel}`,
     loopWarn: (percent: number) => `Limit %${percent}; işi toparla, büyük iş başlatma.`,
     loopResumePrompt:
       'Limit yenilendi. project_status ile kaldığın yeri bul; biten ve çalışan işleri incele; plana devam et.',
@@ -461,6 +484,9 @@ Politika: HIGH/CRITICAL ve tarama hatası engellenir; CAUTION yalnızca --accept
   },
 
   sessionStart: {
+    shutdownScheduled: (at: string, cancel: string) =>
+      `Bilgisayar kapatma zamanı: ${at} · iptal: ${cancel}`,
+    shutdownFailed: (error: string) => `Bilgisayar kapatma zamanlanamadı: ${error}`,
     loopSummary: (state: string, cycle: number, detail: string) =>
       `Geliştirme döngüsü ${state} · tur ${cycle}${detail ? ` · ${detail}` : ''}`,
     managed: (mode: string) => `[Anafor] Bu proje Anafor yönetiminde (director_mode: ${mode}).`,
@@ -495,6 +521,8 @@ Politika: HIGH/CRITICAL ve tarama hatası engellenir; CAUTION yalnızca --accept
   },
 
   adapters: {
+    workerSafetyRules:
+      'İŞÇİ GÜVENLİK KURALLARI (zorunlu):\n- git push çalıştırma.\n- curl veya wget çalıştırma.\n- Çalışma dizini dışındaki hiçbir yolu silme; özellikle worktree dışına yönelik rm -rf komutu çalıştırma.\n- Sandbox veya izinleri gevşetme; onay isteyen bir işlemde dur ve bildir.',
     legacyWorkerAlias: 'claude-lite kullanımdan kaldırıldı; cirak kullanın.',
     windowsSandbox: (mode: string) =>
       `Windows sandbox "${mode}": işçi alt süreç başlatamayabilir (spawn EPERM), ` +

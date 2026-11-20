@@ -33,7 +33,7 @@ describe('headless hedef prompt', () => {
     );
     setLang('en');
     expect(buildGoalPrompt({ goal: 'x', accept: false, merge: false })).toContain(
-      'Built with Anafor',
+      'Built with [Anafor]',
     );
     setLang('tr');
   });

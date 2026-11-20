@@ -5,6 +5,7 @@ import { checkExtensions } from '../extensions/registry.js';
 import { activeGrants } from './grants.js';
 import { m } from '../i18n/index.js';
 import { readLoopState } from '../loop/state.js';
+import { recoverEnabled, recoverTrigger } from '../loop/recover.js';
 
 /** SessionStart: yöneticiye kısa rol hatırlatması + proje panosu (token dostu). */
 export function runSessionStart(
@@ -16,6 +17,7 @@ export function runSessionStart(
   if (!resolved.initialized) return '';
   const root = resolved.root;
   const config = loadConfig(root);
+  if (config.loop.recover_on_crash && recoverEnabled(root)) recoverTrigger(root);
   const store = new Store(root);
   try {
     const tasks = store.listTasks();
@@ -29,12 +31,22 @@ export function runSessionStart(
       t.board(tasks.length, active.length, review.length, grants.length),
     ];
     const loop = readLoopState(root);
-    if (loop && ['running', 'paused'].includes(loop.state)) {
+    if (
+      loop &&
+      (['running', 'paused'].includes(loop.state) ||
+        loop.shutdown_scheduled_at ||
+        loop.shutdown_error)
+    ) {
       const detail =
         loop.paused_reason?.startsWith('blocked:') || loop.paused_reason?.startsWith('error:')
           ? loop.paused_reason
           : (loop.resume_at ?? '');
       lines.push(t.loopSummary(loop.state, loop.cycle, detail));
+      if (loop.shutdown_scheduled_at)
+        lines.push(
+          t.shutdownScheduled(loop.shutdown_scheduled_at, loop.shutdown_cancel_command ?? ''),
+        );
+      if (loop.shutdown_error) lines.push(t.shutdownFailed(loop.shutdown_error));
     }
     for (const t of tasks.slice(0, 5)) lines.push(`- ${t.id} [${t.state}] ${t.title}`);
     for (const j of review.slice(0, 5)) lines.push(t.awaitingReview(j.id, j.worker, j.role));

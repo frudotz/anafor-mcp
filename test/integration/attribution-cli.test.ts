@@ -49,7 +49,7 @@ describe('attribution CLI', () => {
       process.env.ANAFOR_LANG = 'en';
       expect(run(dir, 'attribution', 'enable').status).toBe(0);
       const switched = JSON.parse(readFileSync(file, 'utf8')) as typeof initial;
-      expect((switched.attribution.pr as string).match(/Built with Anafor/g)).toHaveLength(1);
+      expect((switched.attribution.pr as string).match(/Built with \[Anafor\]/g)).toHaveLength(1);
       expect(switched.attribution.pr).not.toContain('ile geliştirildi');
     } finally {
       if (originalLang === undefined) delete process.env.ANAFOR_LANG;

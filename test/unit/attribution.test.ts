@@ -30,7 +30,7 @@ describe('PR attribution', () => {
     expect(added.permissions).toBe(initial.permissions);
   });
   it('provides English text', () =>
-    expect(anaforAttributionLine('en')).toContain('Built with Anafor'));
+    expect(anaforAttributionLine('en')).toContain('Built with [Anafor]'));
 
   it('uses the Claude default only when pr is unset and removes it on disable', () => {
     const defaultLine = '🤖 Generated with [Claude Code](https://claude.com/claude-code)';
@@ -82,7 +82,7 @@ describe('PR attribution', () => {
       expect(existsSync(join(quietDir, '.claude', 'settings.json'))).toBe(false);
       expect(
         JSON.parse(readFileSync(join(yesDir, '.claude', 'settings.json'), 'utf8')).attribution.pr,
-      ).toContain('Built with Anafor');
+      ).toContain('Built with [Anafor]');
     } finally {
       rmSync(yesDir, { recursive: true, force: true });
       rmSync(quietDir, { recursive: true, force: true });
@@ -92,7 +92,7 @@ describe('PR attribution', () => {
   it('normalizes language changes and removes empty attribution objects', () => {
     const tr = applyPrAttribution({}, true, 'tr');
     const en = applyPrAttribution(tr, true, 'en');
-    expect((en.attribution as { pr: string }).pr.match(/Built with Anafor/g)).toHaveLength(1);
+    expect((en.attribution as { pr: string }).pr.match(/Built with \[Anafor\]/g)).toHaveLength(1);
     expect((en.attribution as { pr: string }).pr).not.toContain('ile geliştirildi');
     expect(
       applyPrAttribution({ attribution: { pr: anaforAttributionLine('en') } }, false, 'en'),
