@@ -30,8 +30,10 @@ const same = (a: string, b: string) =>
 function ignored(worktree: string, rel: string): boolean {
   // Sondaki / ile sorulur: dizin henüz yokken de `node_modules/` deseni eşleşsin.
   return (
-    spawnSync('git', ['check-ignore', '-q', `${rel.replace(/[\\/]+$/, '')}/`], { cwd: worktree })
-      .status === 0
+    spawnSync('git', ['check-ignore', '-q', `${rel.replace(/[\\/]+$/, '')}/`], {
+      cwd: worktree,
+      windowsHide: true,
+    }).status === 0
   );
 }
 
