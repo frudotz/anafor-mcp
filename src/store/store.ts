@@ -28,6 +28,8 @@ export interface Task {
 }
 
 export interface JobInputs {
+  explicitWorker?: boolean;
+  failoverJobId?: string;
   files?: string[];
   refs?: string[];
   priorJobIds?: string[];
@@ -35,6 +37,7 @@ export interface JobInputs {
   findings?: Finding[];
   reviewContext?: {
     diffSummary: string;
+    targetWorker?: string;
     autoCheck?: { command: string; passed: boolean; summary: string } | null;
   };
 }
@@ -351,6 +354,7 @@ export class Store {
       sessionRef: string | null;
       result: WorkerResultV1 | null;
       warnings: string[];
+      inputs: JobInputs;
       usage: TokenUsage | null;
       startedAt: string;
       endedAt: string;
@@ -368,6 +372,7 @@ export class Store {
     if (patch.autoCheck !== undefined)
       cols.auto_check_json = patch.autoCheck ? JSON.stringify(patch.autoCheck) : null;
     if (patch.warnings !== undefined) cols.warnings_json = JSON.stringify(patch.warnings);
+    if (patch.inputs !== undefined) cols.inputs_json = JSON.stringify(patch.inputs);
     if (patch.usage !== undefined)
       cols.usage_json = patch.usage ? JSON.stringify(patch.usage) : null;
     if (patch.startedAt !== undefined) cols.started_at = patch.startedAt;

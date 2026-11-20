@@ -25,7 +25,15 @@ export function parseClaudeLine(line: string): WorkerEvent[] {
   }
   if (type === 'rate_limit_event' && ev.rate_limit_info && typeof ev.rate_limit_info === 'object') {
     const windows = parseClaudeRateLimitInfo(ev.rate_limit_info as Record<string, unknown>);
-    return windows.length ? [{ type: 'limits', windows }] : [];
+    const rejected =
+      (ev.rate_limit_info as Record<string, unknown>).status === 'rejected' ||
+      ev.status === 'rejected';
+    return [
+      ...(windows.length ? [{ type: 'limits' as const, windows }] : []),
+      ...(rejected
+        ? [{ type: 'error' as const, message: `rate_limit_event status rejected`, fatal: true }]
+        : []),
+    ];
   }
   if (type === 'system' && ev.subtype === 'permission_denied') {
     return [
