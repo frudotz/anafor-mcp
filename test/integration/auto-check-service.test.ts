@@ -210,7 +210,9 @@ describe('auto_check via service and fake worker', () => {
     );
     try {
       x.svc.taskClose(x.task.task_id, 'abandoned', 'test');
-      x.store.db.prepare('UPDATE jobs SET auto_continue_pending = 1 WHERE id = ?').run(x.jobId);
+      x.store.db
+        .prepare("UPDATE jobs SET state = 'needs_review', auto_continue_pending = 1 WHERE id = ?")
+        .run(x.jobId);
       await x.svc.maybeAutoContinue(x.jobId);
       expect(x.store.listJobs({ taskId: x.task.task_id })).toHaveLength(1);
       x.store.updateTask(x.task.task_id, { state: 'open' });
