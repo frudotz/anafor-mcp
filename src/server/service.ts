@@ -212,7 +212,9 @@ export class AnaforService {
       });
       return { status: result.status, stderr: result.stderr ?? '' };
     },
-  ) {}
+  ) {
+    this.store.closeNeedsReviewJobsForClosedTasks();
+  }
 
   loopStatus() {
     const state = readLoopState(this.store.paths.root);
@@ -811,6 +813,7 @@ export class AnaforService {
       instructions: input.instructions,
       inputs: {
         ...(input.inputs ?? {}),
+        ...(target ? { targetJobId: target.id } : {}),
         explicitWorker: !!input.worker,
         ...(target && (input.role === 'review' || input.role === 'analysis')
           ? {
@@ -910,6 +913,7 @@ export class AnaforService {
     mkdirSync(dir, { recursive: true });
     const patchFile = join(dir, 'diff.patch');
     writeFileSync(patchFile, d.patch);
+    const readOnlyRole = j.role === 'review' || j.role === 'analysis';
     const claimed = j.result?.changed_files ?? [];
     const norm = (p: string) =>
       (isAbsolute(p) ? relative(j.workdir, p) : p).replace(/\\/g, '/').replace(/^\.\//, '');
@@ -926,10 +930,10 @@ export class AnaforService {
       patch_file: patchFile,
       patch: statOnly || d.patch.length > INLINE_LIMIT ? null : d.patch,
       patch_truncated: !statOnly && d.patch.length > INLINE_LIMIT,
-      mismatch: {
-        changed_but_not_reported: notClaimed,
-        reported_but_unchanged: claimedMissing,
-      },
+      mismatch: readOnlyRole
+        ? { changed_but_not_reported: [], reported_but_unchanged: [] }
+        : { changed_but_not_reported: notClaimed, reported_but_unchanged: claimedMissing },
+      ...(readOnlyRole ? { note: s().readonlyDiffNote } : {}),
     };
   }
 
@@ -983,6 +987,7 @@ export class AnaforService {
         this.guard(() => this.store.transitionJob(reviewJob.id, 'approved'));
       }
       this.store.updateTask(taskId, { state: 'accepted', note: s().acceptedNote(job.id) });
+      this.store.closeNeedsReviewJobsForClosedTasks();
       appendTaskAudit(this.store.paths.auditDir, {
         event: 'task_accepted',
         task_id: taskId,
@@ -992,14 +997,26 @@ export class AnaforService {
         gates,
       });
     }
+    const lowFindings = (reviewJob?.result?.review.findings ?? [])
+      .filter((finding) => finding.severity === 'low' || finding.severity === 'info')
+      .map((finding) => finding.title);
+    const staleReview =
+      !!reviewJob &&
+      (reviewJob.inputs.targetJobId !== undefined
+        ? reviewJob.inputs.targetJobId !== job.id
+        : !!job.endedAt && Date.parse(reviewJob.createdAt) < Date.parse(job.endedAt));
     return {
       task_id: taskId,
       accepted: failed.length === 0,
       failed_gates: failed,
       passed_gates: gates.filter((g) => g.ok).map((g) => g.gate),
-      open_low_findings: (reviewJob?.result?.review.findings ?? [])
-        .filter((finding) => finding.severity === 'low' || finding.severity === 'info')
-        .map((finding) => finding.title),
+      open_low_findings: staleReview ? [] : lowFindings,
+      ...(staleReview
+        ? {
+            unverified_low_findings: lowFindings,
+            unverified_low_findings_note: s().staleReviewNote,
+          }
+        : {}),
       integration,
       note: failed.length
         ? s().gatesFailedNote
@@ -1178,6 +1195,7 @@ export class AnaforService {
       );
     }
     const t = this.store.updateTask(taskId, { state: outcome, note });
+    this.store.closeNeedsReviewJobsForClosedTasks();
     appendTaskAudit(this.store.paths.auditDir, {
       event: 'task_closed',
       task_id: taskId,
@@ -1304,6 +1322,34 @@ export class AnaforService {
       ...jobBrief(j),
       result: j.result,
       auto_check: j.autoCheck,
+      tests_verification: j.autoCheck
+        ? {
+            source: 'auto_check',
+            passed: j.autoCheck.passed,
+            exit_code: j.autoCheck.exit_code,
+            ...((j.result?.tests.executed.length ?? 0) === 0
+              ? { note: s().workerTestsNotReported }
+              : {}),
+            ...(((j.result?.tests.executed.length ?? 0) > 0 || (j.result?.tests.passed ?? 0) > 0) &&
+            j.result?.tests.failed === 0 &&
+            !j.autoCheck.passed
+              ? { note: s().testVerificationConflict }
+              : {}),
+            ...(((j.result?.tests.executed.length ?? 0) > 0 || (j.result?.tests.passed ?? 0) > 0) &&
+            (j.result?.tests.failed ?? 0) > 0 &&
+            j.autoCheck.passed
+              ? { note: s().testVerificationConflict }
+              : {}),
+          }
+        : ['implementation', 'test'].includes(j.role)
+          ? {
+              source: 'worker_only',
+              note:
+                (j.result?.tests.executed.length ?? 0) === 0
+                  ? s().workerTestsNotReported
+                  : s().workerTestsUnverified,
+            }
+          : { source: 'worker_only' },
       diff,
       warnings: j.warnings,
       usage: j.usage,

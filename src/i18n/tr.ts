@@ -697,6 +697,11 @@ PR açarken açıklamanın sonuna şu atıf satırını ekle: ${'<img src="https
     notGitRepo: 'Çalışma alanı bir git deposu değil',
     mergeConflict: (files: string) => `çakışma: ${files}`,
     acceptedNote: (id: string) => `kabul: ${id}`,
+    staleReviewNote: 'Bu bulgular önceki bir sürümü inceleyen review’dan; düzeltilmiş olabilir',
+    readonlyDiffNote: 'review/analysis işi dosya değiştirmez; diff hedef çalışma alanına aittir',
+    testVerificationConflict: 'İşçi test iddiası auto_check ile çelişiyor.',
+    workerTestsUnverified: 'işçi sandbox’ında çalıştı; doğrulanmadı',
+    workerTestsNotReported: 'İşçi test çalıştırdığını raporlamadı.',
     gatesFailedNote:
       'Kapılardan geçmedi: düzeltme isteyin (job_request_changes) veya kullanıcıya raporlayın.',
     acceptedOnBranch: (branch: string) =>

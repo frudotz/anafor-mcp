@@ -66,6 +66,16 @@ describe('job_diff ve task_accept', () => {
     expect(diff.mismatch.changed_but_not_reported).toContain('README.md');
   });
 
+  it('review diff hedef çalışma alanını gösterir ve mismatch üretmez', async () => {
+    const task = svc.taskCreate({ title: 'salt okunur', objective: 'x' });
+    const impl = await run(task.task_id, 'implementation');
+    const review = await run(task.task_id, 'review', { targetJobId: impl });
+    writeFileSync(join(store.mustGetJob(impl).workdir, 'README.md'), '# hedef değişti\n');
+    const diff = svc.jobDiff(review);
+    expect(diff.mismatch).toEqual({ changed_but_not_reported: [], reported_but_unchanged: [] });
+    expect(diff.note).toBeTruthy();
+  });
+
   it('standard görev: kapılar geçer, görev accepted, iş approved', async () => {
     const task = svc.taskCreate({ title: 'a', objective: 'x' });
     const jobId = await run(task.task_id, 'implementation');
@@ -150,6 +160,124 @@ describe('job_diff ve task_accept', () => {
       'Orta bulgu',
     );
     expect(accepted.open_low_findings).toEqual(['Düşük bulgu']);
+  });
+
+  it('önceki implementation incelemesinin low bulgularını doğrulanmamış gösterir', async () => {
+    const task = svc.taskCreate({ title: 'eski review', objective: 'x' });
+    const impl = await run(task.task_id, 'implementation');
+    const review = await run(task.task_id, 'review', { targetJobId: impl });
+    const result = store.mustGetJob(review).result!;
+    store.db.prepare('UPDATE jobs SET result_json = ? WHERE id = ?').run(
+      JSON.stringify({
+        ...result,
+        review: {
+          ...result.review,
+          findings: [
+            { severity: 'low', title: 'Düşük', file: null, line: null, evidence: 'kanıt' },
+          ],
+        },
+      }),
+      review,
+    );
+    const correction = await run(task.task_id, 'implementation');
+    const accepted = svc.taskAccept(task.task_id, correction, review);
+    expect(accepted.open_low_findings).toEqual([]);
+    expect(accepted.unverified_low_findings).toEqual(['Düşük']);
+    expect(accepted.unverified_low_findings_note).toContain('önceki bir sürümü');
+  });
+
+  it.each([true, false])(
+    'targetJobId olmayan legacy review stale=%s zamanına göre sınıflanır',
+    async (stale) => {
+      const task = svc.taskCreate({ title: 'legacy review', objective: 'x' });
+      const impl = await run(task.task_id, 'implementation');
+      const review = await run(task.task_id, 'review', { targetJobId: impl });
+      const implJob = store.mustGetJob(impl);
+      store.db.prepare('UPDATE jobs SET inputs_json = ? WHERE id = ?').run('{}', review);
+      const reviewTime = Date.parse(implJob.endedAt!) + (stale ? -60_000 : 60_000);
+      store.db
+        .prepare('UPDATE jobs SET created_at = ? WHERE id = ?')
+        .run(new Date(reviewTime).toISOString(), review);
+      const result = svc.taskAccept(task.task_id, impl, review);
+      expect(Object.hasOwn(result, 'unverified_low_findings')).toBe(stale);
+    },
+  );
+
+  it('kapalı görevin needs_review işleri açılışta idempotent kapatılır; açık görev korunur', async () => {
+    const closed = svc.taskCreate({ title: 'kapalı', objective: 'x' });
+    const closedJob = await run(closed.task_id, 'implementation');
+    store.db.prepare("UPDATE tasks SET state = 'abandoned' WHERE id = ?").run(closed.task_id);
+    const open = svc.taskCreate({ title: 'açık', objective: 'x' });
+    const openJob = await run(open.task_id, 'implementation');
+    await Promise.all([
+      Promise.resolve().then(
+        () => new AnaforService(store, adapters, inProcessLauncher(adapters), 'fake'),
+      ),
+      Promise.resolve().then(
+        () => new AnaforService(store, adapters, inProcessLauncher(adapters), 'fake'),
+      ),
+    ]);
+    expect(store.mustGetJob(closedJob).state).toBe('approved');
+    expect(store.listEvents(closedJob).map((event) => event.type)).toContain('closed_with_task');
+    expect(store.mustGetJob(openJob).state).toBe('needs_review');
+    new AnaforService(store, adapters, inProcessLauncher(adapters), 'fake');
+    expect(
+      store.listEvents(closedJob).filter((event) => event.type === 'closed_with_task'),
+    ).toHaveLength(1);
+  });
+
+  it('job_result auto_check ile test iddiasını doğrular veya worker_only notu döndürür', async () => {
+    const task = svc.taskCreate({ title: 'test doğrulama', objective: 'x' });
+    const jobId = await run(task.task_id, 'implementation');
+    const workerOnly = svc.jobResult(jobId);
+    expect(workerOnly.tests_verification.source).toBe('worker_only');
+    store.patchJob(jobId, {
+      autoCheck: {
+        passed: false,
+        command: 'test',
+        summary: 'failed',
+        exit_code: 1,
+        evidence: 'evidence',
+        workdir: t.dir,
+      },
+    });
+    expect(svc.jobResult(jobId).tests_verification).toMatchObject({
+      source: 'auto_check',
+      passed: false,
+      exit_code: 1,
+    });
+  });
+
+  it.each([
+    { executed: ['npm test'], passed: 0, failed: 0, checkPassed: false, conflict: true },
+    { executed: ['npm test'], passed: 0, failed: 1, checkPassed: true, conflict: true },
+    { executed: ['npm test'], passed: 1, failed: 0, checkPassed: true, conflict: false },
+    { executed: [], passed: 0, failed: 0, checkPassed: false, conflict: false },
+  ])('auto_check test iddiasını raporla karşılaştırır: $executed/$failed', async (c) => {
+    const task = svc.taskCreate({ title: 'test iddiası', objective: 'x' });
+    const jobId = await run(task.task_id, 'implementation');
+    const job = store.mustGetJob(jobId);
+    const updated = {
+      ...job.result!,
+      tests: { executed: c.executed, passed: c.passed, failed: c.failed, exit_codes: [] },
+    };
+    store.db
+      .prepare('UPDATE jobs SET result_json = ? WHERE id = ?')
+      .run(JSON.stringify(updated), jobId);
+    store.patchJob(jobId, {
+      autoCheck: {
+        passed: c.checkPassed,
+        command: 'test',
+        summary: 'test',
+        exit_code: c.checkPassed ? 0 : 1,
+        evidence: 'evidence',
+        workdir: t.dir,
+      },
+    });
+    const verification = svc.jobResult(jobId).tests_verification;
+    if (c.conflict) expect(verification.note).toContain('çelişiyor');
+    else if (c.executed.length === 0) expect(verification.note).toContain('raporlamadı');
+    else expect(verification.note).toBeUndefined();
   });
 
   it('inceleyicinin yalnız "test çalıştırılamadı" eksiği kapıyı kilitlemez', async () => {
