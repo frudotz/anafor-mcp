@@ -87,7 +87,7 @@ Etkileşimsiz kurulum: `anafor setup --yes`. Atlamak istediğin adımlar için `
 
 ### Claude Code PR atfı
 
-`anafor attribution enable|disable|status` proje düzeyindeki `.claude/settings.json` dosyasındaki PR atfını yönetir; değişiklikte mevcut `.bak` yoksa yedek oluşturulur. Özel `attribution.pr` metni korunur. `anafor init` ve `anafor setup` onay ister; `--yes` onaylar, etkileşimsiz kullanım yazmaz. Biçim ve varsayılanlar için [Claude Code settings reference](https://code.claude.com/docs/en/settings-reference.md) belgesine bakın. `attribution: false` veya boş `pr` değeri değiştirilmez.
+`anafor attribution enable|disable|status` proje düzeyindeki `.claude/settings.json` dosyasındaki PR atfını yönetir; enable/disable dosyayı 2 boşluk girintiyle yeniden yazar. Değişiklikte mevcut `.bak` yoksa tek seferlik yedek oluşturulur. Özel `attribution.pr` metni korunur. `anafor init` ve `anafor setup` onay ister; `--yes` onaylar, etkileşimsiz kullanım yazmaz. Biçim ve varsayılanlar için [Claude Code settings reference](https://code.claude.com/docs/en/settings-reference.md) belgesine bakın. `attribution: false` veya boş `pr` değeri değiştirilmez.
 ## Güncelleme
 
 ```bash
