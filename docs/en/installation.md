@@ -85,6 +85,9 @@ Wizard steps:
 
 Non-interactive setup: `anafor setup --yes`. Add `--no-plugin`, `--no-statusline` or `--no-project` for the steps you want to skip.
 
+### Claude Code PR attribution
+
+`anafor attribution enable|disable|status` manages project PR attribution in `.claude/settings.json`; a backup is created only when changing the file and no `.bak` exists. Custom `attribution.pr` text is preserved. `anafor init` and `anafor setup` ask first; `--yes` confirms, while noninteractive runs do not write. See the [Claude Code settings reference](https://code.claude.com/docs/en/settings-reference.md) for formats and defaults. `attribution: false` and an empty `pr` value are preserved.
 ## Updating
 
 ```bash

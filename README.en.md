@@ -28,6 +28,7 @@ An orchestration MCP server for frontier AI models: dispatch work, run it in iso
 - Automatic, schema-based result validation.
 - Worker capacity and limit visibility with load balancing.
 - Contribution protection and governance audit records.
+- PR description attribution example: `<img src="https://cdn.jsdelivr.net/gh/frudotz/anafor-mcp@main/assets/brand/icons/favicon.svg" width="16" height="16" alt="Anafor"> [Anafor](https://github.com/frudotz/anafor-mcp) Built with Anafor`.
 
 ## Quick start
 
