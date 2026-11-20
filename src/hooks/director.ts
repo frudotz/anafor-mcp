@@ -1,4 +1,5 @@
-import { isAbsolute, matchesGlob, relative, resolve } from 'node:path';
+import { realpathSync } from 'node:fs';
+import { basename, isAbsolute, matchesGlob, posix, relative, resolve, win32 } from 'node:path';
 import { loadConfig, resolveProjectRoot, type AnaforConfig } from '../core/config.js';
 import { extensionGuard } from '../extensions/guard.js';
 import { activeGrants, recordViolation, type Grant } from './grants.js';
@@ -25,17 +26,24 @@ const SHELL_TOOLS = new Set(['Bash', 'PowerShell']);
 type Why = keyof Messages['director']['why'];
 const MUTATING_PATTERNS: [RegExp, Why][] = [
   [
-    /(^|[^0-9&>=-])>{1,2}(?!\s*&)(?!\s*\/dev\/null)(?!\s*\$null)(?!\s*nul\b)\s*[^\s|&;)]+/i,
+    /(^|[^0-9&>=(-])(?:[0-9]+)?\s*>{1,2}(?!\s*&)(?!\s*\/dev\/null)(?!\s*\$null)(?!\s*nul\b)\s*[^\s|&;)]+/i,
     'redirect',
   ],
+  [/[;(]\s*>{1,2}(?!\s*&)(?!\s*\/dev\/null)(?!\s*\$null)(?!\s*nul\b)\s*[^\s|&;)]+/i, 'redirect'],
   [
     /(^|[\s;&|(])(rm|rmdir|mv|cp|mkdir|touch|tee|truncate|ln|chmod|chown|dd|install)\s/,
     'fsCommand',
   ],
+  [/\bfind\b.*(?:\.\.|-delete)/i, 'fsCommand'],
   [/(^|[\s;&|(])(sed|perl)\s+[^|;&]*-i\b/, 'inPlace'],
   [
     /(^|[\s;&|(])git\s+(apply\b|am\b|checkout\s+--(\s|$)|restore\b|clean\b|stash\s+(pop|apply)\b)/,
     'gitMutation',
+  ],
+  [/\bgit\s+-C\s+\S+\s+(apply\b|am\b|restore\b|clean\b)/, 'gitMutation'],
+  [
+    /\b(?:bash|sh|zsh|pwsh|powershell|cmd|node|python|perl|ruby)\s+(?:-c|-e|-command|-encodedcommand|\/c)\b.*(?:sed\s+.*-i\b|\b(?:rm|mv|cp|touch|tee|dd)\s|writeFileSync|open\()/i,
+    'scriptWrite',
   ],
   [
     /\b(Set-Content|Add-Content|Out-File|New-Item|Remove-Item|Move-Item|Copy-Item|Rename-Item|Clear-Content)\b/i,
@@ -110,6 +118,108 @@ function toRel(root: string, cwd: string, p: string): string | null {
   return rel;
 }
 
+function shellPath(cwd: string, value: string, windows = win32.isAbsolute(cwd)): string {
+  let path = value.replace(/^("|')(.*)\1$/, '$2');
+  if (windows) {
+    const gitBash = path.match(/^\/([a-z])\/(.*)$/i) ?? path.match(/^\/mnt\/([a-z])\/(.*)$/i);
+    if (gitBash) path = (gitBash[1] ?? '').toUpperCase() + ':/' + (gitBash[2] ?? '');
+    return win32.resolve(cwd, path);
+  }
+  return posix.resolve(cwd, path);
+}
+
+function insidePath(base: string, candidate: string, windows: boolean): boolean {
+  const api = windows ? win32 : posix;
+  const rel = api.relative(api.resolve(base), api.resolve(candidate));
+  return (
+    rel === '' ||
+    (rel !== '..' && !rel.startsWith('..' + (windows ? '\\' : '/')) && !api.isAbsolute(rel))
+  );
+}
+
+function safeOutsideShell(command: string, cwd: string, root: string): boolean {
+  const match = command.match(/^\s*cd\s+(?:\/d\s+)?("[^"]*"|'[^']*'|[^\s;&|]+)\s+&&\s*(.+)$/is);
+  const windows = win32.isAbsolute(root);
+  let effective = cwd;
+  let rest = command;
+  if (match) {
+    const raw = match[1] ?? '';
+    const literal = raw.replace(/^("|')(.*)\1$/, '$2');
+    if (
+      /[\$~%*?\[\]]/.test(literal) ||
+      literal === '-' ||
+      literal.includes(String.fromCharCode(96)) ||
+      /["']/.test(literal) ||
+      (!windows && literal.includes('\\'))
+    )
+      return false;
+    effective = shellPath(cwd, raw, windows);
+    rest = match[2] ?? '';
+  }
+  const lower = rest.toLowerCase();
+  if (
+    /\.\.|[$%~*?{};|()[\]]/.test(rest) ||
+    rest.includes(String.fromCharCode(96)) ||
+    (!windows && rest.includes('\\'))
+  )
+    return false;
+  if (/\b(?:cd|pushd|popd)\b|\bgit\s+-c\b|--git-dir|--work-tree/.test(lower)) return false;
+  if (
+    /\b(?:bash|sh|zsh|pwsh|powershell|cmd|node|python|perl|ruby)\s+(?:-c|-e|-command|-encodedcommand|\/c)\b/i.test(
+      rest,
+    )
+  )
+    return false;
+  if (/\brm\s+-rf\b|\bfind\s+.*\.\./i.test(rest)) return false;
+  let realEffective: string;
+  try {
+    realEffective = realpathSync(effective);
+  } catch {
+    return false;
+  }
+  let realRoot = root;
+  try {
+    realRoot = realpathSync(root);
+  } catch {
+    // Keep lexical comparison for roots that are not present in isolated hook inputs.
+  }
+  if (insidePath(realRoot, realEffective, windows) || insidePath(realEffective, realRoot, windows))
+    return false;
+  const unquotedRest = rest
+    .replace(/["']/g, '')
+    .replace(new RegExp(String.fromCharCode(96), 'g'), '');
+  const normalized = unquotedRest.replace(/\\/g, '/').toLowerCase();
+  const api = windows ? win32 : posix;
+  const normalizedRoot = api.resolve(realRoot).replace(/\\/g, '/').toLowerCase();
+  const rootBase = api.basename(root).toLowerCase();
+  const drive = windows ? normalizedRoot.slice(0, 2) : '';
+  const rootTail = windows ? normalizedRoot.slice(2) : normalizedRoot;
+  const gitBashRoot = windows ? '/' + drive[0]?.toLowerCase() + rootTail : '';
+  const mntRoot = windows ? '/mnt/' + drive[0]?.toLowerCase() + rootTail : '';
+  if (
+    (rootBase.length >= 4 && normalized.includes(rootBase)) ||
+    normalized.includes(normalizedRoot) ||
+    (gitBashRoot && normalized.includes(gitBashRoot)) ||
+    (mntRoot && normalized.includes(mntRoot))
+  )
+    return false;
+  const quotedTokens = rest.match(/"[^"\n]*"|'[^'\n]*'|[^\s]+/g) ?? [];
+  const absolutePaths = [
+    ...(unquotedRest.match(/(?:[a-z]:[^\s]+|\\\\[^\s]+|\/[^\s]+)/gi) ?? []),
+    ...(normalized.match(/(?:[a-z]:[^\s]+|\/[^\s]+)/gi) ?? []),
+    ...quotedTokens.flatMap((token) => {
+      const value = token.replace(/^(["'])(.*)\1$/, '$2');
+      return value.match(/(?:[a-z]:[\\/].+|\\\\.+|\/.+)/i) ?? [];
+    }),
+  ];
+  for (const path of absolutePaths) {
+    const candidate = shellPath(realEffective, path, windows);
+    if (insidePath(realRoot, candidate, windows) || insidePath(candidate, realRoot, windows))
+      return false;
+  }
+  return true;
+}
+
 const matchAny = (rel: string, globs: string[]) => globs.some((g) => matchesGlob(rel, g));
 
 const DENY_MESSAGE = (what: string) => m().director.deny(what);
@@ -145,6 +255,8 @@ export function decide(
     const cmd = String(ti.command ?? '');
     const why = classifyShell(cmd);
     if (!why) return { action: 'allow' };
+    if (safeOutsideShell(cmd, cwd, ctx.root))
+      return { action: 'allow', reason: m().director.outside };
     if (ctx.grants.length > 0) return { action: 'allow', reason: m().director.activeGrant };
     return verdict(DENY_MESSAGE(m().director.shellForbidden(why)));
   }
