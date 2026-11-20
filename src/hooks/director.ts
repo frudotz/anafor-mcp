@@ -118,7 +118,10 @@ function toRel(root: string, cwd: string, p: string): string | null {
   return rel;
 }
 
-function shellPath(cwd: string, value: string, windows = win32.isAbsolute(cwd)): string {
+/** win32.isAbsolute('/tmp') de true döner; Windows yolu yalnız sürücü harfi veya UNC ile tanınır. */
+const isWindowsPath = (p: string): boolean => /^[a-z]:[\\/]/i.test(p) || p.startsWith('\\\\');
+
+function shellPath(cwd: string, value: string, windows = isWindowsPath(cwd)): string {
   let path = value.replace(/^("|')(.*)\1$/, '$2');
   if (windows) {
     const gitBash = path.match(/^\/([a-z])\/(.*)$/i) ?? path.match(/^\/mnt\/([a-z])\/(.*)$/i);
@@ -139,7 +142,7 @@ function insidePath(base: string, candidate: string, windows: boolean): boolean 
 
 function safeOutsideShell(command: string, cwd: string, root: string): boolean {
   const match = command.match(/^\s*cd\s+(?:\/d\s+)?("[^"]*"|'[^']*'|[^\s;&|]+)\s+&&\s*(.+)$/is);
-  const windows = win32.isAbsolute(root);
+  const windows = isWindowsPath(root);
   let effective = cwd;
   let rest = command;
   if (match) {

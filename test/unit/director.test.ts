@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_CONFIG, findAnaforRoot, resolveProjectRoot } from '../../src/core/config.js';
@@ -189,8 +189,9 @@ describe('shell dış dizin beyaz listesi', () => {
   });
   it('gerçek POSIX/Windows dış dizinine cd ile ve cd olmadan izin verir', () => {
     const root = rootDir.dir;
-    const outside = outsideDir.dir;
-    const cd = `cd /d "${outside}"`;
+    // Windows CI'da tmpdir 8.3 kısa ad (RUNNER~1) döndürür; `~` cd hedefinde reddedilir.
+    const outside = realpathSync.native(outsideDir.dir);
+    const cd = process.platform === 'win32' ? `cd /d "${outside}"` : `cd "${outside}"`;
     expect(decide(input(`${cd} && sed -i s/a/b/ Durum.md`, root), shellCtx(root)).action).toBe(
       'allow',
     );
