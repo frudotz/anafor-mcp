@@ -13,7 +13,10 @@ export function isAlive(pid: number): boolean {
 /** pid ile süreç ağacını sonlandırır (Windows: taskkill /T, POSIX: grup + süreç). */
 export function killPidTree(pid: number): void {
   if (process.platform === 'win32') {
-    spawnSync('taskkill', ['/T', '/F', '/PID', String(pid)], { stdio: 'ignore' });
+    spawnSync('taskkill', ['/T', '/F', '/PID', String(pid)], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
     return;
   }
   for (const target of [-pid, pid]) {

@@ -8,7 +8,7 @@ export function configureAnaforIgnore(root: string, excludeLocal: boolean): bool
         const common = spawnSync(
           'git',
           ['rev-parse', '--path-format=absolute', '--git-common-dir'],
-          { cwd: root, encoding: 'utf8' },
+          { cwd: root, encoding: 'utf8', windowsHide: true },
         );
         if (common.status !== 0) throw new Error('Git ortak dizini bulunamadı');
         return join(common.stdout.trim(), 'info', 'exclude');
