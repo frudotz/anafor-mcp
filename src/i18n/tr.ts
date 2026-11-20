@@ -180,6 +180,21 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
   cli: {
     loopUsage:
       'loop start "<hedef>" | --backlog <dosya> [--profile saver|balanced|quality] [--model M] [--auto-resume] [--max-cycles N] [--until ISO] [--detach] | status | pause | resume | stop (mevcut tur bitince durur)',
+    watchdogUsage: 'Kullanım: anafor loop watchdog install|uninstall|status',
+    watchdogInstalled: 'Döngü bekçisi kuruldu.',
+    watchdogInstallFailed: (code: number | null) => `Döngü bekçisi kurulamadı (çıkış ${code}).`,
+    watchdogRemoved: 'Döngü bekçisi kaldırıldı.',
+    watchdogRemoveFailed: (code: number | null) => `Döngü bekçisi kaldırılamadı (çıkış ${code}).`,
+    watchdogNotInstalled: 'Döngü bekçisi kurulu değil.',
+    watchdogPathTooLong: 'Bekçi komutu Windows görev sınırını aşıyor.',
+    watchdogNonWindowsInstall:
+      'Bu platformda bekçiyi kurmak için aşağıdaki cron satırını veya launchd plist dosyasını kullanın.',
+    watchdogNonWindowsUninstall:
+      'Cron veya launchd yapılandırmanızdan Anafor loop recover girdisini kaldırın.',
+    watchdogNonWindowsStatus:
+      'Cron veya launchd yapılandırmanızda Anafor loop recover girdisini denetleyin.',
+    watchdogCron: 'Beş dakikalık cron girdisi:',
+    watchdogLaunchd: 'launchd için plist içinde şu ProgramArguments ve aralığı kullanın:',
     loopStarted: 'Geliştirme döngüsü başlatıldı',
     loopWarn: (percent: number) => `Limit %${percent}; işi toparla, büyük iş başlatma.`,
     loopResumePrompt:

@@ -96,6 +96,21 @@ durum dosyasına yazar. `--auto-resume` kullanıcı tercihidir; verilmezse otoma
 devam etmez. Duraklamış işi `anafor loop resume` ile elle sürdürün. `pause` ve
 `stop` isteği mevcut tur bitince geçerli olur.
 
+#### Çökmeden kurtarma ve bekçi
+
+Çalışan döngü `.anafor/loop.json` dosyasındaki heartbeat'i dakikada bir yeniler.
+Süreç ölür ve heartbeat üç dakikadan eski olursa `anafor loop recover` aynı Claude
+oturumunu sürdürür. SessionStart ve statusline kurtarmayı arkada, en fazla üç
+dakikada bir dener. `loop.recover_on_crash` varsayılan olarak `true` değerindedir;
+projede veya `.anafor/config.json` içinde `false` yaparak kapatabilirsiniz.
+
+Tüm arka plan tetiklerini kapatmak için `ANAFOR_DISABLE_BACKGROUND=1` ayarlayın.
+Claude Code kapalıyken Windows bekçisini açıkça `anafor loop watchdog install`
+komutuyla kurabilirsiniz. Görev her beş dakikada bir gizli pencerede `.anafor` altındaki
+VBS sarmalayıcısını çalıştırır. `uninstall` görevi ve sarmalayıcıyı kaldırır;
+`status` görev durumunu gösterir. Diğer platformlarda komut cron ve launchd örnekleri
+yazdırır.
+
 Backlog dosyası proje kökünden okunur; tamamlanan satırlar `- [ ] madde` biçiminde
 olmalıdır. Örnek:
 

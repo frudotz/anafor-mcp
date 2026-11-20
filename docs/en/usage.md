@@ -94,6 +94,22 @@ threshold, the loop stops after its turn, creates a checkpoint, and records
 Resume manually with `anafor loop resume`. A `pause` or `stop` request takes effect
 after the current turn completes.
 
+#### Crash recovery and watchdog
+
+The running loop refreshes the heartbeat in `.anafor/loop.json` every minute. If
+the process dies and the heartbeat is older than three minutes, `anafor loop
+recover` resumes the same Claude session. SessionStart and the statusline trigger
+recovery in the background no more often than every three minutes.
+`loop.recover_on_crash` defaults to `true`; set it to `false` in project config or
+`.anafor/config.json` to disable recovery.
+
+Set `ANAFOR_DISABLE_BACKGROUND=1` to disable all background triggers. When Claude
+Code is closed, explicitly install the Windows watchdog with
+`anafor loop watchdog install`. Its five minute user task runs a VBS wrapper under
+`.anafor` without opening a window. `uninstall` removes the task and wrapper;
+`status` shows the task state. On other platforms the command prints cron and
+launchd examples.
+
 The backlog path is relative to the project root; items use `- [ ] item` lines:
 
 ```markdown

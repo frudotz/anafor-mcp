@@ -57,7 +57,7 @@ export interface AnaforConfig {
   token_profile: TokenProfile;
   limits: { brain: { warn_at: number; pause_at: number; pause_at_weekly: number } };
   failover: { enabled: boolean; threshold_percent: number };
-  loop: { turn_timeout_min: number; min_turn_gap_sec: number };
+  loop: { turn_timeout_min: number; min_turn_gap_sec: number; recover_on_crash: boolean };
   brain: { lean: boolean; model?: string; effort?: import('../adapters/types.js').Effort };
 }
 
@@ -122,7 +122,7 @@ export const DEFAULT_CONFIG: AnaforConfig = {
   token_profile: 'balanced',
   limits: { brain: { warn_at: 75, pause_at: 90, pause_at_weekly: 95 } },
   failover: { enabled: true, threshold_percent: 95 },
-  loop: { turn_timeout_min: 60, min_turn_gap_sec: 30 },
+  loop: { turn_timeout_min: 60, min_turn_gap_sec: 30, recover_on_crash: true },
   brain: { lean: true },
   worktree_setup: null,
   worktree_cache: null,
