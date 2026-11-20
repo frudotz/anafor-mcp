@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { isAbsolute, relative, resolve } from 'node:path';
+import { isAbsolute, relative, resolve, win32 } from 'node:path';
 import type { Job, Task } from '../store/store.js';
 
 export interface Gate {
@@ -29,14 +29,42 @@ export interface AcceptInput {
  * son eki atılır; sonuç proje kökünün içinde olmalıdır (worktree'ler `.anafor/` altında, içeride).
  */
 export function resolveEvidence(root: string, workdir: string, p: string): string | null {
-  const clean = p.trim().replace(/:\d+(?:-\d+)?(?::\d+)?$/, '');
-  const generatedEvidence = clean.replace(/\\/g, '/').startsWith('.anafor/evidence/');
-  const abs = isAbsolute(clean) ? clean : resolve(generatedEvidence ? root : workdir, clean);
-  const rel = relative(root, abs);
-  const workRel = relative(workdir, abs);
-  const inRoot = !rel.startsWith('..') && !isAbsolute(rel);
-  const inWorktree = !workRel.startsWith('..') && !isAbsolute(workRel);
-  return inRoot || inWorktree ? abs : null;
+  const raw = p.trim();
+  const windowsRoot = /^[A-Za-z]:[\\/]/.test(root) || /^(?:\\\\|\/\/)/.test(root);
+  const windowsEvidence = /^[A-Za-z]:[\\/]/.test(raw) || /^(?:\\\\|\/\/)/.test(raw);
+  const pathApi = windowsRoot ? win32 : undefined;
+  const resolvePath = pathApi?.resolve ?? resolve;
+  const relativePath = pathApi?.relative ?? relative;
+  const absolute = (value: string) => (windowsRoot ? win32.isAbsolute(value) : isAbsolute(value));
+  const inProject = (clean: string): string | null => {
+    if (windowsEvidence && !windowsRoot) return null;
+    const normalized = clean.replace(/\\/g, '/');
+    const generatedEvidence = normalized.startsWith('.anafor/evidence/');
+    const base = generatedEvidence ? root : workdir;
+    const abs = absolute(clean) ? clean : resolvePath(base, clean);
+    const rel = relativePath(root, abs);
+    const workRel = relativePath(workdir, abs);
+    const inside = (r: string) =>
+      r !== '..' && !r.startsWith(`..${windowsRoot ? '\\' : '/'}`) && !absolute(r);
+    return inside(rel) || inside(workRel) ? abs : null;
+  };
+  // Prefer an actual filename containing parentheses, e.g. `foo (1).ts`.
+  const fullPath = inProject(raw);
+  if (fullPath && existsSync(fullPath)) return fullPath;
+
+  let clean = raw.replace(/#L\d+(?:-L?\d+|C\d+)?$/i, '').replace(/:\d+(?:-\d+)?(?::\d+)?$/, '');
+  const colon = clean.indexOf(':');
+  if (
+    colon >= 0 &&
+    !(colon === 1 && /^[A-Za-z]$/.test(clean[0]!)) &&
+    !/^\d/.test(clean.slice(colon + 1))
+  ) {
+    clean = clean.slice(0, colon);
+  }
+  const parsed = inProject(clean);
+  if (parsed && existsSync(parsed)) return parsed;
+  const paren = clean.replace(/ \([^)]*\)$/, '');
+  return paren !== clean ? inProject(paren) : parsed;
 }
 
 /** Partial review is acceptable only when every missing item clearly concerns running checks. */

@@ -40,6 +40,188 @@ describe('AnaforService', () => {
     return w.finished[0]!.state;
   };
 
+  const addOtherJob = (taskId: string, changedFiles: string[]) => {
+    const job = store.createJob({
+      taskId,
+      role: 'implementation',
+      worker: 'fake',
+      workspaceMode: 'shared',
+      workdir: t.dir,
+      instructions: 'parallel scope fixture',
+      timeoutS: 30,
+    });
+    store.transitionJob(job.id, 'starting');
+    store.transitionJob(job.id, 'running');
+    store.transitionJob(job.id, 'validating');
+    store.transitionJob(job.id, 'needs_review', {
+      result: {
+        schema_version: '1',
+        task_id: taskId,
+        job_id: job.id,
+        agent_role: 'implementation',
+        status: 'completed',
+        summary: 'fixture',
+        changed_files: changedFiles,
+        requirements_completed: [],
+        requirements_missing: [],
+        tests: { executed: [], passed: 0, failed: 0, exit_codes: [] },
+        review: { level: 'none', critical_count: 0, findings: [] },
+        evidence_locations: [],
+        blockers: [],
+        recommended_next_action: '',
+      },
+    });
+    return job;
+  };
+
+  it('jobDispatch paralel dosya çakışmasında uyarır', async () => {
+    const other = svc.taskCreate({ title: 'Öteki', objective: 'x' });
+    addOtherJob(other.task_id, ['src/a.ts']);
+    const task = svc.taskCreate({ title: 'Yeni', objective: 'x', contextRefs: ['src/a.ts'] });
+    const dispatched = await svc.jobDispatch({
+      taskId: task.task_id,
+      role: 'implementation',
+      instructions: '[fake:slow]',
+    });
+    expect(dispatched.warnings.join(' ')).toContain(other.task_id);
+    expect(dispatched.warnings.join(' ')).toContain('src/a.ts');
+    svc.jobCancel(dispatched.job_id, 'test');
+  });
+
+  it('jobDispatch yalnız implementation/test rollerinde tarar', async () => {
+    const other = svc.taskCreate({ title: 'Öteki', objective: 'x' });
+    addOtherJob(other.task_id, ['src/a.ts']);
+    const task = svc.taskCreate({ title: 'Analiz', objective: 'x', contextRefs: ['src/a.ts'] });
+    const dispatched = await svc.jobDispatch({
+      taskId: task.task_id,
+      role: 'analysis',
+      instructions: '[fake:ok]',
+    });
+    expect(dispatched.warnings).toEqual([]);
+    await finishedState(dispatched.job_id);
+  });
+
+  it('jobDispatch queued işlerin kapsamını tarar', async () => {
+    const other = svc.taskCreate({ title: 'Kuyrukta', objective: 'x', contextRefs: ['src/a.ts'] });
+    store.createJob({
+      taskId: other.task_id,
+      role: 'implementation',
+      worker: 'fake',
+      workspaceMode: 'readonly',
+      workdir: t.dir,
+      instructions: 'queued fixture',
+      timeoutS: 30,
+    });
+    const task = svc.taskCreate({ title: 'Yeni', objective: 'x', contextRefs: ['src/a.ts'] });
+    const dispatched = await svc.jobDispatch({
+      taskId: task.task_id,
+      role: 'implementation',
+      instructions: '[fake:slow]',
+    });
+    expect(dispatched.warnings.join(' ')).toContain(other.task_id);
+    svc.jobCancel(dispatched.job_id, 'test');
+  });
+
+  it('jobDispatch approved işlerin kapsamını tarar', async () => {
+    const other = svc.taskCreate({ title: 'Onaylı', objective: 'x' });
+    const job = addOtherJob(other.task_id, ['src/a.ts']);
+    store.transitionJob(job.id, 'approved');
+    const task = svc.taskCreate({ title: 'Yeni', objective: 'x', contextRefs: ['src/a.ts'] });
+    const dispatched = await svc.jobDispatch({
+      taskId: task.task_id,
+      role: 'implementation',
+      instructions: '[fake:slow]',
+    });
+    expect(dispatched.warnings.join(' ')).toContain(other.task_id);
+    svc.jobCancel(dispatched.job_id, 'test');
+  });
+
+  it('jobDispatch çakışma yoksa uyarı eklemez', async () => {
+    const other = svc.taskCreate({ title: 'Öteki', objective: 'x' });
+    addOtherJob(other.task_id, ['docs/a.md']);
+    const task = svc.taskCreate({ title: 'Yeni', objective: 'x', contextRefs: ['src/a.ts'] });
+    const dispatched = await svc.jobDispatch({
+      taskId: task.task_id,
+      role: 'implementation',
+      instructions: '[fake:slow]',
+    });
+    expect(dispatched.warnings).toEqual([]);
+    svc.jobCancel(dispatched.job_id, 'test');
+  });
+
+  it('jobDispatch dosya eşleşmesinde yalnız Windows üzerinde harf duyarsızdır', async () => {
+    const other = svc.taskCreate({ title: 'Öteki', objective: 'x' });
+    addOtherJob(other.task_id, ['src/a.ts']);
+    const task = svc.taskCreate({ title: 'Yeni', objective: 'x', contextRefs: ['SRC/a.ts'] });
+    const dispatched = await svc.jobDispatch({
+      taskId: task.task_id,
+      role: 'implementation',
+      instructions: '[fake:slow]',
+    });
+    if (process.platform === 'win32')
+      expect(dispatched.warnings.join(' ')).toContain(other.task_id);
+    else expect(dispatched.warnings).toEqual([]);
+    svc.jobCancel(dispatched.job_id, 'test');
+  });
+
+  it('jobDispatch kapalı görevlerin çakışan dosyalarını yok sayar', async () => {
+    const other = svc.taskCreate({ title: 'Kapalı', objective: 'x' });
+    addOtherJob(other.task_id, ['src/a.ts']);
+    store.updateTask(other.task_id, { state: 'accepted' });
+    const task = svc.taskCreate({ title: 'Yeni', objective: 'x', contextRefs: ['src/a.ts'] });
+    const dispatched = await svc.jobDispatch({
+      taskId: task.task_id,
+      role: 'implementation',
+      instructions: '[fake:slow]',
+    });
+    expect(dispatched.warnings).toEqual([]);
+    svc.jobCancel(dispatched.job_id, 'test');
+  });
+
+  it('jobDispatch glob kapsamını eşleştirir', async () => {
+    const other = svc.taskCreate({ title: 'Öteki', objective: 'x' });
+    addOtherJob(other.task_id, ['src/components/a.ts']);
+    const globTask = svc.taskCreate({
+      title: 'Glob',
+      objective: 'x',
+      contextRefs: ['src/**/*.ts'],
+    });
+    const globDispatch = await svc.jobDispatch({
+      taskId: globTask.task_id,
+      role: 'implementation',
+      instructions: '[fake:slow]',
+    });
+    expect(globDispatch.warnings.join(' ')).toContain(other.task_id);
+    svc.jobCancel(globDispatch.job_id, 'test');
+  });
+
+  it('jobDispatch tek yıldızlı globu dizin sınırında durdurur', async () => {
+    const other = svc.taskCreate({ title: 'Derin', objective: 'x' });
+    addOtherJob(other.task_id, ['src/components/a.ts']);
+    const task = svc.taskCreate({ title: 'Yüzey', objective: 'x', contextRefs: ['src/*.ts'] });
+    const dispatched = await svc.jobDispatch({
+      taskId: task.task_id,
+      role: 'implementation',
+      instructions: '[fake:slow]',
+    });
+    expect(dispatched.warnings).toEqual([]);
+    svc.jobCancel(dispatched.job_id, 'test');
+  });
+
+  it('jobDispatch dizin önekli kapsamı eşleştirir', async () => {
+    const other = svc.taskCreate({ title: 'Öteki', objective: 'x' });
+    addOtherJob(other.task_id, ['src/components/a.ts']);
+    const dirTask = svc.taskCreate({ title: 'Dizin', objective: 'x' });
+    const dirDispatch = await svc.jobDispatch({
+      taskId: dirTask.task_id,
+      role: 'implementation',
+      instructions: '[fake:slow]',
+      inputs: { files: ['src/components'] },
+    });
+    expect(dirDispatch.warnings.join(' ')).toContain(other.task_id);
+    svc.jobCancel(dirDispatch.job_id, 'test');
+  });
+
   it('tam akış: görev → dağıt → bekle → sonuç → düzeltme → sonuç', async () => {
     const task = svc.taskCreate({
       title: 'Akış',

@@ -8,6 +8,7 @@ Sen Anafor yöneticisisin. Kod yazmazsın.
 1. `project_status` (anafor MCP) ile durumu gör.
 2. Depo bilgisi gerekiyorsa bir `analysis` işi dağıt (`task_create` + `job_dispatch role=analysis`), `job_wait` ile bekle, `job_result` ile oku.
 3. Hedefi küçük, bağımsız işlere böl. Her biri için kabul kriterleri, inceleme seviyesi (lightweight/standard/deep) ve işçi öner.
+   Aynı dosyalara dokunan görevleri sıralı planla; paralel dağıtım birleştirme çakışması çıkarabilir.
 4. Planı kullanıcıya kısa bir tabloyla sun ve onay iste.
 5. Onaydan sonra her iş için `task_create` çağır ve görev kimliklerini listele. Dağıtım için `/anafor:run`.
 
