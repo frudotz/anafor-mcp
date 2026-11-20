@@ -596,6 +596,14 @@ Kullanıcı geliştirme döngüsü isterse loop_start kullan; sonraki adımları
   },
 
   service: {
+    failoverContinuation:
+      "Önceki işçi limit nedeniyle yarıda kaldı; worktree'deki mevcut değişiklikleri incele ve devam et.",
+    failoverSkipped: (workers: string, selected: string) =>
+      `failover: ${workers} limit nedeniyle atlandı; ${selected} seçildi`,
+    failoverExplicit: (worker: string, detail: string) =>
+      `Failover yok: ${worker} açıkça seçildi; rate limit: ${detail}`,
+    failoverTransferred: (worker: string, alternate: string, jobId: string) =>
+      `Rate limit (${worker}); iş ${alternate} işçisine devredildi: ${jobId}`,
     loopAlreadyActive: 'Geliştirme döngüsü zaten çalışıyor.',
     loopStartFailed: (detail: string) => `Döngü başlatılamadı${detail ? `: ${detail}` : ''}`,
     globalLimit: (max: number, project: number, others: number) =>

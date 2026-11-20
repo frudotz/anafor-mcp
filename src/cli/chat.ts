@@ -79,13 +79,20 @@ class JobFollower {
   poll(): string[] {
     const out: string[] = [];
     const jobs = this.store.listJobs({
-      states: [...ACTIVE_JOB_STATES, 'needs_review', 'failed', 'timed_out', 'invalid_output'],
+      states: [
+        ...ACTIVE_JOB_STATES,
+        'needs_review',
+        'failed',
+        'failed_over',
+        'timed_out',
+        'invalid_output',
+      ],
     });
     for (const j of jobs) {
       const last = this.seen.get(j.id) ?? 0;
       const evs = this.store.listEvents(j.id, last, 20);
       for (const e of evs) {
-        if (['message', 'command', 'file_change', 'error', 'cancel'].includes(e.type)) {
+        if (['message', 'command', 'file_change', 'error', 'cancel', 'failover'].includes(e.type)) {
           out.push(
             c.dim(
               `  ↳ ${j.id} ${j.worker} ${e.type}: ${e.summary.replace(/\s+/g, ' ').slice(0, 110)}`,
