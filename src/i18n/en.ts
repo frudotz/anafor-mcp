@@ -484,6 +484,8 @@ Policy: HIGH/CRITICAL and scan errors are blocked; CAUTION only with --accept-ri
   },
 
   adapters: {
+    workerSafetyRules:
+      'WORKER SAFETY RULES (required):\n- Do not run git push.\n- Do not run curl or wget.\n- Do not delete any path outside the working directory; especially do not run rm -rf outside the worktree.\n- Do not loosen the sandbox or permissions; stop and report if an operation requires approval.',
     legacyWorkerAlias: 'claude-lite is deprecated; use cirak.',
     windowsSandbox: (mode: string) =>
       `Windows sandbox "${mode}": the worker may not be able to start subprocesses (spawn EPERM), ` +

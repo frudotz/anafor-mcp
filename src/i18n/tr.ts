@@ -479,6 +479,8 @@ Politika: HIGH/CRITICAL ve tarama hatası engellenir; CAUTION yalnızca --accept
   },
 
   adapters: {
+    workerSafetyRules:
+      'İŞÇİ GÜVENLİK KURALLARI (zorunlu):\n- git push çalıştırma.\n- curl veya wget çalıştırma.\n- Çalışma dizini dışındaki hiçbir yolu silme; özellikle worktree dışına yönelik rm -rf komutu çalıştırma.\n- Sandbox veya izinleri gevşetme; onay isteyen bir işlemde dur ve bildir.',
     legacyWorkerAlias: 'claude-lite kullanımdan kaldırıldı; cirak kullanın.',
     windowsSandbox: (mode: string) =>
       `Windows sandbox "${mode}": işçi alt süreç başlatamayabilir (spawn EPERM), ` +
