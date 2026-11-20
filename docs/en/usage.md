@@ -167,6 +167,7 @@ If the server restarts, dead jobs become `failed (orphaned)`. **No job is ever r
 - Claude editing code files in an Anafor project with `Edit`/`Write`, and file-modifying shell commands, are **blocked**. The reason is passed to Claude and written to `.anafor/audit/interventions.jsonl`.
 - Allowed: reading, tests, builds, git/gh management commands, `*.md`, `docs/`, `lat.md/`.
 - **Snag exception (intervention):** `intervene` (reason + paths + at most 30 min) → edit → `intervene_end` (summary). Everything is audited.
+- Shell commands are allowed outside the project only in the form `cd <outside-directory> && ...`; use `intervene` for `git -C` and `;` chains.
 - **Task takeover:** if workers fail repeatedly (default: 3 failed or rejected jobs), the task becomes `blocked`, or a job runs longer than 60 minutes, Claude takes over the task with `task_takeover`. Active jobs are cancelled; Claude works only in that task's worktree, with time-limited permission. When done: `takeover_complete` → `task_accept`. Thresholds: `anafor.config.json` → `"escalation": { "failure_threshold": 3, "stall_minutes": 60, "takeover_minutes": 120 }`.
 - Worker worktrees (`.anafor/worktrees/`) cannot be opened by any `allow_paths` rule; they can only be edited with permission.
 - Mode: `anafor.config.json` → `"director_mode": "enforce" | "warn" | "off"`.
