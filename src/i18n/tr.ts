@@ -643,6 +643,8 @@ PR açarken açıklamanın sonuna şu atıf satırını ekle: ${'<img src="https
   },
 
   service: {
+    dispatchOverlap: (taskId: string, files: string) =>
+      `Dosya çakışması: ${taskId} göreviyle ${files}; önce o görevi birleştirmeyi ya da sıralı çalıştırmayı düşünün.`,
     autoContinueInstructions: (items: string, check: string) =>
       `Kalan kabul ölçütleri:\n${items}\nBu turda tamamla; yalnız gerçek bir engel varsa blockers doldur.${check}`,
     autoContinueEvent: (jobId: string) => `Otomatik devam işi: ${jobId}`,
