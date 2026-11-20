@@ -2,6 +2,28 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/) (0.x döneminde küçük sürüm kırıcı olabilir).
 
+## [0.9.0] - 2026-11-20
+
+### Eklenenler
+- İşçi eşzamanlılığı doluyken işleri kalıcı kuyruğa alma (#89).
+- Rol failover desteği (#90).
+- Döngü kurtarma `anafor loop recover` ve isteğe bağlı bekçi `anafor loop watchdog` komutları (#92).
+- Döngü bitince isteğe bağlı kapatma için `--shutdown-on-finish` (#93).
+- PR atıfı için `anafor attribution` komutu (#94).
+
+### Değişenler
+- Limit uyarısı döngüde “büyük iş başlatma”, döngü dışında “uyar ve onay iste” der (#89).
+- İşçi güvenlik kuralları ve failover metinleri i18n kapsamına alındı (#91).
+
+### Düzeltilenler
+- Windows'ta alt süreç konsol pencereleri gizlendi (#87).
+- Test geçici dizin temizliğinde Windows kilit toleransı artırıldı (#88).
+
+### Geçiş notu
+- `dispatch`, eşzamanlılık doluyken hata vermek yerine `queued` döndürür.
+- Failover varsayılan olarak açıktır; kapatmak için `failover.enabled: false` ayarlayın.
+- Döngü kurtarma varsayılan olarak açıktır; kapatmak için `loop.recover_on_crash: false` ayarlayın.
+
 ## [0.8.0] - 2026-11-19
 
 ### Eklenenler
