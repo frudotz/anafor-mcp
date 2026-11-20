@@ -11,7 +11,7 @@
   <a href="https://github.com/frudotz/anafor-mcp/actions/workflows/contribution-guard.yml"><img alt="Contribution Guard" src="https://img.shields.io/github/actions/workflow/status/frudotz/anafor-mcp/contribution-guard.yml?branch=main&label=Contribution%20Guard"></a>
   <a href="https://github.com/frudotz/anafor-mcp/releases/latest"><img alt="Son sürüm" src="https://img.shields.io/github/v/release/frudotz/anafor-mcp"></a>
   <img alt="Lisans: AGPL-3.0-only" src="https://img.shields.io/badge/license-AGPL--3.0--only-blue">
-  <img alt="Node.js >=24" src="https://img.shields.io/badge/node-%3E%3D24-339933?logo=node.js&logoColor=white">
+  <img alt="Node.js 24" src="https://img.shields.io/badge/node-%3E%3D24-339933?logo=node.js&logoColor=white">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-blue?logo=typescript&logoColor=white">
   <img alt="MCP" src="https://img.shields.io/badge/MCP-supported-6f42c1">
 </p>
