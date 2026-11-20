@@ -190,6 +190,7 @@ export class AnaforService {
         cwd: root,
         encoding: 'utf8',
         timeout: 10_000,
+        windowsHide: true,
       });
       return { status: result.status, stderr: result.stderr ?? '' };
     },
