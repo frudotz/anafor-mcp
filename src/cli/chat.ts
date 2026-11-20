@@ -10,6 +10,7 @@ import { ACTIVE_JOB_STATES } from '../core/states.js';
 import { formatWindows, readStoredLimits } from '../limits/limits.js';
 import { Store } from '../store/store.js';
 import { m } from '../i18n/index.js';
+import { queuePositions } from '../core/queue-order.js';
 
 const c = {
   dim: (s: string) => `\x1b[2m${s}\x1b[0m`,
@@ -46,6 +47,10 @@ export function renderBrainEvent(e: BrainEvent): string | null {
 /** İş panosu satırları (anafor jobs ve sohbet içi /jobs). */
 export function jobsTable(store: Store, all = false): string[] {
   const tasks = store.listTasks({ includeClosed: all }).slice(0, 15);
+  const positions = queuePositions(
+    store.listJobs({ states: ['queued'] }),
+    (id) => store.getTask(id)?.priority ?? 'normal',
+  );
   const lines: string[] = [];
   for (const t of tasks) {
     lines.push(`${c.bold(t.id)} [${t.state}] ${t.title}`);
@@ -56,7 +61,7 @@ export function jobsTable(store: Store, all = false): string[] {
           ? c.cyan('◆')
           : c.dim('○');
       lines.push(
-        `  ${mark} ${j.id} ${j.role.padEnd(14)} ${j.worker.padEnd(11)} ${j.state}${j.error ? c.red(` · ${j.error.slice(0, 60)}`) : ''}`,
+        `  ${mark} ${j.id} ${j.role.padEnd(14)} ${j.worker.padEnd(11)} ${j.state}${j.state === 'queued' ? ` #${positions.get(j.id)}` : ''}${j.error ? c.red(` · ${j.error.slice(0, 60)}`) : ''}`,
       );
     }
   }
