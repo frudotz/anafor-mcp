@@ -89,6 +89,15 @@ alır; `loop_status` durumu ve backlog ilerlemesini, `loop_stop` duraklatma veya
 durdurmayı sağlar. Claude Code'da `/anafor:loop <hedef>` komutu da `loop_start`
 kullanır.
 
+İsteğe bağlı kapanma için `anafor loop start "hedef" --shutdown-on-finish` veya
+`loop_start` aracında `shutdown_on_finish: true` kullanın; varsayılan kapalıdır.
+`anafor.config.json` içinde `"loop": { "on_finish": "shutdown" }` da açabilir.
+Yalnız DONE/BLOCKED sonunda çalışan Anafor işleri beklenir (en çok 30 dakika),
+ardından kapatma 120 saniye sonra zamanlanır. Başka uygulamalardaki kaydedilmemiş
+veriler kaybolabilir. Windows'ta iptal: `shutdown /a`; macOS/Linux'ta `shutdown -c`.
+Bekleme sürerken `anafor loop stop` veya `anafor loop pause` kapanmayı iptal eder;
+kapatma zaten zamanlandıysa aynı komut OS iptal komutunu çalıştırmayı dener.
+
 Limit eşikleri `anafor.config.json` içindeki `limits.brain` ile ayarlanır:
 varsayılan `warn_at: 75`, `pause_at: 90`, `pause_at_weekly: 95` (yüzde). Eşik
 aşılınca döngü tur sonunda duraklar, checkpoint oluşturur ve `resume_at` zamanını

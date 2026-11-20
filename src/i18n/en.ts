@@ -181,6 +181,14 @@ Language: ANAFOR_LANG=tr|en or anafor setup --lang`,
     loopUsage:
       'loop start "<goal>" | --backlog <file> [--profile saver|balanced|quality] [--model M] [--auto-resume] [--max-cycles N] [--until ISO] [--detach] | status | pause | resume | stop (stops after the current turn)',
     loopStarted: 'Development loop started',
+    loopShutdownWarning: (cancel: string) =>
+      `Warning: unsaved data in other applications may be lost. Cancel with: ${cancel}`,
+    loopShutdownScheduled: (cancel: string) =>
+      `Computer shutdown is scheduled in 120 seconds. Cancel with: ${cancel}`,
+    loopShutdownFailed: (error: string) => `Could not schedule computer shutdown: ${error}`,
+    loopShutdownCancelled: 'Computer shutdown was cancelled.',
+    loopShutdownCancelFailed: (error: string, cancel: string) =>
+      `Could not cancel computer shutdown: ${error}. Cancel manually: ${cancel}`,
     loopWarn: (percent: number) =>
       `Limit at ${percent}%; wrap up current work and do not start a large task.`,
     loopResumePrompt:
@@ -448,6 +456,9 @@ Policy: HIGH/CRITICAL and scan errors are blocked; CAUTION only with --accept-ri
   },
 
   sessionStart: {
+    shutdownScheduled: (at: string, cancel: string) =>
+      `Computer shutdown scheduled at ${at} · cancel: ${cancel}`,
+    shutdownFailed: (error: string) => `Computer shutdown failed: ${error}`,
     loopSummary: (state: string, cycle: number, detail: string) =>
       `Development loop ${state} · cycle ${cycle}${detail ? ` · ${detail}` : ''}`,
     managed: (mode: string) =>

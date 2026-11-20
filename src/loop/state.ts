@@ -22,6 +22,13 @@ export interface LoopState {
   error_count?: number;
   pending_intervene_expires_at?: string | null;
   pid?: number;
+  shutdown_on_finish?: boolean;
+  shutdown_scheduled_at?: string | null;
+  shutdown_cancel_command?: string | null;
+  shutdown_error?: string | null;
+  shutdown_cancel_error?: string | null;
+  shutdown_pending?: boolean;
+  shutdown_cancelled?: boolean;
 }
 const paths = (root: string) => ({
   dir: join(root, '.anafor'),
@@ -110,7 +117,11 @@ export function cleanupLoopProcess(root: string, reason: string, killBrain: () =
     /* best effort */
   }
   const state = readLoopState(root);
-  if (state && state.state !== 'stopped')
+  if (
+    state &&
+    (state.state === 'running' ||
+      (state.state === 'paused' && !state.paused_reason?.startsWith('blocked:')))
+  )
     writeLoopState(root, { ...state, state: 'paused', paused_reason: reason, resume_at: null });
   releaseLoopLock(root);
 }

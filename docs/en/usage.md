@@ -87,6 +87,15 @@ in a detached process. Acceptance and merging are disabled unless `--accept` and
 same options; `loop_status` reports state and backlog progress; `loop_stop` pauses
 or stops. In Claude Code, `/anafor:loop <goal>` also calls `loop_start`.
 
+Optional shutdown can be enabled with `anafor loop start "goal" --shutdown-on-finish`
+or `shutdown_on_finish: true` on `loop_start`; it is off by default. You can also
+set `"loop": { "on_finish": "shutdown" }` in `anafor.config.json`. Only DONE/BLOCKED
+waits for active Anafor jobs (up to 30 minutes), then schedules shutdown in 120
+seconds. Unsaved data in other applications may be lost. Cancel with `shutdown /a`
+on Windows or `shutdown -c` on macOS/Linux.
+During the wait, `anafor loop stop` or `anafor loop pause` cancels shutdown. If
+shutdown is already scheduled, either command tries the operating system cancel command.
+
 Limit thresholds come from `limits.brain` in `anafor.config.json`: defaults are
 `warn_at: 75`, `pause_at: 90`, and `pause_at_weekly: 95` (percent). At a pause
 threshold, the loop stops after its turn, creates a checkpoint, and records
