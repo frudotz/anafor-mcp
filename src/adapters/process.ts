@@ -38,7 +38,10 @@ export class EventQueue<T> implements AsyncIterable<T> {
 export function killTree(child: ChildProcess): void {
   if (child.pid === undefined || child.exitCode !== null) return;
   if (process.platform === 'win32') {
-    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
   } else {
     try {
       process.kill(-child.pid, 'SIGTERM');

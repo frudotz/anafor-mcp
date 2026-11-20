@@ -1,48 +1,57 @@
-import { mkdirSync, mkdtempSync, rmSync, type RmDirOptions } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { WorkerResultV1 } from '../src/contracts/worker-result.js';
+
+type CleanupOptions = {
+  recursive?: boolean;
+  force?: boolean;
+  maxRetries?: number;
+  retryDelay?: number;
+};
 
 export function tempDir(
   prefix = 'anafor-test-',
   opts: { maxRetries?: number; retryDelay?: number } = {},
 ): { dir: string; cleanup: () => void } {
-  const worker = process.env.ANAFOR_WORKER === '1';
   const base = process.env.ANAFOR_TEST_TMP ?? tmpdir();
   mkdirSync(base, { recursive: true });
   const dir = mkdtempSync(join(base, prefix));
   return {
     dir,
     cleanup: () =>
-      cleanupTempDir(
-        dir,
-        {
-          recursive: true,
-          force: true,
-          maxRetries: opts.maxRetries ?? 5,
-          retryDelay: opts.retryDelay ?? 100,
-        },
-        rmSync,
-        worker,
-      ),
+      cleanupTempDir(dir, {
+        recursive: true,
+        force: true,
+        maxRetries: opts.maxRetries ?? 5,
+        retryDelay: opts.retryDelay ?? 100,
+      }),
   };
 }
 
 export function cleanupTempDir(
   dir: string,
-  options: RmDirOptions,
-  remove: (path: string, options: RmDirOptions) => void = rmSync,
-  worker = process.env.ANAFOR_WORKER === '1',
+  options: CleanupOptions,
+  remove: (path: string, options: CleanupOptions) => void = rmSync,
 ): void {
-  try {
-    remove(dir, options);
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (worker && (code === 'EPERM' || code === 'EBUSY')) {
-      process.stderr.write(`geçici dizin bırakıldı: ${dir}\n`);
+  const maxRetries = options.maxRetries ?? 0;
+  const retryDelay = options.retryDelay ?? 100;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      remove(dir, options);
       return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (attempt < maxRetries) {
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, retryDelay);
+        continue;
+      }
+      if (code === 'EPERM' || code === 'EBUSY' || code === 'ENOTEMPTY') {
+        process.stderr.write(`geçici dizin bırakıldı: ${dir}\n`);
+        return;
+      }
+      throw error;
     }
-    throw error;
   }
 }
 

@@ -4,6 +4,7 @@ import { newId, nowIso } from '../core/ids.js';
 import { ensureProjectDirs, projectPaths, type ProjectPaths } from '../core/paths.js';
 import { jobSourcesFor, type JobState, type TaskState } from '../core/states.js';
 import { openDatabase } from './db.js';
+import { otherProjectLeases } from '../core/leases.js';
 
 export type Priority = 'low' | 'normal' | 'high' | 'critical';
 export type WorkspaceMode = 'worktree' | 'shared' | 'readonly';
@@ -336,8 +337,54 @@ export class Store {
       where.push(`state IN (${filter.states.map(() => '?').join(',')})`);
       params.push(...filter.states);
     }
-    const sql = `SELECT * FROM jobs ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY created_at ASC`;
+    const sql = `SELECT * FROM jobs ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY created_at ASC, rowid ASC`;
     return (this.db.prepare(sql).all(...params) as Row[]).map(toJob);
+  }
+
+  /** Atomically reserves a worker slot and claims a queued job across SQLite connections. */
+  claimQueuedJob(
+    id: string,
+    worker: string,
+    maxConcurrency: number,
+    maxParallelJobs: number,
+  ): Job | null {
+    this.db.exec('BEGIN IMMEDIATE;');
+    try {
+      const active = this.db
+        .prepare(
+          "SELECT COUNT(*) AS count FROM jobs WHERE state IN ('starting','running','validating')",
+        )
+        .get() as { count: number };
+      const workerActive = this.db
+        .prepare(
+          "SELECT COUNT(*) AS count FROM jobs WHERE worker = ? AND state IN ('starting','running','validating')",
+        )
+        .get(worker) as { count: number };
+      const globalActive = Number(active.count) + otherProjectLeases(this.paths.root).length;
+      if (Number(workerActive.count) >= maxConcurrency || globalActive >= maxParallelJobs) {
+        this.db.exec('COMMIT;');
+        return null;
+      }
+      const updated = this.db
+        .prepare(
+          "UPDATE jobs SET state = 'starting', updated_at = ? WHERE id = ? AND worker = ? AND state = 'queued'",
+        )
+        .run(nowIso(), id, worker);
+      if (Number(updated.changes) !== 1) {
+        this.db.exec('COMMIT;');
+        return null;
+      }
+      const job = this.mustGetJob(id);
+      this.db.exec('COMMIT;');
+      return job;
+    } catch (error) {
+      try {
+        this.db.exec('ROLLBACK;');
+      } catch {
+        // Preserve the original claim failure if rollback also fails.
+      }
+      throw error;
+    }
   }
 
   /**

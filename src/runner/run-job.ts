@@ -97,7 +97,7 @@ export async function runJob(
     return store.mustGetJob(job.id);
   };
 
-  if (!tryTransition(() => store.transitionJob(job.id, 'starting'))) {
+  if (job.state !== 'starting' && !tryTransition(() => store.transitionJob(job.id, 'starting'))) {
     return store.mustGetJob(job.id); // iptal edilmiş veya zaten başlatılmış
   }
 

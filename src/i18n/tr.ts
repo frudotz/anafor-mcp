@@ -147,6 +147,8 @@ Dil: ANAFOR_LANG=tr|en veya anafor setup --lang`,
   hooks: {
     limitPrompt: (percent: number) =>
       `Claude limiti %${percent}; işi güvenli noktaya getir, büyük iş başlatma.`,
+    limitWarning: (percent: number) =>
+      `Claude limiti %${percent}. Büyük veya uzun bir işe başlamadan önce kullanıcıyı kalan limit konusunda kısaca uyar ve onayını iste; kullanıcı onaylarsa normal şekilde devam et. Küçük işler için uyarıya gerek yok.`,
   },
   permissions: {
     total: (n: number) => `Son dönemde ret: ${n}`,

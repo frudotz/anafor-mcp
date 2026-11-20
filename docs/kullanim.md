@@ -109,7 +109,9 @@ Her turun son yanıtı bir `ANAFOR_LOOP` işareti taşımalıdır:
 Durum satırında çalışan döngü `↻ döngü #N`, otomatik devamı bekleyen döngü
 `⏸ döngü: <saat>'te devam`, elle devam bekleyen döngü ise
 `⏸ döngü durakladı: anafor loop resume` olarak görünür. UserPromptSubmit hook'u
-Claude limiti uyarı eşiğini aşınca işi güvenli noktaya getirmesi için kısa not ekler.
+limit uyarı eşiği aşıldığında döngü sırasında işi güvenli noktaya getirme notu,
+döngü dışında ise büyük veya uzun işe başlamadan önce kullanıcıyı uyarıp onay
+isteme notu ekler. Eşik altındaki limitlerde not eklemez.
 
 Öneri: sonraki adımları önceden bir belge, kasa (checkpoint) veya backlog dosyasında
 belirleyin. Döngü limitlere uyar ve bunları atlatmaz; paralel beyin başlatmaz, tek
@@ -173,7 +175,7 @@ Sunucu yeniden başlarsa ölü işler `failed (orphaned)` olur. **Hiçbir iş ot
 
 `worktree_cache` yeni worktree'de `worktree_setup` yerine bağımlılık dizinini ana çalışma ağacından **hardlink** ile çoğaltır. Koşullar: `key_files` (ör. `package-lock.json`) iki ağaçta birebir aynı olmalı, dizin gitignore'da olmalı ve kaynakta symlink/junction bulunmamalı. Koşul sağlanmazsa olay günlüğüne nedeni yazılır ve normal `worktree_setup` çalışır. Junction kullanılmaz, çünkü `git worktree remove` junction'ın hedefini (ana projenin `node_modules`'ünü) siler.
 
-`max_parallel_jobs` (varsayılan 4) **makine genelinde** aynı anda çalışabilecek toplam iş sayısıdır: tüm işçiler ve tüm projeler sayılır. Her çalışan runner `~/.anafor/running/` altında süreç kimlikli bir kira bırakır; ölü süreçlerin kiraları sayılmaz. Sınır doluysa `job_dispatch` `LIMIT_REACHED` döner. Anlık kullanım `project_status.parallel` alanında görünür. İşçi başına sınır ayrıca `workers.<id>.max_concurrency` ile verilir.
+`max_parallel_jobs` (varsayılan 4) **makine genelinde** aynı anda çalışabilecek toplam iş sayısıdır: tüm işçiler ve tüm projeler sayılır. Her çalışan runner `~/.anafor/running/` altında süreç kimlikli bir kira bırakır; ölü süreçlerin kiraları sayılmaz. İşçi eşzamanlılık sınırı dolduğunda iş `queued` olarak kaydedilir; slot boşalınca görev önceliği ve FIFO sırasıyla başlar. `job_dispatch` kuyruk sırasını `queue_position` alanında döndürür. `project_status` ve `anafor jobs` kuyruktaki işleri gösterir. Anlık kullanım `project_status.parallel` alanında görünür. İşçi başına sınır ayrıca `workers.<id>.max_concurrency` ile verilir.
 
 `.anafor/config.json` yerel ezmeler içindir (commit edilmez). Proje dosyası önceliklidir.
 
