@@ -6,5 +6,6 @@ coverage/
 .env.*
 # Anafor çalışma durumu (bu repo kendi üzerinde Anafor kullanırken)
 .anafor/
+**/.claude/settings.json.bak
 .DS_Store
 Thumbs.db
