@@ -2,6 +2,10 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/) (0.x döneminde küçük sürüm kırıcı olabilir).
 
+## [Yayımlanmamış]
+
+- Yönetici kancası paket yöneticisi değişikliklerini tutarlı engeller; doğrulanmış güncellemeler kurulum betiklerini devre dışı bırakır, sürüm paketi üretim bağımlılıklarını içerir.
+
 ## [0.10.0] - 2026-11-20
 
 ### Eklenenler

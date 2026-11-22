@@ -24,16 +24,18 @@ const SHELL_TOOLS = new Set(['Bash', 'PowerShell']);
 
 // Dosya değiştiren shell desenleri (sezgisel; amaç disiplin, güvenlik değil).
 type Why = keyof Messages['director']['why'];
+const FS_COMMAND_PATTERN =
+  /(^|[\s;&|(])(rm|rmdir|mv|cp|mkdir|touch|tee|truncate|ln|chmod|chown|dd|install)\s/;
+const FS_COMMAND_EXCEPT_INSTALL =
+  /(^|[\s;&|(])(rm|rmdir|mv|cp|mkdir|touch|tee|truncate|ln|chmod|chown|dd)\s/;
+const INSTALL_COMMAND = /(^|[\s;&|(])install\s/;
 const MUTATING_PATTERNS: [RegExp, Why][] = [
   [
     /(^|[^0-9&>=(-])(?:[0-9]+)?\s*>{1,2}(?!\s*&)(?!\s*\/dev\/null)(?!\s*\$null)(?!\s*nul\b)\s*[^\s|&;)]+/i,
     'redirect',
   ],
   [/[;(]\s*>{1,2}(?!\s*&)(?!\s*\/dev\/null)(?!\s*\$null)(?!\s*nul\b)\s*[^\s|&;)]+/i, 'redirect'],
-  [
-    /(^|[\s;&|(])(rm|rmdir|mv|cp|mkdir|touch|tee|truncate|ln|chmod|chown|dd|install)\s/,
-    'fsCommand',
-  ],
+  [FS_COMMAND_PATTERN, 'fsCommand'],
   [/\bfind\b.*(?:\.\.|-delete)/i, 'fsCommand'],
   [/(^|[\s;&|(])(sed|perl)\s+[^|;&]*-i\b/, 'inPlace'],
   [
@@ -54,15 +56,179 @@ const MUTATING_PATTERNS: [RegExp, Why][] = [
   [/\bopen\([^)]*['"][wa]\+?['"]/, 'scriptWrite'],
 ];
 
-/** Shell komutu dosya değiştiriyor mu? Değiştiriyorsa neden döner. */
-export function classifyShell(command: string): string | null {
-  const interpreter =
-    /(?:^|[\s;&|(])(?:bash|sh|zsh)\s+-c\b|(?:^|[\s;&|(])(?:pwsh|powershell)\s+(?:-c\b|-command\b)|(?:^|[\s;&|(])cmd\s+\/c\b|(?:^|[\s;&|(])eval\b|(?:^|[\s;&|(])(?:node\s+-e|python\s+-c)\b/i.test(
-      command,
+const COMMAND_START = String.raw`(?:^|[\s;&|("'\x60])`;
+const COMMAND_PREAMBLE = String.raw`(?:(?:env\s+)?(?:[A-Za-z_]\w*=\S+\s+)*)(?:(?:sudo|command|exec)\s+)*`;
+const EXECUTABLE_PATH = String.raw`(?:[A-Za-z]:)?(?:[^\s;&|()"'\x60]*[\\/])?`;
+const PACKAGE_MANAGER_NAME = String.raw`(?:npm|pnpm|yarn|bun)(?:\.cmd|\.exe)?`;
+const PACKAGE_MANAGER_PREFIX = `${COMMAND_START}${COMMAND_PREAMBLE}${EXECUTABLE_PATH}${PACKAGE_MANAGER_NAME}`;
+const PACKAGE_MANAGER_FLAGS = String.raw`(?:\s+--?[A-Za-z][\w-]*(?:=\S+)?(?:\s+\S+)?)*`;
+const PACKAGE_MANAGER_ACTION = String.raw`(?:install|i|add|remove|rm|uninstall|un|update|up|upgrade|link)`;
+const PIP_FLAGS = String.raw`(?:--?[A-Za-z][\w-]*(?:=\S+)?(?:\s+\S+)?\s+)*`;
+const PIP_NAME = String.raw`(?:pip(?:3(?:\.\d+)?)?|python(?:3(?:\.\d+)?)?|py)(?:\.exe)?`;
+const PACKAGE_MANAGER = new RegExp(
+  `${PACKAGE_MANAGER_PREFIX}${PACKAGE_MANAGER_FLAGS}\\s+(?:global\\s+)?${PACKAGE_MANAGER_ACTION}\\b|${COMMAND_START}${COMMAND_PREAMBLE}${EXECUTABLE_PATH}${PIP_NAME}\\s+-m\\s+pip\\s+${PIP_FLAGS}(?:install|uninstall)\\b|${COMMAND_START}${COMMAND_PREAMBLE}${EXECUTABLE_PATH}pip(?:3(?:\\.\\d+)?)?(?:\\.exe)?\\s+${PIP_FLAGS}(?:install|uninstall)\\b|${COMMAND_START}${COMMAND_PREAMBLE}${EXECUTABLE_PATH}(?:brew|apt-get|apt|dnf|yum|pacman|winget|choco|scoop|cargo|go|gem)(?:\\.exe)?\\s+(?:install|-S)\\b`,
+  'i',
+);
+const GLOBAL_PACKAGE_ACTION = String.raw`(?:global\s+${PACKAGE_MANAGER_ACTION}|${PACKAGE_MANAGER_ACTION})`;
+const GLOBAL_PACKAGE_MARKER = String.raw`(?:-[a-zA-Z]*g[a-zA-Z]*\b|--global\b|--location(?:=|\s+)global\b)`;
+const GLOBAL_PACKAGE_INSTALL = new RegExp(
+  `${PACKAGE_MANAGER_PREFIX}(?=[^;&|()]*\\s${GLOBAL_PACKAGE_MARKER})[^;&|()]*\\b${GLOBAL_PACKAGE_ACTION}\\b|${COMMAND_START}${COMMAND_PREAMBLE}${EXECUTABLE_PATH}yarn(?:\\.cmd|\\.exe)?\\s+global\\s+${PACKAGE_MANAGER_ACTION}\\b|${COMMAND_START}${COMMAND_PREAMBLE}${EXECUTABLE_PATH}npm(?:\\.cmd|\\.exe)?\\s+link\\s*(?:-[A-Za-z]*g[A-Za-z]*|--global)?\\s*$|\\bnpm_config_global\\s*=`,
+  'i',
+);
+const GLOBAL_PIP_INSTALL = new RegExp(
+  `${COMMAND_START}${COMMAND_PREAMBLE}${EXECUTABLE_PATH}${PIP_NAME}(?:\\s+-m\\s+pip)?\\s+${PIP_FLAGS}(?:install|uninstall)\\b`,
+  'i',
+);
+const VENV_PIP_INSTALL = new RegExp(
+  `${COMMAND_START}[^\\s;&|()"'\\x60]*?(?:\\.venv|venv|env)[\\\\/](?:bin[\\\\/]pip(?:3(?:\\.\\d+)?)?|Scripts[\\\\/]pip(?:3(?:\\.\\d+)?)?)(?:\\.exe)?\\s+${PIP_FLAGS}(?:install|uninstall)\\b`,
+  'i',
+);
+const GLOBAL_SYSTEM_INSTALL = new RegExp(
+  `${COMMAND_START}${COMMAND_PREAMBLE}${EXECUTABLE_PATH}(?:brew|apt-get|apt|dnf|yum|pacman|winget|choco|scoop)(?:\\.exe)?\\s+(?:install|-S)\\b|${COMMAND_START}${COMMAND_PREAMBLE}${EXECUTABLE_PATH}(?:cargo|go|gem)(?:\\.exe)?\\s+install\\b`,
+  'i',
+);
+
+const INTERPRETER_COMMAND =
+  /(?:^|[\s;&|(])(?:bash|sh|zsh)\s+-c\b|(?:^|[\s;&|(])(?:pwsh|powershell)\s+(?:-c\b|-command\b)|(?:^|[\s;&|(])cmd\s+\/c\b|(?:^|[\s;&|(])eval\b|(?:^|[\s;&|(])(?:node\s+-e|python\s+-c)\b/i;
+
+function shellCandidate(command: string): string {
+  return stripQuotedAndHeredoc(command, !INTERPRETER_COMMAND.test(command));
+}
+
+function packageRuleCandidate(command: string): string {
+  return stripQuotedContent(command, !INTERPRETER_COMMAND.test(command));
+}
+
+function isMachineWideInstall(candidate: string): boolean {
+  return candidate.split(/(?:&&|\|\||[;|\n])/).some((segment) => {
+    if (VENV_PIP_INSTALL.test(segment)) return false;
+    return (
+      (GLOBAL_PACKAGE_INSTALL.test(segment) &&
+        (PACKAGE_MANAGER.test(segment) || /\bnpm_config_global\s*=/i.test(segment))) ||
+      GLOBAL_PIP_INSTALL.test(segment) ||
+      GLOBAL_SYSTEM_INSTALL.test(segment)
     );
-  const candidate = stripQuotedAndHeredoc(command, !interpreter);
-  for (const [re, why] of MUTATING_PATTERNS) if (re.test(candidate)) return m().director.why[why];
+  });
+}
+
+/** Shell komutu dosya değiştiriyor mu? Değiştiriyorsa neden döner. */
+function classifyCandidate(candidate: string, packageCandidate = candidate): string | null {
+  if (PACKAGE_MANAGER.test(packageCandidate)) return m().director.why.pkgManager;
+  for (const [re, why] of MUTATING_PATTERNS) {
+    if (re === FS_COMMAND_PATTERN) {
+      if (
+        FS_COMMAND_EXCEPT_INSTALL.test(candidate) ||
+        (INSTALL_COMMAND.test(candidate) && INSTALL_COMMAND.test(packageCandidate))
+      )
+        return m().director.why[why];
+    } else if (re.test(candidate)) return m().director.why[why];
+  }
   return null;
+}
+
+export function classifyShell(command: string): string | null {
+  return classifyCandidate(shellCandidate(command), packageRuleCandidate(command));
+}
+
+function quotedEnd(text: string, start: number, quote: string): number {
+  for (let i = start + 1; i < text.length; i++) {
+    if (quote === '"' && text[i] === '\\') {
+      i++;
+      continue;
+    }
+    if (text[i] === quote) return i + 1;
+  }
+  return text.length;
+}
+
+function backtickEnd(text: string, start: number): number {
+  for (let i = start + 1; i < text.length; i++) {
+    if (text[i] === '\\') {
+      i++;
+      continue;
+    }
+    if (text[i] === '`') return i + 1;
+  }
+  return text.length;
+}
+
+function commandSubstitutionEnd(text: string, start: number): number {
+  let depth = 1;
+  for (let i = start + 2; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '\\') {
+      i++;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      i = quotedEnd(text, i, ch) - 1;
+      continue;
+    }
+    if (ch === '`') {
+      i = backtickEnd(text, i) - 1;
+      continue;
+    }
+    if (ch === '$' && text[i + 1] === '(') {
+      i = commandSubstitutionEnd(text, i) - 1;
+      continue;
+    }
+    if (ch === '(') depth++;
+    else if (ch === ')' && --depth === 0) return i + 1;
+  }
+  return text.length;
+}
+
+function stripQuotedContent(command: string, stripQuotes = true): string {
+  if (!stripQuotes) return command;
+  let output = '';
+  for (let i = 0; i < command.length;) {
+    const ch = command[i];
+    if (ch === "'") {
+      i = quotedEnd(command, i, ch);
+      continue;
+    }
+    if (ch === '"') {
+      const end = quotedEnd(command, i, ch);
+      let inner = '';
+      for (let j = i + 1; j < end - 1;) {
+        if (command[j] === '\\') {
+          j += 2;
+          continue;
+        }
+        if (command[j] === '$' && command[j + 1] === '(') {
+          const subEnd = commandSubstitutionEnd(command, j);
+          inner += `$(${stripQuotedContent(command.slice(j + 2, subEnd - 1))})`;
+          j = subEnd;
+          continue;
+        }
+        if (command[j] === '`') {
+          const subEnd = backtickEnd(command, j);
+          inner += `\`${stripQuotedContent(command.slice(j + 1, subEnd - 1))}\``;
+          j = subEnd;
+          continue;
+        }
+        j++;
+      }
+      output += inner;
+      i = end;
+      continue;
+    }
+    if (ch === '$' && command[i + 1] === '(') {
+      const end = commandSubstitutionEnd(command, i);
+      output += `$(${stripQuotedContent(command.slice(i + 2, end - 1))})`;
+      i = end;
+      continue;
+    }
+    if (ch === '`') {
+      const end = backtickEnd(command, i);
+      output += `\`${stripQuotedContent(command.slice(i + 1, end - 1))}\``;
+      i = end;
+      continue;
+    }
+    output += ch;
+    i++;
+  }
+  return output;
 }
 
 /** Removes non-command text while preserving shell syntax that can execute substitutions. */
@@ -256,8 +422,14 @@ export function decide(
 
   if (SHELL_TOOLS.has(tool)) {
     const cmd = String(ti.command ?? '');
-    const why = classifyShell(cmd);
+    const candidate = shellCandidate(cmd);
+    const packageCandidate = packageRuleCandidate(cmd);
+    const why = classifyCandidate(candidate, packageCandidate);
     if (!why) return { action: 'allow' };
+    if (why === m().director.why.pkgManager && isMachineWideInstall(packageCandidate)) {
+      if (ctx.grants.length > 0) return { action: 'allow', reason: m().director.activeGrant };
+      return verdict(DENY_MESSAGE(m().director.globalPackageInstall));
+    }
     if (safeOutsideShell(cmd, cwd, ctx.root))
       return { action: 'allow', reason: m().director.outside };
     if (ctx.grants.length > 0) return { action: 'allow', reason: m().director.activeGrant };

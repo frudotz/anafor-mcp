@@ -33,11 +33,13 @@ An orchestration MCP server for frontier AI models: dispatch work, run it in iso
 ## Quick start
 
 ```bash
-npm install -g https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz
+npm install -g --ignore-scripts https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz
 cd /your-project && anafor setup
 anafor chat
 anafor loop start "goal"
 ```
+
+The package includes its production dependencies, so installation does not need the npm registry. Use `anafor update` for future updates.
 
 Requires Node.js 24+, git, Claude Code and at least one worker. See the [installation guide](docs/en/installation.md) for details. From Claude Code, create a task, dispatch it to a worker, review the result and accept it.
 

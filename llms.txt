@@ -5,7 +5,7 @@
 ## For AI agents installing or repairing Anafor
 
 - [Agent install guide](docs/agent-install.md): step-by-step procedure, ground rules, `anafor doctor --json` diagnostic codes and fixes
-- Install: `npm install -g https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz` (never `github:` installs)
+- Install: `npm install -g --ignore-scripts https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz` (never `github:` installs); use `anafor update` for updates
 - Diagnose: `anafor doctor --json`
 
 ## Docs (English)

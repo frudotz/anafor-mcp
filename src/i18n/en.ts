@@ -471,6 +471,7 @@ Policy: HIGH/CRITICAL and scan errors are blocked; CAUTION only with --accept-ri
     why: {
       redirect: 'output redirection (>)',
       fsCommand: 'file system command',
+      pkgManager: 'package manager command',
       inPlace: 'in-place edit (-i)',
       gitMutation: 'git command that changes the working tree',
       psCmdlet: 'file-modifying PowerShell cmdlet',
@@ -487,6 +488,8 @@ Policy: HIGH/CRITICAL and scan errors are blocked; CAUTION only with --accept-ri
     editForbidden: (rel: string) => `editing '${rel}' directly is forbidden`,
     activeGrant: 'active intervention grant',
     shellForbidden: (why: string) => `file-modifying shell command (${why})`,
+    globalPackageInstall:
+      'global package installation is blocked. Use `anafor update` for Anafor; for another package, ask the user or obtain an intervene grant',
   },
 
   sessionStart: {
