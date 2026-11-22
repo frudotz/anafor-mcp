@@ -45,8 +45,9 @@ Codex's default **unelevated** sandbox on Windows does not allow creating named 
 ## 2. Install Anafor
 
 ```bash
-npm install -g https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz
+npm install -g --ignore-scripts https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz
 ```
+The package includes its production dependencies, so installation does not need the npm registry. Use `anafor update` for future releases.
 
 This is the release package built in CI; nothing is compiled at install time. A specific version: `…/releases/download/v0.2.0/anafor-mcp-0.2.0.tgz` (SHA-256 values are in the release's `SHA256SUMS.txt`). To verify: `anafor version`.
 

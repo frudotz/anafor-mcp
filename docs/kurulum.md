@@ -45,8 +45,9 @@ Codex'in Windows'taki varsayılan **unelevated** sandbox'ı isimli pipe oluştur
 ## 2. Anafor'u kur
 
 ```bash
-npm install -g https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz
+npm install -g --ignore-scripts https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz
 ```
+Paket üretim bağımlılıklarını içerir; kurulum npm kayıt deposuna ihtiyaç duymaz. Gelecekteki sürümler için `anafor update` kullanın.
 
 Bu, CI'da derlenmiş sürüm paketidir; kurulumda derleme yapılmaz. Belirli bir sürüm: `…/releases/download/v0.2.0/anafor-mcp-0.2.0.tgz` (SHA-256 değerleri sürümdeki `SHA256SUMS.txt`'de). Doğrulamak için: `anafor version`.
 

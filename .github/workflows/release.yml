@@ -30,6 +30,11 @@ jobs:
           npm pack
           cp "anafor-mcp-${GITHUB_REF_NAME#v}.tgz" anafor-mcp.tgz
           sha256sum anafor-mcp-*.tgz anafor-mcp.tgz > SHA256SUMS.txt
+      - name: Paket bağımlılıklarını doğrula
+        run: |
+          tar -tzf anafor-mcp.tgz | grep -q '^package/node_modules/zod/package.json'
+          npm install -g --prefix "$RUNNER_TEMP/p" --ignore-scripts --offline --cache "$RUNNER_TEMP/c" ./anafor-mcp.tgz && "$RUNNER_TEMP/p/bin/anafor" version
+          npm audit --omit=dev --audit-level=high
       - name: GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}

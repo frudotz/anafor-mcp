@@ -16,6 +16,7 @@ import { ANAFOR_VERSION } from '../version.js';
 export const REPO = 'frudotz/anafor-mcp';
 const RELEASES = `https://github.com/${REPO}/releases`;
 export const UPDATE_COMMAND = 'anafor update';
+export const UPDATE_NPM_ARGS = ['install', '-g', '--ignore-scripts'] as const;
 const TTL_MS = 6 * 3600_000;
 const UA = { 'User-Agent': 'anafor-cli', Accept: 'application/vnd.github+json' };
 
@@ -149,7 +150,7 @@ export async function runUpdate(log: (s: string) => void, check = false): Promis
     log(m().update.verified(actual.slice(0, 12)));
     const path = join(tmp, file);
     writeFileSync(path, tgz);
-    const npm = spawnSync('npm', ['install', '-g', path], {
+    const npm = spawnSync('npm', [...UPDATE_NPM_ARGS, path], {
       stdio: 'inherit',
       shell: process.platform === 'win32',
       windowsHide: true,

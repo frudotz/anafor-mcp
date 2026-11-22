@@ -17,7 +17,7 @@ Human-oriented docs (Turkish): [kurulum.md](kurulum.md), [kullanim.md](kullanim.
 
 ```text
 1. Check prerequisites        node --version (>= 24) · git --version · claude --version
-2. Install                    npm install -g https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz
+2. Install                    npm install -g --ignore-scripts https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz
 3. Verify                     anafor version
 4. Global setup (no prompts)  anafor setup --yes --no-project
 5. Connect the project        cd <git repo with at least one commit> && anafor init
@@ -90,7 +90,7 @@ The brain (manager) is always Claude Code. Do not enable `antigravity` without t
 
 ```bash
 anafor update --check   # is there a newer release?
-anafor update           # download, verify SHA-256, install, refresh plugin
+anafor update           # download, verify SHA-256, install, refresh plugin (use this for updates)
 ```
 
 ## Fixed something in Anafor? Share it

@@ -16,6 +16,7 @@
     "type": "git",
     "url": "git+https://github.com/frudotz/anafor-mcp.git"
   },
+  "bundleDependencies": true,
   "files": [
     "dist",
     "docs/agent-install.md",

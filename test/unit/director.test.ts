@@ -123,6 +123,85 @@ describe('decide', () => {
     expect(decide(sh('echo x > src/a.ts'), ctx).action).toBe('deny');
     expect(decide(sh('npm test'), ctx).action).toBe('allow');
   });
+  it('paket yöneticisi değişikliklerini sınıflandırır, salt okunurları serbest bırakır', () => {
+    const sh = (command: string) => ({ cwd: root, tool_name: 'Bash', tool_input: { command } });
+    for (const command of [
+      'npm install -g foo',
+      'npm i foo',
+      'pnpm add foo',
+      'yarn add foo',
+      'pip install foo',
+    ]) {
+      expect(decide(sh(command), ctx).action).toBe('deny');
+    }
+    const blocked = decide(sh('npm install -g anafor-mcp'), ctx);
+    expect(blocked.action).toBe('deny');
+    if (blocked.action === 'deny') expect(blocked.reason).toContain('anafor update');
+    for (const command of [
+      'npm ci',
+      'npm run check',
+      'npm test',
+      'npx vitest',
+      'anafor update',
+      'anafor setup',
+      'anafor version',
+    ]) {
+      expect(decide(sh(command), ctx).action).toBe('allow');
+    }
+  });
+  it('tırnaklı açıklama metnini yok sayar, komut ikamesini tarar', () => {
+    const sh = (command: string) => ({ cwd: root, tool_name: 'Bash', tool_input: { command } });
+    for (const command of [
+      'git commit -m "docs: npm install -g anafor"',
+      'gh pr create --title x --body "run pip install foo"',
+      "grep -r 'npm install -g' docs",
+    ]) {
+      expect(decide(sh(command), ctx).action, command).toBe('allow');
+    }
+    const substitution = decide(sh('git commit -m "fix $(npm i -g x)"'), ctx);
+    expect(substitution.action).toBe('deny');
+    if (substitution.action === 'deny') expect(substitution.reason).toContain('anafor update');
+  });
+  it('install yalnız komut konumunda yakalanır; argüman konumundaki kurulumlar paket kuralına gider', () => {
+    expect(classifyShell('install -m 644 a b')).not.toBeNull();
+    expect(classifyShell('npm install -g foo')).not.toBeNull();
+    expect(classifyShell('echo install')).toBeNull();
+  });
+  it('paket yöneticisi soneklerini, önekleri ve alt komut öncesi bayrakları yakalar', () => {
+    const sh = (command: string) => ({ cwd: root, tool_name: 'Bash', tool_input: { command } });
+    const blocked = [
+      'npm -g install x',
+      'npm --prefix d install x',
+      'npm.cmd install x',
+      'npm.exe install x',
+      'pnpm -C dir add x',
+      'env X=1 npm i x',
+      'X=1 npm.cmd i x',
+    ];
+    for (const command of blocked) expect(decide(sh(command), ctx).action).toBe('deny');
+    for (const command of [
+      'npm -g install x',
+      'npm --global install x',
+      'npm --location=global install x',
+      'npm install -g x',
+      'npm.cmd install --global x',
+      'npm --prefix d install --location=global x',
+      'env X=1 npm i -g x',
+    ]) {
+      const result = decide(sh(command), ctx);
+      expect(result.action).toBe('deny');
+      if (result.action === 'deny') expect(result.reason, command).toContain('anafor update');
+    }
+    for (const command of [
+      'npm run check',
+      'npm ci',
+      'npm --version',
+      'npm view x',
+      'npx vitest',
+    ]) {
+      expect(decide(sh(command), ctx).action).toBe('allow');
+    }
+  });
   const shell = (command: string, cwd = root) => ({
     cwd,
     tool_name: 'Bash',
@@ -181,7 +260,11 @@ describe('shell dış dizin beyaz listesi', () => {
     rootDir.cleanup();
     outsideDir.cleanup();
   });
-  const shellCtx = (root: string) => ({ root, config: DEFAULT_CONFIG, grants: [] });
+  const shellCtx = (root: string, grants: Parameters<typeof decide>[1]['grants'] = []) => ({
+    root,
+    config: DEFAULT_CONFIG,
+    grants,
+  });
   const input = (command: string, cwd: string) => ({
     cwd,
     tool_name: 'Bash',
@@ -196,6 +279,110 @@ describe('shell dış dizin beyaz listesi', () => {
       'allow',
     );
     expect(decide(input('sed -i s/a/b/ Durum.md', outside), shellCtx(root)).action).toBe('allow');
+  });
+  it('proje dışından global npm kurulumu izin yokken reddedilir, aktif müdahaleyle geçer', () => {
+    const root = rootDir.dir;
+    const outside = realpathSync.native(outsideDir.dir);
+    const cd = process.platform === 'win32' ? `cd /d "${outside}"` : `cd "${outside}"`;
+    const command = `${cd} && npm install -g x`;
+    const denied = decide(input(command, root), shellCtx(root));
+    expect(denied.action).toBe('deny');
+    if (denied.action === 'deny') expect(denied.reason).toContain('anafor update');
+
+    const grant = {
+      grant_id: 'G-global',
+      reason: 'test',
+      paths: ['*'],
+      task_id: null,
+      created_at: '',
+      expires_at: '',
+    };
+    expect(decide(input(command, root), shellCtx(root, [grant])).action).toBe('allow');
+  });
+  it('proje dışından global olmayan npm kurulumu safeOutsideShell ile geçer', () => {
+    const root = rootDir.dir;
+    const outside = realpathSync.native(outsideDir.dir);
+    const cd = process.platform === 'win32' ? `cd /d "${outside}"` : `cd "${outside}"`;
+    expect(decide(input(`${cd} && npm install x`, root), shellCtx(root)).action).toBe('allow');
+  });
+  it('makine geneli paket kurulumlarını proje dışı cwdde izinsiz reddeder, müdahaleyle geçirir', () => {
+    const root = rootDir.dir;
+    const outside = realpathSync.native(outsideDir.dir);
+    const globalCommands = [
+      'npm -gD install x',
+      'npm -Dg install x',
+      'yarn global add x',
+      'yarn global upgrade x',
+      'yarn global remove x',
+      'npm install --location global x',
+      'npm_config_global=true npm i x',
+      'npm update -g',
+      'npm link',
+      'npm link -g',
+      'echo ready\nnpm i -g x',
+      'cmd /c npm i -g x',
+      'if x; then npm i -g y; fi',
+      '/usr/bin/npm i -g x',
+      'command npm i -g x',
+      'bash -c "npm i -g x"',
+      'python3 -m pip install x',
+      'py -m pip install x',
+      'pip -q install x',
+      'pip3 --no-cache-dir install x',
+      'pip3.12 -q install x',
+      'python -m pip --user install x',
+      'python3.12 -m pip --user install x',
+      'cd "' + outside + '" && pip install x',
+      'cd "' + outside + '" && .venv/bin/pip install x && npm i -g y',
+      'brew install x',
+      'apt install x',
+      'apt-get install x',
+      'dnf install x',
+      'yum install x',
+      'pacman -S x',
+      'winget install x',
+      'choco install x',
+      'scoop install x',
+      'cargo install x',
+      'go install x',
+      'gem install x',
+    ];
+    const grant = {
+      grant_id: 'G-system-install',
+      reason: 'test',
+      paths: ['*'],
+      task_id: null,
+      created_at: '',
+      expires_at: '',
+    };
+    for (const command of globalCommands) {
+      const denied = decide(input(command, outside), shellCtx(root));
+      expect(denied.action, command).toBe('deny');
+      if (denied.action === 'deny') expect(denied.reason, command).toContain('anafor update');
+      expect(decide(input(command, outside), shellCtx(root, [grant])).action, command).toBe(
+        'allow',
+      );
+    }
+  });
+  it('sanal ortam pip proje dışı kurulumuna izin verir', () => {
+    const root = rootDir.dir;
+    expect(decide(input('.venv/bin/pip install x', outsideDir.dir), shellCtx(root)).action).toBe(
+      'allow',
+    );
+  });
+  it('sonraki segmentteki -g önceki yerel kurulumu global saydırmaz', () => {
+    const root = rootDir.dir;
+    expect(decide(input('npm install x\nls -g', outsideDir.dir), shellCtx(root)).action).toBe(
+      'allow',
+    );
+  });
+  it('install dosya komutu bağlamlarında da engellenir', () => {
+    const root = rootDir.dir;
+    expect(decide(input('then install -m 644 a b', root), shellCtx(root)).action).toBe('deny');
+    expect(decide(input('cmd /c install a b', root), shellCtx(root)).action).toBe('deny');
+    expect(decide(input('echo first\ninstall -m 644 a b', root), shellCtx(root)).action).toBe(
+      'deny',
+    );
   });
   it('dosya yönlendirmesini parantezden sonra sınıflandırır', () => {
     expect(classifyShell('(>src/a.ts)')).not.toBeNull();

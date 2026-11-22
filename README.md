@@ -34,11 +34,13 @@ Frontier yapay zekâ modelleri için orkestrasyon MCP sunucusu: işleri dağıt�
 ## Hızlı başlangıç
 
 ```bash
-npm install -g https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz
+npm install -g --ignore-scripts https://github.com/frudotz/anafor-mcp/releases/latest/download/anafor-mcp.tgz
 cd /projen && anafor setup
 anafor chat
 anafor loop start "hedef"
 ```
+
+Paket üretim bağımlılıklarını içerir; kurulum npm kayıt deposuna ihtiyaç duymaz. Güncellemeler için `anafor update` kullanın.
 
 Node.js 24+, git, Claude Code ve en az bir işçi gerekir. Kurulum ayrıntıları: [Kurulum kılavuzu](docs/kurulum.md). Claude Code içinden görev oluşturup işçiye dağıtabilir, sonucu inceleyip kabul edebilirsiniz.
 

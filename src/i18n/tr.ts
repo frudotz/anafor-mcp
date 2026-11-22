@@ -465,6 +465,7 @@ Politika: HIGH/CRITICAL ve tarama hatası engellenir; CAUTION yalnızca --accept
     why: {
       redirect: 'çıktı yönlendirmesi (>)',
       fsCommand: 'dosya sistemi komutu',
+      pkgManager: 'paket yöneticisi komutu',
       inPlace: 'yerinde düzenleme (-i)',
       gitMutation: 'çalışma ağacını değiştiren git komutu',
       psCmdlet: 'dosya değiştiren PowerShell cmdlet',
@@ -481,6 +482,8 @@ Politika: HIGH/CRITICAL ve tarama hatası engellenir; CAUTION yalnızca --accept
     editForbidden: (rel: string) => `'${rel}' dosyasını doğrudan düzenleme yasak`,
     activeGrant: 'aktif müdahale izni',
     shellForbidden: (why: string) => `dosya değiştiren shell komutu (${why})`,
+    globalPackageInstall:
+      'global paket kurulumu engellendi. Anafor için `anafor update` kullanın; başka bir paket gerekiyorsa kullanıcıya sorun veya intervene izni alın',
   },
 
   sessionStart: {
