@@ -65,14 +65,25 @@ const PACKAGE_MANAGER_FLAGS = String.raw`(?:\s+--?[A-Za-z][\w-]*(?:=\S+)?(?:\s+\
 const PACKAGE_MANAGER_ACTION = String.raw`(?:install|i|add|remove|rm|uninstall|un|update|up|upgrade|link)`;
 const PIP_FLAGS = String.raw`(?:--?[A-Za-z][\w-]*(?:=\S+)?(?:\s+\S+)?\s+)*`;
 const PIP_NAME = String.raw`(?:pip(?:3(?:\.\d+)?)?|python(?:3(?:\.\d+)?)?|py)(?:\.exe)?`;
+const COMMAND_HEAD = `${COMMAND_START}${COMMAND_PREAMBLE}${EXECUTABLE_PATH}`;
 const PACKAGE_MANAGER = new RegExp(
-  `${PACKAGE_MANAGER_PREFIX}${PACKAGE_MANAGER_FLAGS}\\s+(?:global\\s+)?${PACKAGE_MANAGER_ACTION}\\b|${COMMAND_START}${COMMAND_PREAMBLE}${EXECUTABLE_PATH}${PIP_NAME}\\s+-m\\s+pip\\s+${PIP_FLAGS}(?:install|uninstall)\\b|${COMMAND_START}${COMMAND_PREAMBLE}${EXECUTABLE_PATH}pip(?:3(?:\\.\\d+)?)?(?:\\.exe)?\\s+${PIP_FLAGS}(?:install|uninstall)\\b|${COMMAND_START}${COMMAND_PREAMBLE}${EXECUTABLE_PATH}(?:brew|apt-get|apt|dnf|yum|pacman|winget|choco|scoop|cargo|go|gem)(?:\\.exe)?\\s+(?:install|-S)\\b`,
+  [
+    `${PACKAGE_MANAGER_PREFIX}${PACKAGE_MANAGER_FLAGS}\\s+(?:global\\s+)?${PACKAGE_MANAGER_ACTION}\\b`,
+    `${COMMAND_HEAD}${PIP_NAME}\\s+-m\\s+pip\\s+${PIP_FLAGS}(?:install|uninstall)\\b`,
+    `${COMMAND_HEAD}pip(?:3(?:\\.\\d+)?)?(?:\\.exe)?\\s+${PIP_FLAGS}(?:install|uninstall)\\b`,
+    `${COMMAND_HEAD}(?:brew|apt-get|apt|dnf|yum|pacman|winget|choco|scoop|cargo|go|gem)(?:\\.exe)?\\s+(?:install|-S)\\b`,
+  ].join('|'),
   'i',
 );
 const GLOBAL_PACKAGE_ACTION = String.raw`(?:global\s+${PACKAGE_MANAGER_ACTION}|${PACKAGE_MANAGER_ACTION})`;
 const GLOBAL_PACKAGE_MARKER = String.raw`(?:-[a-zA-Z]*g[a-zA-Z]*\b|--global\b|--location(?:=|\s+)global\b)`;
 const GLOBAL_PACKAGE_INSTALL = new RegExp(
-  `${PACKAGE_MANAGER_PREFIX}(?=[^;&|()]*\\s${GLOBAL_PACKAGE_MARKER})[^;&|()]*\\b${GLOBAL_PACKAGE_ACTION}\\b|${COMMAND_START}${COMMAND_PREAMBLE}${EXECUTABLE_PATH}yarn(?:\\.cmd|\\.exe)?\\s+global\\s+${PACKAGE_MANAGER_ACTION}\\b|${COMMAND_START}${COMMAND_PREAMBLE}${EXECUTABLE_PATH}npm(?:\\.cmd|\\.exe)?\\s+link\\s*(?:-[A-Za-z]*g[A-Za-z]*|--global)?\\s*$|\\bnpm_config_global\\s*=`,
+  [
+    `${PACKAGE_MANAGER_PREFIX}(?=[^;&|()]*\\s${GLOBAL_PACKAGE_MARKER})[^;&|()]*\\b${GLOBAL_PACKAGE_ACTION}\\b`,
+    `${COMMAND_HEAD}yarn(?:\\.cmd|\\.exe)?\\s+global\\s+${PACKAGE_MANAGER_ACTION}\\b`,
+    `${COMMAND_HEAD}npm(?:\\.cmd|\\.exe)?\\s+link\\s*(?:-[A-Za-z]*g[A-Za-z]*|--global)?\\s*$`,
+    `\\bnpm_config_global\\s*=`,
+  ].join('|'),
   'i',
 );
 const GLOBAL_PIP_INSTALL = new RegExp(
